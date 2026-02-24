@@ -4,8 +4,8 @@ import api from "../utils/api";
 import { API_HOST } from "../config/api";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Field, FieldLabel } from "@/components/UI/field";
+import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import {
   Select,
@@ -15,7 +15,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/UI/select";
 import {
   Popover,
   PopoverContent,
@@ -36,7 +36,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/UI/table";
 import { cn } from "@/lib/utils";
 
 function SalesProductCombobox({ products = [], value, onChange, placeholder = "Search product..." }) {

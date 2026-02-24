@@ -3,8 +3,8 @@ import api from "../utils/api";
 import { ArrowUpAZ, ArrowDownAZ } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Field, FieldLabel } from "@/components/UI/field";
+import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import {
   Select,
@@ -14,7 +14,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/UI/select";
 import {
   Pagination,
   PaginationContent,
@@ -22,7 +22,7 @@ import {
   PaginationLink,
   PaginationPrevious,
   PaginationNext,
-} from "@/components/ui/pagination";
+} from "@/components/UI/pagination";
 import {
   Table,
   TableBody,
@@ -30,7 +30,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/UI/table";
 import {
   AlertDialog,
   AlertDialogAction,

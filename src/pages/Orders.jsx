@@ -4,7 +4,7 @@ import api from "../utils/api";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import {
   Select,
@@ -14,7 +14,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/UI/select";
 import {
   Pagination,
   PaginationContent,
@@ -22,7 +22,7 @@ import {
   PaginationLink,
   PaginationPrevious,
   PaginationNext,
-} from "@/components/ui/pagination";
+} from "@/components/UI/pagination";
 import {
   Table,
   TableBody,
@@ -30,7 +30,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+  } from "@/components/UI/table";
 import {
   AlertDialog,
   AlertDialogAction,
