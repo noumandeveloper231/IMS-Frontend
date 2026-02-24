@@ -18,8 +18,8 @@ import {
   PanelLeft,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/UI/scroll-area";
+import { Button } from "@/components/UI/button";
 import { AuthContext } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useContext } from "react";
@@ -27,7 +27,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from "@/components/UI/collapsible";
 import assets from "@/assets/assets";
 
 const navItemClasses = (isActive, collapsed) =>
