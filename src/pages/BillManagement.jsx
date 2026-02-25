@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { Field, FieldLabel } from "@/components/UI/field";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem, SelectLabel } from "@/components/UI/select";
 
 const BillCreate = () => {
   const [vendors, setVendors] = useState([]);
@@ -38,7 +40,7 @@ const BillCreate = () => {
       setVendorOrders([]);
     }
   };
-  
+
 
   // 🔹 Receive select → items bill me load karo
   const handleReceiveChange = (e) => {
@@ -61,40 +63,40 @@ const BillCreate = () => {
 
 
   // 🔹 Invoice Download
-const downloadInvoice = () => {
-  const doc = new jsPDF();
-  doc.setFontSize(14);
-  doc.text("Invoice", 14, 15);
+  const downloadInvoice = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("Invoice", 14, 15);
 
-  // Vendor Info
-  const vendor = vendors.find((v) => v._id === selectedVendor);
-  if (vendor) {
-    doc.setFontSize(10);
-    doc.text(`Vendor: ${vendor.name}`, 14, 25);
-  }
+    // Vendor Info
+    const vendor = vendors.find((v) => v._id === selectedVendor);
+    if (vendor) {
+      doc.setFontSize(10);
+      doc.text(`Vendor: ${vendor.name}`, 14, 25);
+    }
 
-  // Table data
-  const tableData = billItems.map((item) => [
-    item.productName,
-    item.description,
-    item.quantity,
-    item.unitPrice,
-    item.total,
-  ]);
+    // Table data
+    const tableData = billItems.map((item) => [
+      item.productName,
+      item.description,
+      item.quantity,
+      item.unitPrice,
+      item.total,
+    ]);
 
-  // ✅ Use autoTable like this
-  autoTable(doc, {
-    startY: 35,
-    head: [["Product", "Description", "Qty", "Unit Price", "Total"]],
-    body: tableData,
-  });
+    // ✅ Use autoTable like this
+    autoTable(doc, {
+      startY: 35,
+      head: [["Product", "Description", "Qty", "Unit Price", "Total"]],
+      body: tableData,
+    });
 
-  // ✅ Safe finalY access
-  const finalY = doc.lastAutoTable?.finalY || 40;
-  doc.text(`Grand Total: ${total}`, 14, finalY + 10);
+    // ✅ Safe finalY access
+    const finalY = doc.lastAutoTable?.finalY || 40;
+    doc.text(`Grand Total: ${total}`, 14, finalY + 10);
 
-  doc.save("invoice.pdf");
-};
+    doc.save("invoice.pdf");
+  };
   // // 🔹 Invoice Download
   // const downloadInvoice = () => {
   //   const doc = new jsPDF();
@@ -130,25 +132,33 @@ const downloadInvoice = () => {
   // };
 
   return (
-    <div className="p-4 md:p-8 lg:p-12 max-w-full bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
+    <div className="p-4 md:p-6 lg:p-8 max-w-full bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto bg-white rounded-md shadow-md p-6 md:p-8">
         <h2 className="text-xl font-bold mb-4">Create Bill</h2>
 
         {/* Vendor Select */}
         <div className="mb-4">
-          <label className="block mb-1 font-medium">Select Vendor</label>
-          <select
-            value={selectedVendor}
-            onChange={handleVendorChange}
-            className="border p-2 rounded w-full"
-          >
-            <option value="">-- Select Vendor --</option>
-            {vendors.map((v) => (
-              <option key={v._id} value={v._id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
+          <Field>
+            <FieldLabel className="block mb-1 font-medium">Select Vendor</FieldLabel>
+            <Select
+              value={String(selectedVendor)}
+              onValueChange={handleVendorChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Vendor" />
+              </SelectTrigger>
+              <SelectContent position="item-aligned">
+                <SelectGroup>
+                  <SelectLabel>Select Vendor</SelectLabel>
+                  {vendors.map((v) => (
+                    <SelectItem key={v._id} value={v._id}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
 
         {/* Purchase Receive Select */}

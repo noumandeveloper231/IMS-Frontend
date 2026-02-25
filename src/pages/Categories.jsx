@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
-import { ArrowUpAZ, ArrowDownAZ, ArrowUp01, ArrowDown01 } from "lucide-react";
+import { ArrowUpAZ, ArrowDownAZ, ArrowUp01, ArrowDown01, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
@@ -48,6 +48,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
+import { useImageModal } from "@/context/ImageModalContext";
 
 
 const Categories = () => {
@@ -293,6 +294,8 @@ const Categories = () => {
   //   reader.readAsBinaryString(file);
   // };
 
+  const { openImageModal } = useImageModal()
+
   const handleClear = () => {
     setName("");
     setImage(null);
@@ -413,7 +416,7 @@ const Categories = () => {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Items per page" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     <SelectGroup>
                       <SelectLabel>Items per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
@@ -475,7 +478,8 @@ const Categories = () => {
                             <img
                               src={cat.image ? `${API_HOST}${cat.image}` : undefined}
                               alt={cat.name}
-                              className="w-12 h-12 object-cover rounded-lg border"
+                              onClick={() => openImageModal(`${API_HOST}${cat.image}`)}
+                              className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow-sm active:shadow cursor-pointer"
                             />
                           ) : (
                             <span className="text-gray-400 italic">No Image</span>
@@ -492,20 +496,20 @@ const Categories = () => {
                           {new Date(cat.updatedAt).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-center">
-                          <div className="flex justify-center gap-2">
+                          <div className="flex gap-2">
                             <button
                               onClick={() => handleEdit(cat)}
                               className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200"
                               title="Edit"
                             >
-                              {/* SVG edit icon */}
+                              <Edit size={18} />
                             </button>
                             <button
                               onClick={() => confirmDelete(cat._id)}
                               className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
                               title="Delete"
                             >
-                              {/* SVG delete icon */}
+                              <Trash2 size={18} />
                             </button>
                           </div>
                         </TableCell>
@@ -591,164 +595,9 @@ const Categories = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
       </div >
     </div >
   );
 };
 
 export default Categories;
-
-// return (
-//   <div className="max-w-full md:max-w-7xl ml-16 md:ml-64 p-6">
-//     {/* Form */}
-//     <div className="bg-white shadow-md rounded-2xl p-6 mb-6">
-//       <h2 className="text-xl font-semibold mb-4">
-//         {editingId ? "Edit Category" : "Add Category"}
-//       </h2>
-//       <form onSubmit={handleSubmit} className="flex gap-4 flex-wrap">
-//         <input
-//           type="text"
-//           placeholder="Category Name"
-//           value={name}
-//           onChange={(e) => setName(e.target.value)}
-//           className="w-full md:w-1/2 p-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-//           required
-//         />
-//         <button
-//           type="submit"
-//           disabled={loading}
-//           className="px-4 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 disabled:opacity-50"
-//         >
-//           {loading ? "Please wait..." : editingId ? "Update" : "Add"}
-//         </button>
-//         <input
-//           type="file"
-//           accept=".xlsx,.xls"
-//           onChange={handleImport}
-//           className="px-4 py-2 border rounded-xl"
-//         />
-//         <button
-//           type="button"
-//           onClick={handleExport}
-//           className="px-4 py-2 bg-green-600 text-white rounded-xl shadow hover:bg-green-700"
-//         >
-//           Export Excel
-//         </button>
-//       </form>
-//     </div>
-
-//     {/* Table */}
-//     <div className="bg-white shadow-md rounded-2xl p-6">
-//       <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-//         <h2 className="text-xl font-semibold">Categories List</h2>
-//         <input
-//           type="text"
-//           placeholder="Search Category..."
-//           value={searchTerm}
-//           onChange={(e) => setSearchTerm(e.target.value)}
-//           className="p-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-//         />
-//         <select
-//           value={itemsPerPage}
-//           onChange={(e) => {
-//             setItemsPerPage(Number(e.target.value));
-//             setCurrentPage(1);
-//           }}
-//           className="p-2 border rounded-xl"
-//         >
-//           <option value={5}>5 / page</option>
-//           <option value={10}>10 / page</option>
-//           <option value={20}>20 / page</option>
-//         </select>
-//       </div>
-
-//       {loading ? (
-//         <div className="flex justify-center items-center py-6">
-//           <div className="w-8 h-8 border-4 border-blue-500 border-dashed rounded-full animate-spin"></div>
-//         </div>
-//       ) : (
-//         <>
-//           <table className="w-full border-collapse">
-//             <thead>
-//               <tr className="bg-gray-100 text-left">
-//                 <th className="p-3 border">#</th>
-//                 <th className="p-3 border">Name</th>
-//                 <th className="p-3 border">Created At</th>
-//                 <th className="p-3 border">Updated At</th>
-//                 <th className="p-3 border text-center">Actions</th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               {currentCategories.map((cat, index) => (
-//                 <tr key={cat._id} className="hover:bg-gray-50">
-//                   <td className="p-3 border">
-//                     {(currentPage - 1) * itemsPerPage + index + 1}
-//                   </td>
-//                   <td className="p-3 border">{cat.name}</td>
-//                   <td className="p-3 border">
-//                     {new Date(cat.createdAt).toLocaleDateString()}
-//                   </td>
-//                   <td className="p-3 border">
-//                     {new Date(cat.updatedAt).toLocaleDateString()}
-//                   </td>
-//                   <td className="p-3 border text-center flex justify-center gap-2">
-//                     <button
-//                       onClick={() => handleEdit(cat)}
-//                       className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl"
-//                     >
-//                       <Edit size={18} />
-//                     </button>
-//                     <button
-//                       onClick={() => handleDelete(cat._id)}
-//                       className="p-2 text-red-600 hover:bg-red-100 rounded-xl"
-//                     >
-//                       <Trash2 size={18} />
-//                     </button>
-//                   </td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-
-//           {currentCategories.length === 0 && (
-//             <p className="text-gray-500 text-center py-4">
-//               No categories found
-//             </p>
-//           )}
-
-//           {/* Pagination */}
-//           {totalPages > 1 && (
-//             <div className="flex justify-center items-center gap-2 mt-4 flex-wrap">
-//               <button
-//                 onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-//                 className="px-3 py-1 border rounded-xl hover:bg-gray-100"
-//               >
-//                 Prev
-//               </button>
-//               {[...Array(totalPages)].map((_, i) => (
-//                 <button
-//                   key={i}
-//                   onClick={() => setCurrentPage(i + 1)}
-//                   className={`px-3 py-1 border rounded-xl hover:bg-gray-100 ${
-//                     currentPage === i + 1 ? "bg-blue-200" : ""
-//                   }`}
-//                 >
-//                   {i + 1}
-//                 </button>
-//               ))}
-//               <button
-//                 onClick={() =>
-//                   setCurrentPage((p) => Math.min(p + 1, totalPages))
-//                 }
-//                 className="px-3 py-1 border rounded-xl hover:bg-gray-100"
-//               >
-//                 Next
-//               </button>
-//             </div>
-//           )}
-//         </>
-//       )}
-//     </div>
-//   </div>
-// );

@@ -29,6 +29,7 @@ import ExpenseCategories from "./pages/ExpenseCategories";
 import Customers from "./pages/Customers";
 import Reports from "./pages/Reports";
 import Login from "./pages/Login";
+import ScrollArea from "./components/UI/scroll-area";
 
 function App() {
   return (
@@ -45,7 +46,7 @@ function App() {
                     <div className="shrink-0">
                       <Sidebar />
                     </div>
-                    <div className="flex-1 min-w-0 overflow-y-auto h-full lg:h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-white">
+                    <ScrollArea className="flex-1 min-w-0 overflow-y-auto h-full lg:h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-white">
                       <Navbar />
                       <ImageModal />
                       <Routes>
@@ -73,7 +74,7 @@ function App() {
                         <Route path="/products/stock/:status" element={<FilteredProducts />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                       </Routes>
-                    </div>
+                    </ScrollArea>
                   </div>
                 </div>
               </ImageModalProvider>

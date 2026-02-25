@@ -1,71 +1,120 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../utils/api";
+import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Field, FieldLabel } from "@/components/UI/field";
+import { Input } from "@/components/UI/input";
+import { Button } from "@/components/UI/button";
 import {
-  Combobox,
-  ComboboxInput,
-  ComboboxOption,
-  ComboboxOptions,
-} from "@headlessui/react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectLabel,
+  SelectGroup,
+} from "@/components/UI/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/UI/table";
+import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+import { Trash2 } from "lucide-react";
 
-const PurchaseOrder = () => {
-  const [vendors, setVendors] = useState([]);
-  // const [products, setProducts] = useState([]);
-  // const [purchaseOrders, setPurchaseOrders] = useState([]);
+const PurchaseOrderForm = () => {
+  const queryClient = useQueryClient();
+  const [vendors, setVendorsState] = useState([]);
   const [items, setItems] = useState([
-    {title: "", asin: "", orderedQty: 1, purchasePrice: 0, total: 0 },
+    { title: "", asin: "", orderedQty: 1, purchasePrice: 0, total: 0 },
   ]);
-
   const [vendor, setVendor] = useState("");
   const [expectedDelivery, setExpectedDelivery] = useState("");
   const [paymentTerm, setPaymentTerm] = useState("advance");
   const [notes, setNotes] = useState("");
-  const [query, setQuery] = useState("");
-
   const [grandTotal, setGrandTotal] = useState(0);
 
-  const fetchData = async () => {
-    try {
-      const vendorRes = await axios.get(
-        "http://localhost:5000/api/vendors/getall"
-      );
-      // const productRes = await axios.get(
-      //   "http://localhost:5000/api/products/getall"
-      // );
-      // const purchaseorderRes = await axios.get(
-      //   "http://localhost:5000/api/purchase-orders/"
-      // );
+  const { data: vendorsData } = useQuery({
+    queryKey: ["vendors"],
+    queryFn: async () => {
+      const res = await api.get("/vendors/getall");
+      return res.data ?? [];
+    },
+  });
 
-      setVendors(vendorRes.data);
-      // setProducts(productRes.data.products || productRes.data); // ensure array
-      // setPurchaseOrders(purchaseorderRes.data);
-    } catch (err) {
-      console.error("Error fetching:", err);
-    }
-  };
-  // ✅ fetch vendors + products
   useEffect(() => {
-    fetchData();
-  }, []);
+    setVendorsState(Array.isArray(vendorsData) ? vendorsData : []);
+  }, [vendorsData]);
 
-  // ✅ recalc total
+  const createMutation = useMutation({
+    mutationFn: async (payload) => {
+      const res = await api.post("/purchase-orders", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Purchase Order saved ✅");
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      setItems([{ title: "", asin: "", orderedQty: 1, purchasePrice: 0, total: 0 }]);
+      setVendor("");
+      setExpectedDelivery("");
+      setNotes("");
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.message || "Error saving purchase order ❌");
+    },
+  });
+
+  const bulkImportMutation = useMutation({
+    mutationFn: async (formData) => {
+      const res = await api.post("/products/bulk-import", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data?.success && data?.items?.length) {
+        const converted = data.items.map((item) => {
+          const orderedQty = Number(item.orderedQty ?? item.quantity ?? 0);
+          const purchasePrice = Number(item.purchasePrice ?? 0);
+          const total = Number(item.total ?? orderedQty * purchasePrice);
+          return {
+            title: item.title,
+            asin: item.asin,
+            orderedQty,
+            purchasePrice,
+            total,
+          };
+        });
+        setItems((prev) => [...prev, ...converted]);
+        toast.success(`${converted.length} items added from Excel ✅`);
+      } else {
+        toast.error("No valid items in file ❌");
+      }
+    },
+    onError: () => {
+      toast.error("Error importing Excel. Check file format ❌");
+    },
+  });
+
   useEffect(() => {
-    const total = items.reduce((acc, item) => acc + item.total, 0);
+    const total = items.reduce((acc, item) => acc + (item.total || 0), 0);
     setGrandTotal(total);
   }, [items]);
 
-  // ✅ update item
   const updateItem = (index, field, value) => {
     const updated = [...items];
-    updated[index][field] = value;
-
+    updated[index] = { ...updated[index], [field]: value };
     if (field === "orderedQty" || field === "purchasePrice") {
       updated[index].total =
-        (updated[index].orderedQty || 0) * (updated[index].purchasePrice || 0);
+        (Number(updated[index].orderedQty) || 0) *
+        (Number(updated[index].purchasePrice) || 0);
     }
     setItems(updated);
   };
 
-  // ✅ add new row
   const addItem = () => {
     setItems([
       ...items,
@@ -73,198 +122,145 @@ const PurchaseOrder = () => {
     ]);
   };
 
-  // ✅ remove row
   const removeItem = (index) => {
-    const updated = [...items];
-    updated.splice(index, 1);
-    setItems(updated);
+    const updated = items.filter((_, i) => i !== index);
+    setItems(updated.length ? updated : [{ title: "", asin: "", orderedQty: 1, purchasePrice: 0, total: 0 }]);
   };
 
-  const handleSubmit = async () => {
-    try {
-      const res = await axios.post(
-        "http://localhost:5000/api/purchase-orders",
-        {
-          vendor,
-          expectedDelivery,
-          paymentTerm,
-          notes,
-          totalAmount: grandTotal,
-          items: items.map((i) => ({
-            title: i.title, // 👈 productId ko product me convert kardo
-            asin: i.asin,
-            orderedQty: i.orderedQty,
-            purchasePrice: i.purchasePrice,
-            total: i.total,
-          })),
-        }
-      );
-      alert("Purchase Order Saved ✅");
-      console.log(res.data);
-    } catch (err) {
-      console.error("Save failed:", err);
-      alert("Error saving purchase order");
+  const handleSubmit = () => {
+    if (!vendor) {
+      toast.error("Please select a vendor");
+      return;
     }
+    if (!items.some((i) => (i.title || "").trim() || i.orderedQty > 0)) {
+      toast.error("Add at least one item");
+      return;
+    }
+
+    const payload = {
+      vendor,
+      expectedDelivery: expectedDelivery || undefined,
+      paymentTerm,
+      notes,
+      totalAmount: grandTotal,
+      items: items.map((i) => ({
+        title: i.title,
+        asin: i.asin,
+        orderedQty: Number(i.orderedQty) || 0,
+        purchasePrice: Number(i.purchasePrice) || 0,
+        total: Number(i.total) || 0,
+      })),
+    };
+    createMutation.mutate(payload);
+  };
+
+  const handleExcelImport = (file) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    bulkImportMutation.mutate(formData);
   };
 
   return (
-    <>
-      <div className="p-4 md:p-8 lg:p-12 max-w-full   bg-gray-50 min-h-screen">
-        <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
-          <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-4">
-            Create Purchase Order
-          </h1>
+    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
+      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 md:p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6 border-b pb-4">
+          Create Purchase Order
+        </h1>
 
-          {/* Vendor & Delivery Info */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* Vendor */}
-            <div className="flex flex-col">
-              <label className="text-sm font-medium text-gray-700 mb-1">
-                Vendor
-              </label>
-              <select
-                className="border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500"
-                value={vendor}
-                onChange={(e) => setVendor(e.target.value)}
-              >
-                <option value="">Select Vendor</option>
-                {vendors.map((v) => (
-                  <option key={v._id} value={v._id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Field>
+            <FieldLabel>Vendor</FieldLabel>
+            <Select value={vendor} onValueChange={setVendor}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Vendor" />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectGroup>
+                  <SelectLabel>Select a Vendor</SelectLabel>
+                  {vendors.length > 0 ? (
+                    vendors.map((v) => (
+                      <SelectItem key={v._id} value={v._id}>
+                        {v.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-vendors" disabled>
+                      No Vendors Found
+                    </SelectItem>
+                  )}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel>Expected Delivery</FieldLabel>
+            <Input
+              type="date"
+              value={expectedDelivery}
+              onChange={(e) => setExpectedDelivery(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Payment Term</FieldLabel>
+            <Select value={paymentTerm} onValueChange={setPaymentTerm}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Select a Payment Term</SelectLabel>
+                  <SelectItem value="advance">Advance</SelectItem>
+                  <SelectItem value="net15">Net 15</SelectItem>
+                  <SelectItem value="net30">Net 30</SelectItem>
+                  <SelectItem value="net45">Net 45</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+        </section>
 
-            {/* Expected Delivery */}
-            <div className="flex flex-col">
-              <label className="text-sm font-medium text-gray-700 mb-1">
-                Expected Delivery
-              </label>
-              <input
-                type="date"
-                className="border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500"
-                value={expectedDelivery}
-                onChange={(e) => setExpectedDelivery(e.target.value)}
-              />
-            </div>
-
-            {/* Payment Terms */}
-            <div className="flex flex-col">
-              <label className="text-sm font-medium text-gray-700 mb-1">
-                Payment Term
-              </label>
-              <select
-                className="border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500"
-                value={paymentTerm}
-                onChange={(e) => setPaymentTerm(e.target.value)}
-              >
-                <option value="advance">Advance</option>
-                <option value="net15">Net 15</option>
-                <option value="net30">Net 30</option>
-                <option value="net45">Net 45</option>
-              </select>
-            </div>
-          </section>
-
-          {/* Items Table */}
-          <section className="mb-6">
-            <h3 className="text-xl font-semibold mb-4">Order Items</h3>
-            <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Product
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Quantity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Purchase Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold mb-4">Order Items</h3>
+          <div className="overflow-x-auto rounded-md border border-gray-300">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="w-28">Quantity</TableHead>
+                  <TableHead className="w-32">Purchase Price</TableHead>
+                  <TableHead className="w-24">Total</TableHead>
+                  <TableHead className="w-20">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {items.map((item, index) => (
-                  <tr key={index}>
-                    {/* Product Dropdown */}
-                    {/* <td className="px-6 py-4 whitespace-nowrap relative">
-                      <Combobox
-                        value={item.productId || item.title} // 👈 fallback added
-                        onChange={(value) => updateItem(index, "productId", value)}
-                      >
-                        <div className="relative">
-                          <ComboboxInput
-                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
-                            displayValue={(val) => {
-                              if (!val) return "";
-                              // 🔹 Agar val ek ObjectId hai
-                              const found = products.find((p) => p._id === val);
-                              if (found) return found.title;
-                      
-                              // 🔹 Agar val title hai (imported item case)
-                              return val;
-                            }}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search Product..."
-                          />
-                          <ComboboxOptions className="absolute mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg">
-                            {Array.isArray(products) &&
-                              products
-                                .filter((p) =>
-                                  p.title
-                                    .toLowerCase()
-                                    .includes(query.toLowerCase())
-                                )
-                                .map((p) => (
-                                  <ComboboxOption
-                                    key={p._id}
-                                    value={p._id}
-                                    className="cursor-pointer select-none p-2 hover:bg-blue-600 hover:text-white"
-                                  >
-                                    {p.title}
-                                  </ComboboxOption>
-                                ))}
-                          </ComboboxOptions>
-                        </div>
-                      </Combobox>
-                    </td> */}
-                    {/* Product Title Input (No Reference) */}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <input
-                            type="text"
-                            value={item.title || ""}
-                            onChange={(e) => updateItem(index, "title", e.target.value)}
-                            placeholder="Enter Product Title"
-                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </td>
-
-                    {/* Quantity */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Input
+                        type="text"
+                        placeholder="Enter Product Title"
+                        value={item.title || ""}
+                        onChange={(e) =>
+                          updateItem(index, "title", e.target.value)
+                        }
+                        className="min-w-[200px]"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
                         type="number"
-                        min="1"
-                        className="w-20 border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                        min={1}
                         value={item.orderedQty}
                         onChange={(e) =>
                           updateItem(index, "orderedQty", Number(e.target.value))
                         }
                       />
-                    </td>
-
-                    {/* Purchase Price */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
+                    </TableCell>
+                    <TableCell>
+                      <Input
                         type="number"
-                        min="0"
-                        className="w-28 border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                        min={0}
                         value={item.purchasePrice}
                         onChange={(e) =>
                           updateItem(
@@ -274,128 +270,68 @@ const PurchaseOrder = () => {
                           )
                         }
                       />
-                    </td>
-
-                    {/* Total */}
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700 font-medium">
-                      AED. {item.total}
-                    </td>
-
-                    {/* Action */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      AED {Number(item.total || 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
                       <button
+                        type="button"
+                        className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
                         onClick={() => removeItem(index)}
-                        className="text-red-600 hover:text-red-900"
                       >
-                        Remove
+                        <Trash2 size={18} />
                       </button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
+          </div>
 
-            <button
-              onClick={addItem}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700"
-            >
+          <div className="flex flex-wrap gap-4 mt-4">
+            <Button type="button" onClick={addItem}>
               + Add Item
-            </button>
-            <div className="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Import Products from Excel
-              </label>
-              <input
-                type="file"
+            </Button>
+            <div className="flex-1 min-w-[200px]">
+              <ImageUploadDropzone
                 accept=".xlsx,.xls"
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                onChange={async (e) => {
-                  if (!e.target.files[0]) return;
-                  
-                  const formData = new FormData();
-                  formData.append("file", e.target.files[0]);
-
-                  try {
-                    const res = await axios.post(
-                      "http://localhost:5000/api/products/bulk-import",
-                      formData,
-                      {
-                        headers: { "Content-Type": "multipart/form-data" },
-                      }
-                    );
-
-                    if (res.data.success) {
-                      console.log(res.data);
-                      // Convert backend items format to frontend format
-                      const convertedItems = res.data.items.map(item => {
-                        const orderedQty = Number(item.orderedQty ?? item.quantity ?? 0);
-                        const purchasePrice = Number(item.purchasePrice ?? 0);
-                        const total = Number(item.total ?? orderedQty * purchasePrice);
-                        return {
-                          title: item.title,
-                          asin: item.asin,
-                          // productId: item.productId || null,
-                          orderedQty,
-                          purchasePrice,
-                          total,
-                        };
-                      });
-                      setItems([...items, ...convertedItems]); // table me add karo
-                      
-                      // Refresh products list to include newly imported products
-                      fetchData();
-                      
-                      alert(`✅ Excel import successful! ${convertedItems.length} items added to purchase order.`);
-                    }
-                  } catch (error) {
-                    console.error("Import error:", error);
-                    alert("❌ Error importing Excel file. Please check the file format.");
-                  }
-                  
-                  // Reset file input
-                  e.target.value = '';
-                }}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Upload Excel file (.xlsx, .xls) to import products and add them to this purchase order
-              </p>
-            </div>
-          </section>
-
-          {/* Notes + Totals */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex flex-col">
-              <label className="text-sm font-medium text-gray-700 mb-1">
-                Notes
-              </label>
-              <textarea
-                className="border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Additional notes..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onFileSelect={handleExcelImport}
+                disabled={bulkImportMutation.isPending}
+                primaryLabel="Drag & drop Excel file"
+                secondaryLabel="or click to browse (.xlsx, .xls)"
               />
             </div>
+          </div>
+        </section>
 
-            <div className="flex flex-col items-end md:col-span-2">
-              <div className="space-y-3 w-full max-w-sm">
-                <div className="flex justify-between items-center text-xl font-bold text-gray-900 border-t pt-4">
-                  <span>Grand Total:</span>
-                  <span>AED. {grandTotal.toFixed(2)}</span>
-                </div>
-
-                <button
-                  onClick={handleSubmit}
-                  className="w-full mt-6 px-6 py-3 bg-green-600 text-white rounded-md shadow-lg hover:bg-green-700 text-lg font-bold"
-                >
-                  Save Purchase Order
-                </button>
-              </div>
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Field className="md:col-span-2">
+            <FieldLabel>Notes</FieldLabel>
+            <Input
+              type="text"
+              placeholder="Additional notes..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </Field>
+          <div className="space-y-3 flex flex-col items-end">
+            <div className="flex justify-between items-center text-lg font-bold border-t pt-4 w-full max-w-sm">
+              <span>Grand Total:</span>
+              <span>AED {grandTotal.toFixed(2)}</span>
             </div>
-          </section>
-        </div>
+            <Button
+              onClick={handleSubmit}
+              disabled={createMutation.isPending}
+              className="w-full max-w-sm"
+            >
+              {createMutation.isPending ? "Saving..." : "Save Purchase Order"}
+            </Button>
+          </div>
+        </section>
       </div>
-    </>
+    </div>
   );
 };
 
-export default PurchaseOrder;
+export default PurchaseOrderForm;

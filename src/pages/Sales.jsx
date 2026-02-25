@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Trash2 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
 import { toast } from "sonner";
@@ -344,16 +344,10 @@ const Sales = () => {
                         />
                       </TableCell>
                       <TableCell className="font-medium">AED {item.total}</TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => removeItem(index)}
-                        >
-                          Remove
-                        </Button>
+                      <TableCell className="">
+                        <button onClick={() => removeItem(index)} className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200">
+                          <Trash2 size={18} />
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -375,6 +369,7 @@ const Sales = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
+                      <SelectLabel>Select a Payment Method</SelectLabel>
                       <SelectItem value="cash">Cash</SelectItem>
                       <SelectItem value="card">Card</SelectItem>
                       <SelectItem value="bankTransfer">Bank Transfer</SelectItem>
@@ -391,6 +386,7 @@ const Sales = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
+                      <SelectLabel>Sold at</SelectLabel>
                       <SelectItem value="shop">Shop</SelectItem>
                       <SelectItem value="website">Website</SelectItem>
                       <SelectItem value="warehouse">Warehouse</SelectItem>

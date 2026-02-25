@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import api from "../utils/api";
-import { ArrowUpAZ, ArrowDownAZ } from "lucide-react";
+import { ArrowUpAZ, ArrowDownAZ, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
@@ -299,7 +299,7 @@ const Subcategories = () => {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Items per page" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     <SelectGroup>
                       <SelectLabel>Items per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
@@ -373,20 +373,20 @@ const Subcategories = () => {
                           {new Date(sub.updatedAt).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-center">
-                          <div className="flex justify-center gap-2">
-                            <button
+                            <div className="flex gap-2">
+                              <button
                               onClick={() => handleEdit(sub)}
                               className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200"
                               title="Edit"
                             >
-                              Edit
+                              <Edit size={18} />
                             </button>
                             <button
                               onClick={() => confirmDelete(sub._id)}
                               className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
                               title="Delete"
                             >
-                              Delete
+                              <Trash2 size={18} />
                             </button>
                           </div>
                         </TableCell>

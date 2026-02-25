@@ -7,30 +7,37 @@ export function ImageUploadDropzone({
   accept = "image/*",
   className,
   previewUrl,
+  primaryLabel,
+  secondaryLabel = "or click to browse",
+  disabled = false,
 }) {
   const inputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
 
   const handleFiles = (files) => {
-    if (!files || !files[0]) return
+    if (!files || !files[0] || disabled) return
     onFileSelect(files[0])
   }
+
+  const mainText = primaryLabel ?? (previewUrl ? "Change image" : "Drag & drop image")
 
   return (
     <div
       onDragOver={(e) => {
         e.preventDefault()
-        setIsDragging(true)
+        if (!disabled) setIsDragging(true)
       }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={(e) => {
         e.preventDefault()
         setIsDragging(false)
-        handleFiles(e.dataTransfer.files)
+        if (!disabled) handleFiles(e.dataTransfer.files)
       }}
-      onClick={() => inputRef.current?.click()}
+      onClick={() => !disabled && inputRef.current?.click()}
       className={cn(
-        "relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors",
+        "relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors",
+        disabled && "pointer-events-none opacity-50",
+        !disabled && "cursor-pointer",
         isDragging
           ? "border-primary bg-primary/5"
           : "border-muted-foreground/25 hover:bg-muted/50",
@@ -43,6 +50,7 @@ export function ImageUploadDropzone({
         accept={accept}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
+        disabled={disabled}
       />
 
       {previewUrl ? (
@@ -56,10 +64,10 @@ export function ImageUploadDropzone({
       )}
 
       <p className="text-sm font-medium">
-        {previewUrl ? "Change image" : "Drag & drop image"}
+        {mainText}
       </p>
       <p className="text-xs text-muted-foreground">
-        or click to browse
+        {secondaryLabel}
       </p>
     </div>
   )

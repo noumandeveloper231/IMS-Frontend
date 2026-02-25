@@ -449,7 +449,7 @@ const Employees = () => {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Items per page" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     <SelectGroup>
                       <SelectLabel>Items per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
@@ -552,20 +552,20 @@ const Employees = () => {
                           {emp.joinedAt ? new Date(emp.joinedAt).toLocaleDateString() : "-"}
                         </TableCell>
                         <TableCell className="text-center">
-                          <div className="flex justify-center gap-2">
+                          <div className="flex gap-2">
                             <button
                               onClick={() => handleEdit(emp)}
                               className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200"
                               title="Edit"
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit size={18} />
                             </button>
                             <button
                               onClick={() => confirmDelete(emp._id)}
                               className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
                               title="Delete"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 size={18} />
                             </button>
                           </div>
                         </TableCell>

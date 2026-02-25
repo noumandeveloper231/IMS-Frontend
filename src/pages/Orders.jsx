@@ -153,7 +153,7 @@ const Orders = () => {
 
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="text-2xl font-semibold text-gray-700">Orders List</h2>
+            <h2 className="text-2xl font-semibold text-gray-700 w-full">Orders List</h2>
             <Select
               value={String(itemsPerPage)}
               onValueChange={(v) => {
@@ -164,7 +164,7 @@ const Orders = () => {
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Per page" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 <SelectGroup>
                   <SelectLabel>Per page</SelectLabel>
                   <SelectItem value="5">5 per page</SelectItem>
@@ -228,14 +228,14 @@ const Orders = () => {
                           {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
                         </TableCell>
                         <TableCell className="text-center">
-                          <div className="flex justify-center gap-2 flex-wrap">
+                          <div className="flex gap-2 flex-wrap">
                             <button
                               type="button"
                               onClick={() => handleViewOrder(order)}
                               className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors"
                               title="View"
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye size={18} />
                             </button>
                             <button
                               type="button"
@@ -243,7 +243,7 @@ const Orders = () => {
                               className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors"
                               title="Delete"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 size={18} />
                             </button>
                             <a
                               href={`${import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") || ""}/api/sales/${order._id}/invoice`}

@@ -968,7 +968,7 @@ const Products = () => {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Items per page" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     <SelectGroup>
                       <SelectLabel>Items per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
@@ -1146,16 +1146,14 @@ const Products = () => {
                             {p.quantity}
                           </TableCell>
                           <TableCell className="text-center">
-                            <div className="flex justify-center gap-2">
-                              {/* <Button
-                            variant="outline"
-                            onClick={() => handleEdit(p)}
-                            // className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200"
-                            // title="Edit"
-                          > */}
-                              <Edit onClick={() => handleEdit(p)} color="blue" size={18} />
+                            <div className="flex  gap-2">
+                              <button onClick={() => handleEdit(p)} className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200">
+                                <Edit size={18} />
+                              </button>
                               {/* </Button> */}
-                              <Trash2 onClick={() => confirmDelete(p._id)} color="red" size={18} />
+                              <button onClick={() => confirmDelete(p._id)} className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200">
+                                <Trash2 size={18} />
+                              </button>
                             </div>
                           </TableCell>
                         </TableRow>

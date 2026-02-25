@@ -1,155 +1,169 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useState } from "react";
+import api from "../utils/api";
+import { toast } from "sonner";
 import { Eye } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Field, FieldLabel } from "@/components/UI/field";
+import { Input } from "@/components/UI/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/UI/select";
+import { Button } from "@/components/UI/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/UI/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/UI/dialog";
 
 const PurchaseOrderList = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Filters
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-
-  // Modal
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const res = await axios.get(
-          "http://localhost:5000/api/purchase-orders"
-        );
-        setOrders(res.data);
-      } catch (err) {
-        console.error("Error fetching purchase orders:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchOrders();
-  }, []);
+  const { data: ordersData, isLoading } = useQuery({
+    queryKey: ["purchase-orders"],
+    queryFn: async () => {
+      const res = await api.get("/purchase-orders");
+      return res.data ?? [];
+    },
+  });
 
-  // ✅ Filtered Orders
+  const orders = Array.isArray(ordersData) ? ordersData : [];
+
   const filteredOrders = orders.filter((order) => {
+    const orderNo = (order.orderNo || "").toLowerCase();
+    const vendorName = (order.vendor?.name || "").toLowerCase();
     const matchesSearch =
-      order.orderNo.toLowerCase().includes(search.toLowerCase()) ||
-      order.vendor?.name.toLowerCase().includes(search.toLowerCase());
-
+      orderNo.includes(search.toLowerCase()) ||
+      vendorName.includes(search.toLowerCase());
     const matchesStatus = status === "all" ? true : order.status === status;
-
-    const orderDate = new Date(order.orderDate);
+    const orderDate = new Date(order.orderDate || 0);
     const matchesDate =
       (!dateFrom || orderDate >= new Date(dateFrom)) &&
       (!dateTo || orderDate <= new Date(dateTo));
-
     return matchesSearch && matchesStatus && matchesDate;
   });
 
+  const openDetail = (order) => {
+    setSelectedOrder(order);
+    setDetailOpen(true);
+  };
+
+  const items = selectedOrder?.items ?? [];
+  const totalQty = items.reduce((acc, i) => acc + (Number(i.orderedQty) || 0), 0);
+  const grandTotal = items.reduce((acc, i) => acc + (Number(i.total) || 0), 0);
+
   return (
-    <div className="p-4 md:p-8 lg:p-12 max-w-full   bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-4">
+    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
+      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 md:p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6 border-b pb-4">
           All Purchase Orders
         </h1>
 
-        {/* 🔍 Filters */}
-        <div className="flex flex-col md:flex-row md:items-end md:space-x-4 mb-6 space-y-3 md:space-y-0">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Search
-            </label>
-            <input
+        <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6">
+          <Field>
+            <FieldLabel>Search</FieldLabel>
+            <Input
               type="text"
               placeholder="Order No / Vendor"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full md:w-60 border rounded-lg px-3 py-2"
+              className="w-full md:w-60"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full md:w-40 border rounded-lg px-3 py-2"
-            >
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="completed">Completed</option>
-              <option value="processing">Processing</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Date From
-            </label>
-            <input
+          </Field>
+          <Field>
+            <FieldLabel>Status</FieldLabel>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="w-full md:w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
+                <SelectItem value="partially">Partially</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel>Date From</FieldLabel>
+            <Input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Date To
-            </label>
-            <input
+          </Field>
+          <Field>
+            <FieldLabel>Date To</FieldLabel>
+            <Input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
             />
-          </div>
+          </Field>
         </div>
 
-        {loading ? (
-          <p className="text-gray-500">Loading orders...</p>
+        {isLoading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
+          </div>
         ) : filteredOrders.length === 0 ? (
-          <p className="text-gray-500">No purchase orders found.</p>
+          <p className="text-gray-500 py-6">No purchase orders found.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border border-gray-200">
-              <thead className="bg-gray-100 text-gray-700">
-                <tr>
-                  <th className="px-4 py-2 text-left border">Order No</th>
-                  <th className="px-4 py-2 text-left border">Vendor</th>
-                  <th className="px-4 py-2 text-left border">Order Date</th>
-                  <th className="px-4 py-2 text-left border">
-                    Expected Delivery
-                  </th>
-                  <th className="px-4 py-2 text-left border">Status</th>
-                  <th className="px-4 py-2 text-right border">Total Amount</th>
-                  <th className="px-4 py-2 text-center border">Action</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order No</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Order Date</TableHead>
+                  <TableHead>Expected Delivery</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Total Amount</TableHead>
+                  <TableHead className="text-center">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredOrders.map((order) => (
-                  <tr key={order._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 border font-medium">
+                  <TableRow key={order._id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">
                       {order.orderNo}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {order.vendor?.name} ({order.vendor?.companyName})
-                    </td>
-                    <td className="px-4 py-2 border">
+                    </TableCell>
+                    <TableCell>
+                      {order.vendor?.name}
+                      {order.vendor?.companyName
+                        ? ` (${order.vendor.companyName})`
+                        : ""}
+                    </TableCell>
+                    <TableCell>
                       {new Date(order.orderDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-2 border">
+                    </TableCell>
+                    <TableCell>
                       {order.expectedDelivery
                         ? new Date(order.expectedDelivery).toLocaleDateString()
                         : "-"}
-                    </td>
-                    <td className="px-4 py-2 border">
+                    </TableCell>
+                    <TableCell>
                       <span
-                        className={`px-2 py-1 text-xs rounded ${
+                        className={`inline-flex px-2 py-1 text-xs rounded ${
                           order.status === "completed"
                             ? "bg-green-100 text-green-700"
                             : order.status === "pending"
@@ -159,142 +173,120 @@ const PurchaseOrderList = () => {
                       >
                         {order.status}
                       </span>
-                    </td>
-                    <td className="px-4 py-2 border text-right">
-                      Rs {order.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 border text-center">
-                      <button
-                        onClick={() => setSelectedOrder(order)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      Rs {Number(order.totalAmount || 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDetail(order)}
                         className="text-blue-600 hover:text-blue-800"
                       >
-                        <Eye size={18} />
-                      </button>
-                    </td>
-                  </tr>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
 
-      {/* ✅ Updated Scrollable Modal */}
-{selectedOrder && (
-  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-    {/* Modal Container */}
-    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl p-6 relative flex flex-col max-h-[90vh]">
-      
-      {/* Close Button */}
-      <button
-        onClick={() => setSelectedOrder(null)}
-        className="absolute top-4 right-4 text-gray-500 hover:text-gray-900 transition-colors text-2xl"
-        aria-label="Close"
-      >
-        &times;
-      </button>
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl border-b pb-2">
+              Purchase Order Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 mb-4">
+                <p>
+                  <strong className="text-gray-900">Vendor:</strong>{" "}
+                  {selectedOrder.vendor?.name}
+                  {selectedOrder.vendor?.companyName
+                    ? ` (${selectedOrder.vendor.companyName})`
+                    : ""}
+                </p>
+                <p>
+                  <strong className="text-gray-900">Order No:</strong>{" "}
+                  {selectedOrder.orderNo}
+                </p>
+                <p>
+                  <strong className="text-gray-900">Date:</strong>{" "}
+                  {new Date(selectedOrder.orderDate).toLocaleDateString()}
+                </p>
+                <p>
+                  <strong className="text-gray-900">Status:</strong>{" "}
+                  <span
+                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                      selectedOrder.status === "completed"
+                        ? "bg-green-100 text-green-800"
+                        : selectedOrder.status === "pending"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-blue-100 text-blue-800"
+                    }`}
+                  >
+                    {selectedOrder.status}
+                  </span>
+                </p>
+              </div>
 
-      {/* Header */}
-      <h2 className="text-3xl font-extrabold text-indigo-700 mb-4 border-b pb-2">
-        Purchase Order Details
-      </h2>
+              <h3 className="text-lg font-semibold mb-2">Order Items</h3>
+              <div className="overflow-y-auto max-h-[50vh] border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                      <TableHead className="w-12">S.No</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>ASIN</TableHead>
+                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead className="text-right">Price (Rs)</TableHead>
+                      <TableHead className="text-right">Total (Rs)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item, idx) => (
+                      <TableRow key={item._id || idx}>
+                        <TableCell className="font-medium">{idx + 1}</TableCell>
+                        <TableCell>{item.title || "N/A"}</TableCell>
+                        <TableCell>{item.asin || "N/A"}</TableCell>
+                        <TableCell className="text-right">
+                          {item.orderedQty}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {Number(item.purchasePrice || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {Number(item.total || 0).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {items.length === 0 && (
+                  <p className="p-4 text-center text-gray-500">
+                    No items in this order.
+                  </p>
+                )}
+              </div>
 
-      {/* Vendor Info - Static Part */}
-      <div className="mb-6 grid grid-cols-2 gap-y-2 gap-x-6 text-sm text-gray-700">
-        <p>
-          <strong className="font-semibold text-gray-900">Vendor:</strong> {selectedOrder.vendor?.name} (
-          {selectedOrder.vendor?.companyName})
-        </p>
-        <p>
-          <strong className="font-semibold text-gray-900">Order No:</strong> {selectedOrder.orderNo}
-        </p>
-        <p>
-          <strong className="font-semibold text-gray-900">Date:</strong>{" "}
-          {new Date(selectedOrder.orderDate).toLocaleDateString()}
-        </p>
-        <p>
-          <strong className="font-semibold text-gray-900">Status:</strong>{" "}
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-            selectedOrder.status === 'Completed' ? 'bg-green-100 text-green-800' :
-            selectedOrder.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-            'bg-blue-100 text-blue-800'
-          }`}>
-            {selectedOrder.status}
-          </span>
-        </p>
-      </div>
-
-      <h3 className="text-xl font-bold mb-3 text-gray-800">Order Items</h3>
-
-      {/* Items Table Container - Scrollable Part */}
-      <div className="overflow-y-auto max-h-[50vh] border rounded-lg shadow-inner">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            {/* Table Header - sticky-top ensures it stays visible while scrolling */}
-            <thead className="bg-gray-50 **sticky top-0 z-10** shadow-sm">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ASIN</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price (Rs)</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total (Rs)</th>
-              </tr>
-            </thead>
-            {/* Table Body */}
-            <tbody className="bg-white divide-y divide-gray-200">
-              {selectedOrder.items.map((item, idx) => (
-                <tr key={item._id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3 whitespace-normal text-sm font-medium text-gray-900">
-                    {idx + 1}
-                  </td>
-                  <td className="px-6 py-3 whitespace-normal text-sm font-medium text-gray-900">
-                    {item.title || "N/A"}
-                  </td>
-                  <td className="px-6 py-3 whitespace-normal text-sm font-medium text-gray-900">
-                    {item.asin || "N/A"} 
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-600">
-                    {item.orderedQty}
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-600">
-                    {item.purchasePrice.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-right font-bold text-gray-800">
-                    {item.total.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {/* Fallback for no items */}
-          {selectedOrder.items.length === 0 && (
-            <div className="p-4 text-center text-gray-500">No items found in this order.</div>
+              <div className="mt-4 pt-4 border-t flex flex-col items-end space-y-1">
+                <p className="font-semibold text-gray-800">
+                  Total Quantity: {totalQty}
+                </p>
+                <p className="font-semibold text-gray-800">
+                  Grand Total: Rs {grandTotal.toFixed(2)}
+                </p>
+              </div>
+            </>
           )}
-          
-        </div>
-      </div>
-      
-      {/* Footer/Summary - Static Part */}
-      <div className="mt-4 pt-4 border-t flex flex-col items-end space-y-2">
-  <p className="text-xl font-bold text-gray-800">
-    Total Quantity:{" "}
-    {selectedOrder.items
-      .reduce((acc, item) => acc + item.orderedQty, 0)}
-  </p>
-  <p className="text-xl font-bold text-gray-800">
-    Grand Total: Rs{" "}
-    {selectedOrder.items
-      .reduce((acc, item) => acc + item.total, 0)
-      .toFixed(2)}
-  </p>
-</div>
-
-      
-    </div>
-  </div>
-)}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

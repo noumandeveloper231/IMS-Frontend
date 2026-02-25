@@ -1,78 +1,96 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useState } from "react";
+import api from "../utils/api";
+import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable"; // yeh add karo
+import autoTable from "jspdf-autotable";
 import { Eye } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Field, FieldLabel } from "@/components/UI/field";
+import { Input } from "@/components/UI/input";
+import { Button } from "@/components/UI/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/UI/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/UI/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/UI/dialog";
 
 const PurchaseReceiveList = () => {
-  const [receives, setReceives] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  useEffect(() => {
-    const fetchReceives = async () => {
-      try {
-        const res = await axios.get(
-          "http://localhost:5000/api/purchase-receives"
-        );
-        console.log(res.data);
-        setReceives(res.data);
-      } catch (err) {
-        console.error("Error fetching purchase receives:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReceives();
-  }, []);
+  const [selectedReceive, setSelectedReceive] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  // ✅ filters
+  const { data: receivesData, isLoading } = useQuery({
+    queryKey: ["purchase-receives"],
+    queryFn: async () => {
+      const res = await api.get("/purchase-receives");
+      return res.data ?? [];
+    },
+  });
+
+  const receives = Array.isArray(receivesData) ? receivesData : [];
+
   const filteredReceives = receives.filter((rec) => {
     const searchLower = search.toLowerCase();
-
     const matchesSearch =
-      rec.receiveNo?.toLowerCase().includes(searchLower) ||
-      rec.purchaseOrder?.orderNo?.toLowerCase().includes(searchLower) ||
-      rec.vendor?.name?.toLowerCase().includes(searchLower) ||
-      rec.vendor?.companyName?.toLowerCase().includes(searchLower) ||
-      rec.items.some(
+      (rec.receiveNo || "").toLowerCase().includes(searchLower) ||
+      (rec.purchaseOrder?.orderNo || "").toLowerCase().includes(searchLower) ||
+      (rec.vendor?.name || "").toLowerCase().includes(searchLower) ||
+      (rec.vendor?.companyName || "").toLowerCase().includes(searchLower) ||
+      (rec.items || []).some(
         (item) =>
-          item.product?.title?.toLowerCase().includes(searchLower) ||
-          item.product?.sku?.toLowerCase().includes(searchLower)
+          (item.product?.title || item.title || "")
+            .toLowerCase()
+            .includes(searchLower) ||
+          (item.product?.sku || item.product?.asin || "").toLowerCase().includes(searchLower)
       );
-
     const matchesStatus =
       statusFilter === "all" ? true : rec.status === statusFilter;
-
-    const receiveDate = new Date(rec.receiveDate);
+    const receiveDate = new Date(rec.receiveDate || 0);
     const matchesDate =
       (!startDate || receiveDate >= new Date(startDate)) &&
       (!endDate || receiveDate <= new Date(endDate));
-
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // ✅ Excel Export
+  const openDetail = (rec) => {
+    setSelectedReceive(rec);
+    setDetailOpen(true);
+  };
+
   const exportToExcel = () => {
     const data = filteredReceives.map((rec) => ({
       "Receive No": rec.receiveNo,
       "Purchase Order": rec.purchaseOrder?.orderNo,
-      Vendor: `${rec.vendor?.name} (${rec.vendor?.companyName})`,
+      Vendor: `${rec.vendor?.name || ""} (${rec.vendor?.companyName || ""})`,
       "Receive Date": new Date(rec.receiveDate).toLocaleDateString(),
       Status: rec.status,
       "Total Amount": rec.totalAmount,
       Notes: rec.notes || "-",
     }));
-
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Purchase Receives");
-
     const excelBuffer = XLSX.write(workbook, {
       type: "array",
       bookType: "xlsx",
@@ -81,15 +99,13 @@ const PurchaseReceiveList = () => {
       type: "application/octet-stream",
     });
     saveAs(fileData, `purchase_receives_${Date.now()}.xlsx`);
+    toast.success("Excel exported ✅");
   };
 
-  // ✅ PDF Export
   const exportToPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(14);
     doc.text("Purchase Receives Report", 14, 15);
-
-    // ✅ Main Table (Summary)
     const tableColumn = [
       "Receive No",
       "Purchase Order",
@@ -98,7 +114,6 @@ const PurchaseReceiveList = () => {
       "Status",
       "Total Amount",
     ];
-
     const tableRows = filteredReceives.map((rec) => [
       rec.receiveNo,
       rec.purchaseOrder?.orderNo || "-",
@@ -107,14 +122,13 @@ const PurchaseReceiveList = () => {
       rec.status,
       `Rs ${rec.totalAmount}`,
     ]);
-
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 25,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [40, 116, 166] },
-      didDrawPage: (data) => {
+      didDrawPage: () => {
         doc.setFontSize(10);
         doc.text(
           `Generated on: ${new Date().toLocaleDateString()}`,
@@ -123,13 +137,10 @@ const PurchaseReceiveList = () => {
         );
       },
     });
-
-    // ✅ Items Table (per receive)
-    let finalY = doc.lastAutoTable.finalY + 10; // jahan summary khatam hui
+    let finalY = doc.lastAutoTable.finalY + 10;
     filteredReceives.forEach((rec, index) => {
       doc.setFontSize(12);
       doc.text(`Receive No: ${rec.receiveNo}`, 14, finalY);
-
       const itemCols = [
         "Product",
         "SKU",
@@ -138,16 +149,14 @@ const PurchaseReceiveList = () => {
         "Price",
         "Total",
       ];
-
-      const itemRows = rec.items.map((item) => [
-        item.product?.title || "N/A",
-        item.product?.sku || "N/A",
-        item.orderedQty,
+      const itemRows = (rec.items || []).map((item) => [
+        item.product?.title || item.title || "N/A",
+        item.product?.sku || item.product?.asin || "N/A",
+        item.orderedQty ?? "",
         item.receivedQty,
         `Rs ${item.purchasePrice}`,
         `Rs ${item.total}`,
       ]);
-
       autoTable(doc, {
         head: [itemCols],
         body: itemRows,
@@ -155,10 +164,7 @@ const PurchaseReceiveList = () => {
         styles: { fontSize: 9 },
         headStyles: { fillColor: [230, 126, 34] },
       });
-
       finalY = doc.lastAutoTable.finalY + 10;
-
-      // ✅ Agar page overflow ho jaye to naya page add karo
       if (
         index !== filteredReceives.length - 1 &&
         finalY > doc.internal.pageSize.height - 40
@@ -167,107 +173,126 @@ const PurchaseReceiveList = () => {
         finalY = 20;
       }
     });
-
     doc.save(`purchase_receives_${Date.now()}.pdf`);
+    toast.success("PDF exported ✅");
   };
 
+  const items = selectedReceive?.items ?? [];
+  const totalQty = items.reduce(
+    (acc, item) => acc + (Number(item.receivedQty) || 0),
+    0
+  );
+  const grandTotal = items.reduce(
+    (acc, item) => acc + (Number(item.total) || 0),
+    0
+  );
+
   return (
-    <div className="p-4 md:p-8 lg:p-12 max-w-full   bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
+    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
+      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 md:p-8">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-          <h1 className="text-3xl font-extrabold text-gray-900 border-b pb-2">
+          <h1 className="text-2xl font-bold text-gray-900 border-b pb-2">
             All Purchase Receives
           </h1>
-
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="secondary"
+              className="bg-green-600 hover:bg-green-700 text-white"
               onClick={exportToExcel}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700"
             >
               Export Excel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              className="bg-red-600 hover:bg-red-700 text-white"
               onClick={exportToPDF}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg shadow hover:bg-red-700"
             >
               Export PDF
-            </button>
+            </Button>
           </div>
         </div>
 
-        {/* 🔍 Search, Status & Date Filters */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <input
-            type="text"
-            placeholder="Search by Receive No, Vendor, Product..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="border border-gray-300 rounded-lg px-4 py-2 w-full md:w-1/3"
-          />
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-4 py-2 w-full md:w-1/4"
-          >
-            <option value="all">All Status</option>
-            <option value="partially">Partially</option>
-            <option value="completed">Completed</option>
-          </select>
-
-          <div className="flex gap-2 w-full md:w-1/3">
-            <input
+        <div className="flex flex-col md:flex-row md:items-cente gap-4 mb-6">
+          <Field className="flex-1 min-w-md">
+            <FieldLabel>Search</FieldLabel>
+            <Input
+              type="text"
+              placeholder="Search by Receive No, Vendor, Product..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Status</FieldLabel>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="partially">Partially</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel>Date From</FieldLabel>
+            <Input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2 w-1/2"
             />
-            <input
+          </Field>
+          <Field>
+            <FieldLabel>Date To</FieldLabel>
+            <Input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2 w-1/2"
             />
-          </div>
+          </Field>
         </div>
 
-        {loading ? (
-          <p className="text-gray-500">Loading receives...</p>
+        {isLoading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
+          </div>
         ) : filteredReceives.length === 0 ? (
-          <p className="text-gray-500">No purchase receives found.</p>
+          <p className="text-gray-500 py-6">No purchase receives found.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border border-gray-200">
-              <thead className="bg-gray-100 text-gray-700">
-                <tr>
-                  <th className="px-4 py-2 text-left border">Receive No</th>
-                  <th className="px-4 py-2 text-left border">Purchase Order</th>
-                  <th className="px-4 py-2 text-left border">Vendor</th>
-                  <th className="px-4 py-2 text-left border">Receive Date</th>
-                  <th className="px-4 py-2 text-left border">Status</th>
-                  <th className="px-4 py-2 text-right border">Total Amount</th>
-                  <th className="px-4 py-2 text-left border">Items</th>
-                  <th className="px-4 py-2 text-left border">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Receive No</TableHead>
+                  <TableHead>Purchase Order</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Receive Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Total Amount</TableHead>
+                  <TableHead className="text-center">Action</TableHead>
+                  <TableHead>Notes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredReceives.map((rec) => (
-                  <tr key={rec._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 border font-medium">
+                  <TableRow key={rec._id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">
                       {rec.receiveNo}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {rec.purchaseOrder?.orderNo}
-                    </td>
-                    <td className="px-4 py-2 border">
-                      {rec.vendor?.name} ({rec.vendor?.companyName})
-                    </td>
-                    <td className="px-4 py-2 border">
+                    </TableCell>
+                    <TableCell>{rec.purchaseOrder?.orderNo}</TableCell>
+                    <TableCell>
+                      {rec.vendor?.name}
+                      {rec.vendor?.companyName
+                        ? ` (${rec.vendor.companyName})`
+                        : ""}
+                    </TableCell>
+                    <TableCell>
                       {new Date(rec.receiveDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-2 border">
+                    </TableCell>
+                    <TableCell>
                       <span
-                        className={`px-2 py-1 text-xs rounded ${
+                        className={`inline-flex px-2 py-1 text-xs rounded ${
                           rec.status === "completed"
                             ? "bg-green-100 text-green-700"
                             : "bg-yellow-100 text-yellow-700"
@@ -275,161 +300,129 @@ const PurchaseReceiveList = () => {
                       >
                         {rec.status}
                       </span>
-                    </td>
-                    <td className="px-4 py-2 border text-right">
-                      Rs {rec.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 border text-center">
-                      <button
-                        onClick={() => setSelectedOrder(rec)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      Rs {Number(rec.totalAmount || 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDetail(rec)}
                         className="text-blue-600 hover:text-blue-800"
                       >
-                        <Eye size={18} />
-                      </button>
-                    </td>
-                    
-                    <td className="px-4 py-2 border">{rec.notes || "-"}</td>
-                  </tr>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                    <TableCell>{rec.notes || "-"}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
 
-      {/* ✅ Updated Scrollable Modal */}
-{selectedOrder && (
-  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-    {/* Modal Container */}
-    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl p-6 relative flex flex-col max-h-[90vh]">
-      
-      {/* Close Button */}
-      <button
-        onClick={() => setSelectedOrder(null)}
-        className="absolute top-4 right-4 text-gray-500 hover:text-gray-900 transition-colors text-2xl"
-        aria-label="Close"
-      >
-        &times;
-      </button>
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl border-b pb-2">
+              Purchase Receive Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedReceive && (
+            <>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 mb-4">
+                <p>
+                  <strong className="text-gray-900">Vendor:</strong>{" "}
+                  {selectedReceive.vendor?.name}
+                  {selectedReceive.vendor?.companyName
+                    ? ` (${selectedReceive.vendor.companyName})`
+                    : ""}
+                </p>
+                <p>
+                  <strong className="text-gray-900">Order No:</strong>{" "}
+                  {selectedReceive.purchaseOrder?.orderNo}
+                </p>
+                <p>
+                  <strong className="text-gray-900">Date:</strong>{" "}
+                  {new Date(selectedReceive.receiveDate).toLocaleDateString()}
+                </p>
+                <p>
+                  <strong className="text-gray-900">Status:</strong>{" "}
+                  <span
+                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                      selectedReceive.status === "completed"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-yellow-100 text-yellow-800"
+                    }`}
+                  >
+                    {selectedReceive.status}
+                  </span>
+                </p>
+              </div>
 
-      {/* Header */}
-      <h2 className="text-3xl font-extrabold text-indigo-700 mb-4 border-b pb-2">
-      All Purchase Receives
-      </h2>
+              <h3 className="text-lg font-semibold mb-2">Items</h3>
+              <div className="overflow-y-auto max-h-[50vh] border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                      <TableHead>Product</TableHead>
+                      <TableHead>ASIN</TableHead>
+                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead className="text-right">Purchase Price</TableHead>
+                      <TableHead className="text-right">Sale Price</TableHead>
+                      <TableHead className="text-right">Total (Rs)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item, idx) => (
+                      <TableRow key={item._id || idx}>
+                        <TableCell className="font-medium">
+                          {item.product?.title || item.title || "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          {item.product?.asin || item.product?.sku || "N/A"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.receivedQty}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {Number(item.purchasePrice || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {Number(
+                            item.salePrice ?? item.product?.salePrice ?? 0
+                          ).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {Number(item.total || 0).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {items.length === 0 && (
+                  <p className="p-4 text-center text-gray-500">
+                    No items in this receive.
+                  </p>
+                )}
+              </div>
 
-      {/* Vendor Info - Static Part */}
-      <div className="mb-6 grid grid-cols-2 gap-y-2 gap-x-6 text-sm text-gray-700">
-        <p>
-          <strong className="font-semibold text-gray-900">Vendor:</strong> {selectedOrder.vendor?.name} (
-          {selectedOrder.vendor?.companyName})
-        </p>
-        <p>
-          <strong className="font-semibold text-gray-900">Order No:</strong> {selectedOrder.purchaseOrder?.orderNo}
-        </p>
-        <p>
-          <strong className="font-semibold text-gray-900">Date:</strong>{" "}
-          {new Date(selectedOrder.receiveDate).toLocaleDateString()}
-        </p>
-        <p>
-          <strong className="font-semibold text-gray-900">Status:</strong>{" "}
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-            selectedOrder.status === 'Completed' ? 'bg-green-100 text-green-800' :
-            selectedOrder.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-            'bg-blue-100 text-blue-800'
-          }`}>
-            {selectedOrder.status}
-          </span>
-        </p>
-      </div>
-
-      <h3 className="text-xl font-bold mb-3 text-gray-800">Order Items</h3>
-
-      {/* Items Table Container - Scrollable Part */}
-      <div className="overflow-y-auto max-h-[50vh] border rounded-lg shadow-inner">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            {/* Table Header - sticky-top ensures it stays visible while scrolling */}
-            <thead className="bg-gray-50 **sticky top-0 z-10** shadow-sm">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ASIN</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Price</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Price</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total (Rs)</th>
-              </tr>
-            </thead>
-            {/* Table Body */}
-            
-            <tbody className="bg-white divide-y divide-gray-200">
-              {selectedOrder.items.map((item) => (
-                
-                <tr key={item._id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3 whitespace-normal text-sm font-medium text-gray-900">
-                    {item.product?.title || "N/A"}
-                  </td>
-                  <td className="px-6 py-3 whitespace-normal text-sm font-medium text-gray-900">
-                    {item.product?.asin || "N/A"} 
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-600">
-                    {item.receivedQty}
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-600">
-                    {item.purchasePrice.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-600">
-                    {item.product?.salePrice.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-sm text-right font-bold text-gray-800">
-                    {item.total.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {/* Fallback for no items */}
-          {selectedOrder.items.length === 0 && (
-            <div className="p-4 text-center text-gray-500">No items found in this order.</div>
+              <div className="mt-4 pt-4 border-t flex flex-col items-end space-y-1">
+                <p className="font-semibold text-gray-800">
+                  Total Quantity: {totalQty}
+                </p>
+                <p className="font-semibold text-gray-800">
+                  Grand Total: Rs {grandTotal.toFixed(2)}
+                </p>
+              </div>
+            </>
           )}
-          
-        </div>
-      </div>
-      
-      {/* Footer/Summary - Static Part */}
-      <div className="mt-4 pt-4 border-t flex flex-col items-end space-y-2">
-      <p className="text-xl font-bold text-gray-800">
-          Total Quantity:{" "}
-          {selectedOrder.items.reduce((acc, item) => acc + item.orderedQty, 0)}
-        </p>
-        <p className="text-xl font-bold text-gray-800">
-          Grand Total: Rs{" "}
-          {selectedOrder.items.reduce((acc, item) => acc + item.total, 0).toFixed(2)}
-        </p>
-      </div>
-      
+        </DialogContent>
+      </Dialog>
     </div>
-  </div>
-)}
-  </div>
   );
-
-}
-
+};
 
 export default PurchaseReceiveList;
-
-{/* <td className="px-4 py-2 border">
-                      <ul className="list-disc list-inside text-sm text-gray-700">
-                        {rec.items.map((item) => (
-                          <li key={item._id}>
-                            {item.product?.title || "N/A"} (SKU:{" "}
-                            {item.product?.sku || "N/A"}) <br />
-                            Ordered: {item.orderedQty}, Received:{" "}
-                            {item.receivedQty} <br />
-                            Price: Rs {item.purchasePrice} | Total: Rs{" "}
-                            {item.total}
-                          </li>
-                        ))}
-                      </ul>
-                    </td> */}
