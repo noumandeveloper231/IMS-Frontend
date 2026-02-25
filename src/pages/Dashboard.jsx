@@ -5,6 +5,10 @@ import {
   ClipboardList,
   ShoppingBasket,
   ShoppingCart,
+  BarChart3,
+  Users,
+  Settings,
+  Activity,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/UI/card";
@@ -73,6 +77,12 @@ const Dashboard = () => {
     outOfStock: stockCounts?.outOfStock ?? 0,
   };
 
+  const totalStockSlots = safeStockCounts.inStock + safeStockCounts.outOfStock;
+  const inStockRatio =
+    totalStockSlots > 0 ? (safeStockCounts.inStock / totalStockSlots) * 100 : 0;
+  const outOfStockRatio =
+    totalStockSlots > 0 ? (safeStockCounts.outOfStock / totalStockSlots) * 100 : 0;
+
   const summaryCards = [
     {
       label: "Products",
@@ -115,6 +125,38 @@ const Dashboard = () => {
   return (
     <div className="p-4 md:p-6">
       <div className="grow px-4 md:px-8 py-4 space-y-8">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Admin control center
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Overview of your catalog, stock levels, and sales activity.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/reports">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md"
+              >
+                <BarChart3 className="h-4 w-4" />
+                View reports
+              </button>
+            </Link>
+            <Link to="/products">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md"
+              >
+                <Package className="h-4 w-4" />
+                Manage products
+              </button>
+            </Link>
+          </div>
+        </div>
+
         {hasError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             There was a problem loading dashboard analytics. Please try again.
@@ -272,6 +314,120 @@ const Dashboard = () => {
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="space-y-1">
+              <CardTitle>Quick admin shortcuts</CardTitle>
+              <CardDescription>
+                Jump straight into the most common areas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-2 text-sm">
+                <Link
+                  to="/products"
+                  className="flex items-center justify-between rounded-md border border-slate-100 bg-slate-50 px-3 py-2 hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-slate-700" />
+                    <span>Products &amp; catalog</span>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {safeCounts.products} items
+                  </span>
+                </Link>
+
+                <Link
+                  to="/orders"
+                  className="flex items-center justify-between rounded-md border border-slate-100 bg-slate-50 px-3 py-2 hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 text-slate-700" />
+                    <span>Sales &amp; orders</span>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {safeCounts.sale} total sales
+                  </span>
+                </Link>
+
+                <Link
+                  to="/employees"
+                  className="flex items-center justify-between rounded-md border border-slate-100 bg-slate-50 px-3 py-2 hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-slate-700" />
+                    <span>Employees &amp; roles</span>
+                  </div>
+                  <span className="text-xs text-slate-500">Manage staff</span>
+                </Link>
+
+                <Link
+                  to="/settings"
+                  className="flex items-center justify-between rounded-md border border-slate-100 bg-slate-50 px-3 py-2 hover:border-slate-200 hover:bg-slate-100"
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-slate-700" />
+                    <span>Store settings</span>
+                  </div>
+                  <span className="text-xs text-slate-500">Taxes, users, more</span>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="space-y-1">
+              <CardTitle>Stock health</CardTitle>
+              <CardDescription>
+                High‑level view of how well your inventory is covered.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>In‑stock coverage</span>
+                  <span className="font-medium">
+                    {inStockRatio.toFixed(1)}
+                    %
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${inStockRatio}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-md bg-slate-50 p-3">
+                  <p className="text-slate-500">In stock items</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {safeStockCounts.inStock}
+                  </p>
+                </div>
+                <div className="rounded-md bg-slate-50 p-3">
+                  <p className="text-slate-500">Out of stock</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {safeStockCounts.outOfStock}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+                <Activity className="h-4 w-4 text-emerald-600" />
+                <p>
+                  {outOfStockRatio > 0
+                    ? `${outOfStockRatio.toFixed(
+                        1,
+                      )}% of tracked items are currently out of stock. Consider creating purchase orders.`
+                    : "All tracked items are currently marked as in stock. Great job keeping shelves full."}
+                </p>
               </div>
             </CardContent>
           </Card>

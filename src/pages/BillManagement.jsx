@@ -97,39 +97,6 @@ const BillCreate = () => {
 
     doc.save("invoice.pdf");
   };
-  // // 🔹 Invoice Download
-  // const downloadInvoice = () => {
-  //   const doc = new jsPDF();
-  //   doc.setFontSize(14);
-  //   doc.text("Invoice", 14, 15);
-
-  //   // Vendor Info
-  //   const vendor = vendors.find((v) => v._id === selectedVendor);
-  //   if (vendor) {
-  //     doc.setFontSize(10);
-  //     doc.text(`Vendor: ${vendor.name}`, 14, 25);
-  //   }
-
-  //   // Table
-  //   const tableData = billItems.map((item) => [
-  //     item.productName,
-  //     item.description,
-  //     item.quantity,
-  //     item.unitPrice,
-  //     item.total,
-  //   ]);
-
-  //   doc.autoTable({
-  //     startY: 35,
-  //     head: [["Product", "Description", "Qty", "Unit Price", "Total"]],
-  //     body: tableData,
-  //   });
-
-  //   // Grand Total
-  //   doc.text(`Grand Total: ${total}`, 14, doc.lastAutoTable.finalY + 10);
-
-  //   doc.save("invoice.pdf");
-  // };
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-full bg-gray-50 min-h-screen">
