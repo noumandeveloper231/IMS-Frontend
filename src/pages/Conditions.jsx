@@ -11,6 +11,12 @@ import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+
+const resolveImageUrl = (src) => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  return `${API_HOST}${src}`;
+};
 import {
   Select,
   SelectContent,
@@ -176,7 +182,7 @@ const Conditions = () => {
   const handleEdit = (cond) => {
     setName(cond.name);
     setEditingId(cond._id);
-    setPreview(cond.image ? `${API_HOST}${cond.image}` : null);
+    setPreview(cond.image ? resolveImageUrl(cond.image) : null);
     toast.info(`Editing condition: ${cond.name}`);
     setTimeout(() => nameInputRef.current?.focus(), 100);
   };
@@ -403,7 +409,7 @@ const Conditions = () => {
                         <TableCell>
                           {cond.image ? (
                             <img
-                              src={`${API_HOST}${cond.image}`}
+                              src={resolveImageUrl(cond.image)}
                               alt={cond.name}
                               className="w-12 h-12 object-cover rounded-lg border"
                             />

@@ -63,6 +63,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/UI/tooltip
 import { InfoIcon } from "lucide-react";
 import { useImageModal } from "@/context/ImageModalContext";
 
+const resolveImageUrl = (src) => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  return `${API_HOST}${src}`;
+};
+
 function ProductCombobox({
   options = [],
   value,
@@ -454,7 +460,7 @@ const Products = () => {
       condition: (p.conditions || [])[0]?._id ?? "",
     });
     setEditingId(p._id);
-    setPreview(p.image ? `${API_HOST}${p.image}` : null);
+    setPreview(p.image ? resolveImageUrl(p.image) : null);
 
     // 🔹 Toast show
     toast.info(`Editing product: ${p.title}`);
@@ -1054,11 +1060,11 @@ const Products = () => {
                             {p.image ? (
                               <button
                                 type="button"
-                                onClick={() => openImageModal(`${API_HOST}${p.image}`)}
+                                onClick={() => openImageModal(resolveImageUrl(p.image))}
                                 className="cursor-pointer rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
                               >
                                 <img
-                                  src={`${API_HOST}${p.image}`}
+                                  src={resolveImageUrl(p.image)}
                                   alt={p.title}
                                   className="w-12 h-12 object-cover rounded-lg"
                                 />

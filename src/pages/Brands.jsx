@@ -11,6 +11,12 @@ import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+
+const resolveImageUrl = (src) => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  return `${API_HOST}${src}`;
+};
 import {
   Select,
   SelectContent,
@@ -176,7 +182,7 @@ const Brands = () => {
   const handleEdit = (brand) => {
     setName(brand.name);
     setEditingId(brand._id);
-    setPreview(brand.image ? `${API_HOST}${brand.image}` : null);
+    setPreview(brand.image ? resolveImageUrl(brand.image) : null);
     toast.info(`Editing brand: ${brand.name}`);
     setTimeout(() => nameInputRef.current?.focus(), 100);
   };
@@ -403,7 +409,7 @@ const Brands = () => {
                         <TableCell>
                           {brand.image ? (
                             <img
-                              src={`${API_HOST}${brand.image}`}
+                              src={resolveImageUrl(brand.image)}
                               alt={brand.name}
                               className="w-12 h-12 object-cover rounded-lg border"
                             />

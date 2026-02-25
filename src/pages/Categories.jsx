@@ -11,6 +11,12 @@ import { Input } from "@/components/UI/input"
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone"
+
+const resolveImageUrl = (src) => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  return `${API_HOST}${src}`;
+};
 import {
   Select,
   SelectContent,
@@ -184,7 +190,7 @@ const Categories = () => {
   const handleEdit = (cat) => {
     setName(cat.name);
     setEditingId(cat._id);
-    setPreview(cat.image ? `${API_HOST}${cat.image}` : null);
+    setPreview(cat.image ? resolveImageUrl(cat.image) : null);
     toast.info(`Editing Category: ${cat.name}`);
     // 🔹 input auto focus
     setTimeout(() => {
@@ -476,9 +482,9 @@ const Categories = () => {
                         <TableCell>
                           {cat.image ? (
                             <img
-                              src={cat.image ? `${API_HOST}${cat.image}` : undefined}
+                              src={cat.image ? resolveImageUrl(cat.image) : undefined}
                               alt={cat.name}
-                              onClick={() => openImageModal(`${API_HOST}${cat.image}`)}
+                              onClick={() => openImageModal(resolveImageUrl(cat.image))}
                               className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow-sm active:shadow cursor-pointer"
                             />
                           ) : (

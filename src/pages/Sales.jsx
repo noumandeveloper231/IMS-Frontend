@@ -2,6 +2,12 @@ import React, { useState } from "react";
 import { ChevronDown, Check, Trash2 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
+
+const resolveImageUrl = (src) => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  return `${API_HOST}${src}`;
+};
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
@@ -79,7 +85,7 @@ function SalesProductCombobox({ products = [], value, onChange, placeholder = "S
                   <Check className={cn("mr-2 h-4 w-4", value === p._id ? "opacity-100" : "opacity-0")} />
                   <div className="flex gap-2 items-center">
                     {p.image ? (
-                      <img src={`${API_HOST}${p.image}`} alt="" className="h-8 w-8 object-cover rounded border" />
+                      <img src={resolveImageUrl(p.image)} alt="" className="h-8 w-8 object-cover rounded border" />
                     ) : (
                       <span className="w-8 h-8 rounded border bg-muted flex items-center justify-center text-xs text-muted-foreground">—</span>
                     )}
