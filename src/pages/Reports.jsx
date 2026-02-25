@@ -28,10 +28,10 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-} from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/UI/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/UI/tabs";
+import { Button } from "@/components/UI/button";
+import { Badge } from "@/components/UI/badge";
 import {
   Dialog,
   DialogContent,
@@ -39,15 +39,15 @@ import {
   DialogTitle,
   DialogDescription,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@/components/UI/dialog";
+import { ScrollArea } from "@/components/UI/scroll-area";
 import {
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-} from "@/components/ui/select";
+} from "@/components/UI/select";
 
 const CHART_COLORS = ["#0ea5e9", "#6366f1", "#22c55e", "#eab308", "#f97316", "#ef4444"];
 
