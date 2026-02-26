@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowUpAZ,
@@ -78,6 +78,14 @@ const resolveImageUrl = (src) => {
   if (!src) return null;
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
   return `${API_HOST}${src}`;
+};
+
+const CONDITION_CODE_MAP = {
+  "Brand New": "BN",
+  "Like New": "LN",
+  "Used": "US",
+  "Refurbished": "RF",
+  "Max": "MX",
 };
 
 function ProductCombobox({
@@ -247,6 +255,22 @@ const Products = () => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+
+  useEffect(() => {
+    const asin = form.asin?.trim();
+    const selectedCondition = conditions.find((c) => c._id === form.condition);
+    const conditionName = selectedCondition?.name;
+    const conditionCode = conditionName ? CONDITION_CODE_MAP[conditionName] || "" : "";
+
+    if (!asin) {
+      setForm((prev) => (prev.sku === "" ? prev : { ...prev, sku: "" }));
+      return;
+    }
+
+    const nextSku = conditionCode ? `AR-${asin}-${conditionCode}` : `AR-${asin}`;
+
+    setForm((prev) => (prev.sku === nextSku ? prev : { ...prev, sku: nextSku }));
+  }, [form.asin, form.condition, conditions]);
 
   // Options for searchable dropdowns
   const categoryOptions = categories.map((c) => ({ value: c._id, label: c.name }));
@@ -790,8 +814,9 @@ const Products = () => {
                 name="sku"
                 placeholder="SKU"
                 value={form.sku}
-                onChange={handleChange}
                 className="mt-1"
+                readOnly
+                disabled
               />
             </div>
             <div>
