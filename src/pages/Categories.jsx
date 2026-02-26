@@ -459,7 +459,7 @@ const Categories = () => {
                         </div>
                       </TableHead>
                       <TableHead onClick={() => handleSort("productCount")}>
-                        <div className="flex items-center gap-2">
+                        <div className="flex justify-center items-center gap-2">
                           Product Count
                           {sortField === "productCount" &&
                             (sortOrder === "asc" ? (

@@ -177,6 +177,7 @@ const Products = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [dragImageIndex, setDragImageIndex] = useState(null);
+  const [stockFilter, setStockFilter] = useState("all");
 
   const [form, setForm] = useState({
     title: "",
@@ -506,9 +507,18 @@ const Products = () => {
   //   setImagePreviews(p.images || []);
   // };
 
-  const filteredProducts = (products || []).filter((p) =>
-    (p.title || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProducts = (products || []).filter((p) => {
+    const matchesSearch = (p.title || "").toLowerCase().includes(search.toLowerCase());
+
+    let matchesStock = true;
+    if (stockFilter === "in-stock") {
+      matchesStock = (p.quantity ?? 0) > 0;
+    } else if (stockFilter === "out-of-stock") {
+      matchesStock = (p.quantity ?? 0) === 0;
+    }
+
+    return matchesSearch && matchesStock;
+  });
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (sortField === "title") {
@@ -1055,8 +1065,8 @@ const Products = () => {
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="flex justify-between items-center mb-6 gap-4">
             <h2 className="w-full text-2xl font-semibold text-gray-700">Products List</h2>
-            <div className="w-full flex gap-4 items-center">
-              <div className="flex-3">
+            <div className="w-full flex flex-col md:flex-row gap-4 items-center">
+              <div className="flex-1 w-full">
                 <Input
                   type="text"
                   placeholder="Search products..."
@@ -1065,7 +1075,28 @@ const Products = () => {
                   className="w-full"
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 w-full">
+                <UiSelect
+                  value={stockFilter}
+                  onValueChange={(value) => {
+                    setStockFilter(value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Stock filter" />
+                  </SelectTrigger>
+                  <SelectContent position="item-aligned">
+                    <SelectGroup>
+                      <SelectLabel>Stock</SelectLabel>
+                      <SelectItem value="all">All stock</SelectItem>
+                      <SelectItem value="in-stock">In Stock</SelectItem>
+                      <SelectItem value="out-of-stock">Out of Stock</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </UiSelect>
+              </div>
+              <div className="flex-1 w-full md:w-auto">
                 <UiSelect
                   value={String(itemsPerPage)}
                   onValueChange={(value) => {
