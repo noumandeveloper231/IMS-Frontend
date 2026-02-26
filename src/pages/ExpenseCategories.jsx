@@ -246,7 +246,7 @@ const ExpenseCategories = () => {
         <div className="bg-white rounded-3xl shadow-xl p-8">
           <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
             <h2 className="text-2xl font-semibold text-gray-700">
-              Expense Categories List
+              Expense Categories List ({filteredCategories.length})
             </h2>
             <div className="flex gap-4 items-center">
               <div className="relative">

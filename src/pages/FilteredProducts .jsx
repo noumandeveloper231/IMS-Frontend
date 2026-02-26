@@ -2,6 +2,21 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
+import { Field } from "@/components/UI/field";
+import { Input } from "@/components/UI/input";
+
+const getPrimaryImageUrl = (product) => {
+  const primary =
+    (Array.isArray(product.images) && product.images.length && product.images[0]) ||
+    product.image ||
+    null;
+
+  if (!primary) return null;
+  if (typeof primary === "string" && (primary.startsWith("http://") || primary.startsWith("https://"))) {
+    return primary;
+  }
+  return `${API_HOST}${primary}`;
+};
 
 const FilteredProducts = () => {
   const { type, id, status } = useParams();
@@ -14,8 +29,25 @@ const FilteredProducts = () => {
         // Route can be /products/filter/stock/in-stock (type=stock, id=in-stock) or /products/stock/in-stock (status=in-stock)
         const stockStatus = status || (type === "stock" && id) ? (status || id) : null;
         if (stockStatus) {
-          const res = await api.get(`/products/filter/stock/${stockStatus}`);
-          setProducts(res.data?.products || []);
+          const res = await api.get("/products/getall");
+          const allProducts = res.data?.products ?? res.data ?? [];
+          let filteredByStock = allProducts;
+
+          if (stockStatus === "in-stock") {
+            filteredByStock = allProducts.filter((p) => (p.quantity ?? 0) > 0);
+          } else if (stockStatus === "out-stock" || stockStatus === "out-of-stock") {
+            filteredByStock = allProducts.filter((p) => (p.quantity ?? 0) === 0);
+          }
+
+          setProducts(filteredByStock);
+        } else if (type === "subcategory" && id) {
+          // Backend currently returns category-level results, so filter by subcategory on the client
+          const res = await api.get("/products/getall");
+          const allProducts = res.data?.products ?? res.data ?? [];
+          const filteredBySub = allProducts.filter((p) =>
+            (p.subcategories || []).some((s) => (s?._id ?? s) === id)
+          );
+          setProducts(filteredBySub);
         } else if (type && id) {
           const res = await api.get(`/products/filter/${type}/${id}`);
           setProducts(res.data?.products || []);
@@ -28,7 +60,8 @@ const FilteredProducts = () => {
     fetchProducts();
   }, [type, id, status]);
 
-  const displayStatus = status || (type === "stock" ? id : null);
+  const rawStatus = status || (type === "stock" ? id : null);
+  const displayStatus = rawStatus === "out-stock" ? "out-of-stock" : rawStatus;
 
   const filteredProducts = products.filter((item) => {
     const term = searchTerm.toLowerCase();
@@ -38,7 +71,8 @@ const FilteredProducts = () => {
       item.sku?.toLowerCase().includes(term) ||
       item.modelno?.toLowerCase().includes(term) ||
       item.brands?.some((b) => b.name?.toLowerCase().includes(term)) ||
-      item.categories?.some((c) => c.name?.toLowerCase().includes(term))
+      item.categories?.some((c) => c.name?.toLowerCase().includes(term)) ||
+      item.subcategories?.some((s) => s.name?.toLowerCase().includes(term))
     );
   });
 
@@ -52,8 +86,8 @@ const FilteredProducts = () => {
               {displayStatus === "in-stock"
                 ? "In stock products"
                 : displayStatus === "out-of-stock"
-                ? "Out of stock products"
-                : "Filtered products"}
+                  ? "Out of stock products"
+                  : "Filtered products"}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
               Browse products that match the selected filter and quickly search within the
@@ -64,20 +98,19 @@ const FilteredProducts = () => {
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {displayStatus && (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-medium ${
-                  displayStatus === "in-stock"
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-medium ${displayStatus === "in-stock"
                     ? "bg-emerald-50 text-emerald-700"
                     : displayStatus === "out-of-stock"
-                    ? "bg-rose-50 text-rose-700"
-                    : "bg-gray-50 text-gray-700"
-                }`}
+                      ? "bg-rose-50 text-rose-700"
+                      : "bg-gray-50 text-gray-700"
+                  }`}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 {displayStatus === "in-stock"
                   ? "In stock"
                   : displayStatus === "out-of-stock"
-                  ? "Out of stock"
-                  : displayStatus}
+                    ? "Out of stock"
+                    : displayStatus}
               </span>
             )}
             <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700">
@@ -93,13 +126,15 @@ const FilteredProducts = () => {
               Use the search bar to filter by title, SKU, model, brand, or category.
             </div>
             <div className="w-full sm:w-80">
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              />
+              <Field>
+                <Input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  // className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                />
+              </Field>
             </div>
           </div>
 
@@ -113,9 +148,9 @@ const FilteredProducts = () => {
                 >
                   {/* Image */}
                   <div className="flex h-52 w-full items-center justify-center bg-gray-50 p-4">
-                    {item.image ? (
+                    {getPrimaryImageUrl(item) ? (
                       <img
-                        src={`${API_HOST}${item.image}`}
+                        src={getPrimaryImageUrl(item)}
                         alt={item.title || "Product image"}
                         className="h-full w-full rounded-lg object-contain transition-transform duration-200 group-hover:scale-105"
                       />

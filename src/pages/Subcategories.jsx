@@ -1,8 +1,9 @@
 import React, { useState, useRef } from "react";
 import api from "../utils/api";
-import { ArrowUpAZ, ArrowDownAZ, Edit, Trash2, ChevronDown, Check } from "lucide-react";
+import { ArrowUpAZ, ArrowDownAZ, ArrowUp01, ArrowDown01, Edit, Trash2, ChevronDown, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
@@ -140,6 +141,7 @@ function ProductCombobox({
 
 const Subcategories = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const nameInputRef = useRef(null);
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -169,6 +171,15 @@ const Subcategories = () => {
     },
   });
   const subcategories = subcategoriesData ?? [];
+
+  const { data: productsData } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const res = await api.get("/products/getall");
+      return res.data?.products ?? res.data ?? [];
+    },
+  });
+  const products = productsData ?? [];
 
   const categoryOptions = categories.map((c) => ({
     value: c._id,
@@ -275,7 +286,28 @@ const Subcategories = () => {
     setEditingId(null);
   };
 
-  const filtered = (subcategories || []).filter(
+  const handleProductsClick = (id) => {
+    navigate(`/products/filter/subcategory/${id}`);
+  };
+
+  const productCountBySubcategoryId = React.useMemo(() => {
+    const counts = {};
+    (products || []).forEach((p) => {
+      (p.subcategories || []).forEach((s) => {
+        const id = s?._id ?? s;
+        if (!id) return;
+        counts[id] = (counts[id] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [products]);
+
+  const subcategoriesWithCounts = (subcategories || []).map((s) => ({
+    ...s,
+    productCount: productCountBySubcategoryId[s._id] ?? 0,
+  }));
+
+  const filtered = (subcategoriesWithCounts || []).filter(
     (s) =>
       (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.category?.name || "").toLowerCase().includes(searchTerm.toLowerCase())
@@ -293,6 +325,11 @@ const Subcategories = () => {
       return sortOrder === "asc"
         ? aCat.localeCompare(bCat)
         : bCat.localeCompare(aCat);
+    }
+    if (sortField === "productCount") {
+      return sortOrder === "asc"
+        ? (a.productCount ?? 0) - (b.productCount ?? 0)
+        : (b.productCount ?? 0) - (a.productCount ?? 0);
     }
     return 0;
   });
@@ -366,7 +403,7 @@ const Subcategories = () => {
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="flex justify-between items-center mb-6 gap-4">
             <h2 className="w-full text-2xl font-semibold text-gray-700">
-              Subcategories List
+              Subcategories List ({sorted.length})
             </h2>
             <div className="w-full flex gap-4 items-center">
               <div className="flex-3">
@@ -441,6 +478,20 @@ const Subcategories = () => {
                             ))}
                         </div>
                       </TableHead>
+                      <TableHead
+                        className="cursor-pointer"
+                        onClick={() => handleSort("productCount")}
+                      >
+                        <div className="flex justify-center items-center gap-2">
+                          Product Count
+                          {sortField === "productCount" &&
+                            (sortOrder === "asc" ? (
+                              <ArrowUp01 className="w-4 h-4 text-blue-600" />
+                            ) : (
+                              <ArrowDown01 className="w-4 h-4 text-blue-600" />
+                            ))}
+                        </div>
+                      </TableHead>
                       <TableHead>Created At</TableHead>
                       <TableHead>Updated At</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
@@ -455,6 +506,12 @@ const Subcategories = () => {
                         <TableCell className="font-medium">{sub.name}</TableCell>
                         <TableCell className="text-gray-600">
                           {sub.category?.name ?? "-"}
+                        </TableCell>
+                        <TableCell
+                          className="text-center font-medium cursor-pointer"
+                          onClick={() => handleProductsClick(sub._id)}
+                        >
+                          {sub.productCount ?? 0}
                         </TableCell>
                         <TableCell className="text-sm text-gray-500">
                           {new Date(sub.createdAt).toLocaleDateString()}

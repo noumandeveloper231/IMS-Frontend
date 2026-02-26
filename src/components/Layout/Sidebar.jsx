@@ -53,8 +53,10 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [purchasesOpen, setPurchasesOpen] = useState(false);
   const [purchasesAnchorRect, setPurchasesAnchorRect] = useState(null);
+  const [poOpen, setPoOpen] = useState(false);
+  const [prOpen, setPrOpen] = useState(false);
   const purchasesAnchorRef = useRef(null);
-  const purchasesCloseTimeoutRef = useRef(null);
+  const purchasesMenuRef = useRef(null);
 
   const isActive = (to, exact = false) =>
     exact ? pathname === to : pathname.startsWith(to);
@@ -66,30 +68,55 @@ const Sidebar = () => {
     navigate("/login");
   };
 
-  const handlePurchasesEnter = () => {
-    if (purchasesCloseTimeoutRef.current) {
-      clearTimeout(purchasesCloseTimeoutRef.current);
-    }
+  const togglePurchasesMenu = () => {
     if (purchasesAnchorRef.current) {
       const rect = purchasesAnchorRef.current.getBoundingClientRect();
       setPurchasesAnchorRect(rect);
     }
-    setPurchasesOpen(true);
-  };
-
-  const handlePurchasesLeave = () => {
-    purchasesCloseTimeoutRef.current = setTimeout(() => {
-      setPurchasesOpen(false);
-    }, 350);
+    setPurchasesOpen((prev) => {
+      const next = !prev;
+      if (!next) {
+        setPoOpen(false);
+        setPrOpen(false);
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
-    return () => {
-      if (purchasesCloseTimeoutRef.current) {
-        clearTimeout(purchasesCloseTimeoutRef.current);
+    // Close purchases and nested menus on route change
+    setPurchasesOpen(false);
+    setPoOpen(false);
+    setPrOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const anchorEl = purchasesAnchorRef.current;
+      const menuEl = purchasesMenuRef.current;
+
+      if (
+        !purchasesOpen ||
+        !event.target ||
+        (anchorEl && anchorEl.contains(event.target)) ||
+        (menuEl && menuEl.contains(event.target))
+      ) {
+        return;
       }
+
+      setPurchasesOpen(false);
+      setPoOpen(false);
+      setPrOpen(false);
     };
-  }, []);
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [purchasesOpen]);
 
   return (
     <aside
@@ -212,16 +239,13 @@ const Sidebar = () => {
             </Link>
 
             {/* Purchases: hover with portal-based floating menu */}
-            <div
-              ref={purchasesAnchorRef}
-              onMouseEnter={handlePurchasesEnter}
-              onMouseLeave={handlePurchasesLeave}
-            >
+            <div ref={purchasesAnchorRef}>
               {isCollapsed ? (
                 <Button
                   variant={isPurchaseActive(pathname) ? "default" : "ghost"}
                   className={navItemClasses(isPurchaseActive(pathname), true)}
                   title="Purchases"
+                  onClick={togglePurchasesMenu}
                 >
                   <ShoppingBasket className="h-4 w-4 shrink-0" />
                 </Button>
@@ -229,6 +253,7 @@ const Sidebar = () => {
                 <Button
                   variant={isPurchaseActive(pathname) ? "default" : "ghost"}
                   className={`${navItemClasses(isPurchaseActive(pathname), false)} justify-between`}
+                  onClick={togglePurchasesMenu}
                 >
                   <span className="flex items-center gap-3">
                     <ShoppingBasket className="h-4 w-4 shrink-0" />
@@ -242,67 +267,78 @@ const Sidebar = () => {
             {purchasesOpen && purchasesAnchorRect &&
               createPortal(
                 <div
+                  ref={purchasesMenuRef}
                   className="fixed z-50"
                   style={{
                     top: purchasesAnchorRect.top,
                     left: purchasesAnchorRect.right + 2,
                   }}
-                  onMouseEnter={handlePurchasesEnter}
-                  onMouseLeave={handlePurchasesLeave}
                 >
-                  <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-1">
+                  <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-2">
                     <Link to="/vendors">
                       <span className={subItemClasses(isActive("/vendors", true))}>
                         Vendors
                       </span>
                     </Link>
 
-                    <div className="relative group/po">
+                    <div className="relative">
                       <button
                         type="button"
                         className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
+                        onClick={() => {
+                          setPoOpen((open) => !open);
+                          setPrOpen(false);
+                        }}
                       >
                         <span>PO</span>
                         <ChevronRight className="h-4 w-4" />
                       </button>
-                      <div className="pointer-events-none absolute left-full top-0 ml-2 z-50 opacity-0 transition-opacity duration-150 group-hover/po:opacity-100 group-hover/po:pointer-events-auto">
-                        <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-1">
-                          <Link to="/purchase-orders">
-                            <span className={subItemClasses(isActive("/purchase-orders", true))}>
-                              Add PO
-                            </span>
-                          </Link>
-                          <Link to="/purchaseorderslist">
-                            <span className={subItemClasses(isActive("/purchaseorderslist", true))}>
-                              List of PO
-                            </span>
-                          </Link>
+                      {poOpen && (
+                        <div className="absolute left-full top-0 ml-3 z-50">
+                          <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-2">
+                            <Link to="/purchase-orders">
+                              <span className={subItemClasses(isActive("/purchase-orders", true))}>
+                                Add PO
+                              </span>
+                            </Link>
+                            <Link to="/purchaseorderslist">
+                              <span className={subItemClasses(isActive("/purchaseorderslist", true))}>
+                                List of PO
+                              </span>
+                            </Link>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
 
-                    <div className="relative group/pr">
+                    <div className="relative">
                       <button
                         type="button"
                         className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
+                        onClick={() => {
+                          setPrOpen((open) => !open);
+                          setPoOpen(false);
+                        }}
                       >
                         <span>PR</span>
                         <ChevronRight className="h-4 w-4" />
                       </button>
-                      <div className="pointer-events-none absolute left-full top-0 ml-2 z-50 opacity-0 transition-opacity duration-150 group-hover/pr:opacity-100 group-hover/pr:pointer-events-auto">
-                        <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-1">
-                          <Link to="/purchase-receives">
-                            <span className={subItemClasses(isActive("/purchase-receives", true))}>
-                              Add PR
-                            </span>
-                          </Link>
-                          <Link to="/purchasereceiveslist">
-                            <span className={subItemClasses(isActive("/purchasereceiveslist", true))}>
-                              List of PR
-                            </span>
-                          </Link>
+                      {prOpen && (
+                        <div className="absolute left-full top-0 ml-2 z-50">
+                          <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-2">
+                            <Link to="/purchase-receives">
+                              <span className={subItemClasses(isActive("/purchase-receives", true))}>
+                                Add PR
+                              </span>
+                            </Link>
+                            <Link to="/purchasereceiveslist">
+                              <span className={subItemClasses(isActive("/purchasereceiveslist", true))}>
+                                List of PR
+                              </span>
+                            </Link>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
 
                     <Link to="/bills">

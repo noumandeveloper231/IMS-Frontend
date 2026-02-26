@@ -396,7 +396,7 @@ const Categories = () => {
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="flex justify-between items-center mb-6 gap-4">
             <h2 className="w-full text-2xl font-semibold text-gray-700">
-              Categories List
+              Categories List ({filteredCategories.length})
             </h2>
             <div className="w-full flex gap-4 items-center">
               {/* Search - takes more space */}

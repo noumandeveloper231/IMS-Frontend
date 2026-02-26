@@ -330,7 +330,9 @@ const Brands = () => {
 
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="w-full text-2xl font-semibold text-gray-700">Brands List</h2>
+            <h2 className="w-full text-2xl font-semibold text-gray-700">
+              Brands List ({filteredBrands.length})
+            </h2>
             <div className="w-full flex gap-4 items-center">
               <div className="flex-3">
                 <Input

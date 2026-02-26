@@ -360,7 +360,9 @@ const Vendors = () => {
 
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <h2 className="text-2xl font-semibold text-gray-700">Vendors List</h2>
+            <h2 className="text-2xl font-semibold text-gray-700">
+              Vendors List ({filteredVendors.length})
+            </h2>
             <Input
               type="text"
               placeholder="Search vendors..."

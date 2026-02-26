@@ -53,16 +53,24 @@ const Orders = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["orders", "sales", currentPage, itemsPerPage, searchTerm],
+    queryKey: ["orders", "sales", currentPage, itemsPerPage, searchTerm, startDate, endDate],
     queryFn: async () => {
       const res = await api.get("/sales/getall", {
-        params: { page: currentPage, limit: itemsPerPage, search: searchTerm },
+        params: {
+          page: currentPage,
+          limit: itemsPerPage,
+          search: searchTerm,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        },
       });
       return res.data;
     },
@@ -74,6 +82,19 @@ const Orders = () => {
   })();
   const pagination = data?.pagination ?? { total: orders.length, pages: 1 };
   const totalPages = pagination.pages || 1;
+
+  const startDateObj = startDate ? new Date(startDate) : null;
+  const endDateObj = endDate ? new Date(endDate) : null;
+  if (endDateObj) {
+    endDateObj.setHours(23, 59, 59, 999);
+  }
+
+  const filteredOrders = orders.filter((order) => {
+    const createdAt = order.createdAt ? new Date(order.createdAt) : null;
+    const matchesStart = !startDateObj || (createdAt && createdAt >= startDateObj);
+    const matchesEnd = !endDateObj || (createdAt && createdAt <= endDateObj);
+    return matchesStart && matchesEnd;
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
@@ -110,7 +131,14 @@ const Orders = () => {
 
   const handleExport = async () => {
     try {
-      const res = await api.get("/sales/getall", { params: { limit: 10000 } });
+      const res = await api.get("/sales/getall", {
+        params: {
+          limit: 10000,
+          search: searchTerm || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        },
+      });
       const raw = res.data?.data ?? res.data;
       const allOrders = Array.isArray(raw) ? raw : [];
       const worksheet = XLSX.utils.json_to_sheet(allOrders);
@@ -152,27 +180,59 @@ const Orders = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-md p-8">
-          <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="text-2xl font-semibold text-gray-700 w-full">Orders List</h2>
-            <Select
-              value={String(itemsPerPage)}
-              onValueChange={(v) => {
-                setItemsPerPage(Number(v));
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Per page" />
-              </SelectTrigger>
-              <SelectContent position="item-aligned">
-                <SelectGroup>
-                  <SelectLabel>Per page</SelectLabel>
-                  <SelectItem value="5">5 per page</SelectItem>
-                  <SelectItem value="10">10 per page</SelectItem>
-                  <SelectItem value="20">20 per page</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+            <h2 className="text-2xl font-semibold text-gray-700">
+              Orders List ({filteredOrders.length})
+            </h2>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-gray-600 mb-1">
+                  Start date
+                </span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="min-w-[160px]"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-gray-600 mb-1">
+                  End date
+                </span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="min-w-[160px]"
+                />
+              </div>
+              <Select
+                value={String(itemsPerPage)}
+                onValueChange={(v) => {
+                  setItemsPerPage(Number(v));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Per page" />
+                </SelectTrigger>
+                <SelectContent position="item-aligned">
+                  <SelectGroup>
+                    <SelectLabel>Per page</SelectLabel>
+                    <SelectItem value="5">5 per page</SelectItem>
+                    <SelectItem value="10">10 per page</SelectItem>
+                    <SelectItem value="20">20 per page</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {isLoading ? (
@@ -196,7 +256,7 @@ const Orders = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order, index) => (
+                    {filteredOrders.map((order, index) => (
                       <TableRow key={order._id} className="hover:bg-gray-50">
                         <TableCell className="text-sm text-gray-900">
                           {(currentPage - 1) * itemsPerPage + index + 1}
@@ -261,7 +321,7 @@ const Orders = () => {
                 </Table>
               </div>
 
-              {orders.length === 0 && (
+              {filteredOrders.length === 0 && (
                 <p className="text-gray-500 text-center py-6">No orders found</p>
               )}
 

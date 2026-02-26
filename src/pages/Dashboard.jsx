@@ -214,7 +214,7 @@ const Dashboard = () => {
             </Card>
           </Link>
 
-          <Link to="/products/stock/in-stock">
+          <Link to="/products/stock/out-stock">
             <Card className="cursor-pointer hover:shadow-md transition">
               <CardContent className="flex items-center justify-between p-4">
 
@@ -237,7 +237,7 @@ const Dashboard = () => {
             </Card>
           </Link>
 
-          <Link to="/orders">
+          <Link to="/products/stock/in-stock">
             <Card className="cursor-pointer hover:shadow-md transition">
               <CardContent className="flex items-center justify-between p-4">
 

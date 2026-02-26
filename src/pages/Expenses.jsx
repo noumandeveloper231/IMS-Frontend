@@ -261,7 +261,9 @@ const Expenses = () => {
         {/* Table */}
         <div className="bg-white p-8 rounded-3xl shadow-xl">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold">Expenses List</h2>
+            <h2 className="text-2xl font-semibold">
+              Expenses List ({filteredExpenses.length})
+            </h2>
             <input
               type="text"
               placeholder="Search..."

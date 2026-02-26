@@ -1089,7 +1089,9 @@ const Products = () => {
         {/* Product Table */}
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="w-full text-2xl font-semibold text-gray-700">Products List</h2>
+            <h2 className="w-full text-2xl font-semibold text-gray-700">
+              Products List ({filteredProducts.length})
+            </h2>
             <div className="w-full flex flex-col md:flex-row gap-4 items-center">
               <div className="flex-1 w-full">
                 <Input
