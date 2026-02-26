@@ -414,7 +414,7 @@ const Conditions = () => {
                               src={resolveImageUrl(cond.image)}
                               alt={cond.name}
                               onClick={() => openImageModal(resolveImageUrl(cond.image))}
-                              className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow cursor-pointer"
+                              className="w-30 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
                             />
                           ) : (
                             <span className="text-gray-400 italic">No Image</span>

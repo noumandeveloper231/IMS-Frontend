@@ -485,7 +485,7 @@ const Categories = () => {
                               src={cat.image ? resolveImageUrl(cat.image) : undefined}
                               alt={cat.name}
                               onClick={() => openImageModal(resolveImageUrl(cat.image))}
-                              className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow-sm active:shadow cursor-pointer"
+                              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow-sm active:shadow cursor-pointer"
                             />
                           ) : (
                             <span className="text-gray-400 italic">No Image</span>

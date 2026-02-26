@@ -10,13 +10,23 @@ export function ImageUploadDropzone({
   primaryLabel,
   secondaryLabel = "or click to browse",
   disabled = false,
+  multiple = false,
+  onReorderFrontFromIndex,
 }) {
   const inputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
 
   const handleFiles = (files) => {
-    if (!files || !files[0] || disabled) return
-    onFileSelect(files[0])
+    if (!files || disabled) return
+
+    if (multiple) {
+      const fileArray = Array.from(files)
+      if (!fileArray.length) return
+      onFileSelect(fileArray)
+    } else {
+      if (!files[0]) return
+      onFileSelect(files[0])
+    }
   }
 
   const mainText = primaryLabel ?? (previewUrl ? "Change image" : "Drag & drop image")
@@ -31,7 +41,18 @@ export function ImageUploadDropzone({
       onDrop={(e) => {
         e.preventDefault()
         setIsDragging(false)
-        if (!disabled) handleFiles(e.dataTransfer.files)
+        if (disabled) return
+
+        const draggedIndex = e.dataTransfer.getData("text/image-index")
+        if (draggedIndex !== "" && draggedIndex != null && onReorderFrontFromIndex) {
+          const indexNum = Number(draggedIndex)
+          if (!Number.isNaN(indexNum)) {
+            onReorderFrontFromIndex(indexNum)
+            return
+          }
+        }
+
+        handleFiles(e.dataTransfer.files)
       }}
       onClick={() => !disabled && inputRef.current?.click()}
       className={cn(
@@ -48,6 +69,7 @@ export function ImageUploadDropzone({
         ref={inputRef}
         type="file"
         accept={accept}
+        multiple={multiple}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
         disabled={disabled}

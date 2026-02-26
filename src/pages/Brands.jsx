@@ -414,7 +414,7 @@ const Brands = () => {
                               src={resolveImageUrl(brand.image)}
                               alt={brand.name}
                               onClick={() => openImageModal(resolveImageUrl(brand.image))}
-                              className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow cursor-pointer"
+                              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
                             />
                           ) : (
                             <span className="text-gray-400 italic">No Image</span>

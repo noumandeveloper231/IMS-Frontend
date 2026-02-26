@@ -10,6 +10,7 @@ import Brands from "./pages/Brands";
 import { BrandProvider } from "./context/BrandContext";
 import Conditions from "./pages/Conditions";
 import Products from "./pages/Products";
+import ProductDetail from "./pages/ProductDetail";
 import Dashboard from "./pages/Dashboard";
 import Navbar from "./components/Layout/Navbar";
 import Sidebar from "./components/Layout/Sidebar";
@@ -60,6 +61,7 @@ function App() {
                         <Route path="/expenses" element={<Expenses />} />
                         <Route path="/expensecategories" element={<ExpenseCategories />} />
                         <Route path="/products" element={<Products />} />
+                        <Route path="/products/:id" element={<ProductDetail />} />
                         <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
                         <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
                         <Route path="/purchasereceiveslist" element={<PurchaseReceiveList />} />

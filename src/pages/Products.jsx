@@ -1,5 +1,16 @@
 import React, { useState, useRef } from "react";
-import { ArrowUpAZ, ArrowDownAZ, ArrowUp01, ArrowDown01, ChevronDown, Check, Edit, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  ArrowUpAZ,
+  ArrowDownAZ,
+  ArrowUp01,
+  ArrowDown01,
+  ChevronDown,
+  Check,
+  Edit,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
 import { toast } from "sonner";
@@ -161,11 +172,11 @@ const Products = () => {
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState("title");
   const [sortOrder, setSortOrder] = useState("asc");
-  const [image, setImage] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [images, setImages] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
+  const [dragImageIndex, setDragImageIndex] = useState(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -263,15 +274,6 @@ const Products = () => {
     });
   };
 
-  // Handle image selection
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImage(file);
-      setPreview(URL.createObjectURL(file));
-    }
-  };
-
   const createMutation = useMutation({
     mutationFn: async (formData) => {
       const res = await api.post("/products/create", formData, {
@@ -345,7 +347,7 @@ const Products = () => {
     [brand].filter(Boolean).forEach((v) => formData.append("brands", v));
     [condition].filter(Boolean).forEach((v) => formData.append("conditions", v));
     Object.entries(rest).forEach(([key, value]) => formData.append(key, value ?? ""));
-    if (image) formData.append("image", image);
+    images.forEach((file) => formData.append("images", file));
 
     if (editingId) {
       await updateMutation.mutateAsync({ id: editingId, formData });
@@ -368,9 +370,13 @@ const Products = () => {
       condition: "",
     });
     setEditingId(null);
-    if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
-    setImage(null);
-    setPreview(null);
+    imagePreviews.forEach((url) => {
+      if (url && url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+    setImages([]);
+    setImagePreviews([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -460,7 +466,14 @@ const Products = () => {
       condition: (p.conditions || [])[0]?._id ?? "",
     });
     setEditingId(p._id);
-    setPreview(p.image ? resolveImageUrl(p.image) : null);
+    setImages([]);
+    const existingImages = Array.isArray(p.images) && p.images.length
+      ? p.images
+      : p.image
+        ? [p.image]
+        : [];
+    const previewUrls = existingImages.map((img) => resolveImageUrl(img));
+    setImagePreviews(previewUrls);
 
     // 🔹 Toast show
     toast.info(`Editing product: ${p.title}`);
@@ -549,7 +562,10 @@ const Products = () => {
         subcategories: (p.subcategories || []).map((s) => s.name).join(", "),
         brands: (p.brands || []).map((b) => b.name).join(", "),
         conditions: (p.conditions || []).map((c) => c.name).join(", "),
-        image: p.image ? `${window.location.origin}${p.image}` : "", // ✅ image ka full URL
+        image: (() => {
+          const primaryImage = Array.isArray(p.images) && p.images.length ? p.images[0] : p.image;
+          return primaryImage ? resolveImageUrl(primaryImage) : "";
+        })(),
       }))
     );
 
@@ -580,16 +596,59 @@ const Products = () => {
 
     reader.readAsBinaryString(file);
   };
-  const handleProductImageSelect = (file) => {
-    if (!file) return;
-    setImage(file);
-    setPreview(URL.createObjectURL(file));
+  const handleProductImageSelect = (fileOrFiles) => {
+    if (!fileOrFiles) return;
+
+    const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+    if (!filesArray.length) return;
+
+    setImages((prev) => [...prev, ...filesArray]);
+    const newPreviews = filesArray.map((file) => URL.createObjectURL(file));
+    setImagePreviews((prev) => [...prev, ...newPreviews]);
+  };
+
+  const handleRemoveImageAtIndex = (index) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (removed && removed.startsWith("blob:")) {
+        URL.revokeObjectURL(removed);
+      }
+      return next;
+    });
+  };
+
+  const moveItem = (array, from, to) => {
+    const updated = [...array];
+    const [item] = updated.splice(from, 1);
+    updated.splice(to, 0, item);
+    return updated;
+  };
+
+  const handleThumbnailDragStart = (index) => {
+    setDragImageIndex(index);
+  };
+
+  const handleThumbnailDragOver = (event) => {
+    event.preventDefault();
+  };
+
+  const handleThumbnailDrop = (index) => {
+    if (dragImageIndex === null || dragImageIndex === index) return;
+
+    setImages((prev) => moveItem(prev, dragImageIndex, index));
+    setImagePreviews((prev) => moveItem(prev, dragImageIndex, index));
+    setDragImageIndex(null);
   };
   const handleClearProductImage = () => {
-    if (preview) URL.revokeObjectURL(preview);
-    setImage(null);
-    setPreview(null);
-    setPreviewImage(null);
+    imagePreviews.forEach((url) => {
+      if (url && url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+    setImages([]);
+    setImagePreviews([]);
   };
   // Import
   // const handleImport = (e) => {
@@ -657,8 +716,13 @@ const Products = () => {
       condition: "",
     });
     setEditingId(null);
-    setImage(null);
-    setPreview(null);
+    imagePreviews.forEach((url) => {
+      if (url && url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+    setImages([]);
+    setImagePreviews([]);
   };
 
   return (
@@ -871,18 +935,56 @@ const Products = () => {
               </Field>
               <ImageUploadDropzone
                 onFileSelect={handleProductImageSelect}
-                previewUrl={preview}
+                previewUrl={imagePreviews[0]}
                 accept="image/*"
                 className="mt-1"
+                multiple
+                primaryLabel="Upload product images"
+                secondaryLabel="You can select multiple images (first will show in list)"
+                onReorderFrontFromIndex={(index) => {
+                  setImages((prev) => moveItem(prev, index, 0));
+                  setImagePreviews((prev) => moveItem(prev, index, 0));
+                }}
               />
-              {preview && (
-                <button
-                  type="button"
-                  onClick={handleClearProductImage}
-                  className="mt-2 text-sm text-muted-foreground hover:text-foreground underline"
-                >
-                  Clear image
-                </button>
+              {imagePreviews.length > 0 && (
+                <>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {imagePreviews.map((src, index) => (
+                      <div
+                        key={index}
+                        className="relative w-24 h-24 rounded-md overflow-hidden border border-muted bg-muted/40 cursor-move"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/image-index", String(index));
+                          handleThumbnailDragStart(index);
+                        }}
+                        onDragOver={handleThumbnailDragOver}
+                        onDrop={() => handleThumbnailDrop(index)}
+                      >
+                        <img
+                          src={src}
+                          alt={`Selected ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImageAtIndex(index)}
+                          className="absolute top-1 right-1 rounded-full bg-white/95 shadow-md text-red-500 hover:bg-red-50 p-0.5 z-10"
+                          aria-label="Remove image"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearProductImage}
+                    className="mt-2 text-sm text-muted-foreground hover:text-foreground underline block"
+                  >
+                    Clear all images
+                  </button>
+                </>
               )}
             </div>
 
@@ -1057,22 +1159,38 @@ const Products = () => {
                             {indexOfFirst + i + 1}
                           </TableCell>
                           <TableCell>
-                            {p.image ? (
-                              <img
-                                src={resolveImageUrl(p.image)}
-                                alt={p.title}
-                                onClick={() => openImageModal(resolveImageUrl(p.image))}
-                                className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow cursor-pointer"
-                              />
-                            ) : (
-                              <span className="text-gray-400 italic">No Image</span>
-                            )}
+                            {(() => {
+                              const primaryImage =
+                                Array.isArray(p.images) && p.images.length
+                                  ? p.images[0]
+                                  : p.image;
+                              if (!primaryImage) {
+                                return (
+                                  <span className="text-gray-400 italic">No Image</span>
+                                );
+                              }
+                              return (
+                                <img
+                                  src={resolveImageUrl(primaryImage)}
+                                  alt={p.title}
+                                  onClick={() =>
+                                    openImageModal(resolveImageUrl(primaryImage))
+                                  }
+                                  className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+                                />
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-sm text-gray-900">
                             <div className="flex flex-col gap-1 w-80">
                               {/* Title */}
                               <h3 className="font-semibold line-clamp-2 text-gray-800">
-                                {p.title}
+                                <Link
+                                  to={`/products/${p._id}`}
+                                  className="hover:text-blue-600 hover:underline"
+                                >
+                                  {p.title}
+                                </Link>
                               </h3>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-2 rounded">
                                 {/* Brands */}

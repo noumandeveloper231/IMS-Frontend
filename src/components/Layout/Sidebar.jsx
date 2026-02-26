@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useContext } from "react";
 import {
   LayoutDashboard,
   ShoppingBasket,
@@ -12,7 +12,6 @@ import {
   BarChart3,
   Store,
   LogOut,
-  ChevronDown,
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
@@ -22,12 +21,7 @@ import { ScrollArea } from "@/components/UI/scroll-area";
 import { Button } from "@/components/UI/button";
 import { AuthContext } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useContext } from "react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/UI/collapsible";
+import { createPortal } from "react-dom";
 import assets from "@/assets/assets";
 
 const navItemClasses = (isActive, collapsed) =>
@@ -57,9 +51,10 @@ const isPurchaseActive = (pathname) =>
 const Sidebar = () => {
   const { pathname } = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [purchaseOpen, setPurchaseOpen] = useState(false);
-  const [poOpen, setPoOpen] = useState(false);
-  const [prOpen, setPrOpen] = useState(false);
+  const [purchasesOpen, setPurchasesOpen] = useState(false);
+  const [purchasesAnchorRect, setPurchasesAnchorRect] = useState(null);
+  const purchasesAnchorRef = useRef(null);
+  const purchasesCloseTimeoutRef = useRef(null);
 
   const isActive = (to, exact = false) =>
     exact ? pathname === to : pathname.startsWith(to);
@@ -70,6 +65,31 @@ const Sidebar = () => {
     logout();
     navigate("/login");
   };
+
+  const handlePurchasesEnter = () => {
+    if (purchasesCloseTimeoutRef.current) {
+      clearTimeout(purchasesCloseTimeoutRef.current);
+    }
+    if (purchasesAnchorRef.current) {
+      const rect = purchasesAnchorRef.current.getBoundingClientRect();
+      setPurchasesAnchorRect(rect);
+    }
+    setPurchasesOpen(true);
+  };
+
+  const handlePurchasesLeave = () => {
+    purchasesCloseTimeoutRef.current = setTimeout(() => {
+      setPurchasesOpen(false);
+    }, 350);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (purchasesCloseTimeoutRef.current) {
+        clearTimeout(purchasesCloseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <aside
@@ -191,9 +211,13 @@ const Sidebar = () => {
               </Button>
             </Link>
 
-            {/* Purchases: when collapsed show icon-only link to /vendors; when expanded show full collapsible */}
-            {isCollapsed ? (
-              <Link to="/vendors">
+            {/* Purchases: hover with portal-based floating menu */}
+            <div
+              ref={purchasesAnchorRef}
+              onMouseEnter={handlePurchasesEnter}
+              onMouseLeave={handlePurchasesLeave}
+            >
+              {isCollapsed ? (
                 <Button
                   variant={isPurchaseActive(pathname) ? "default" : "ghost"}
                   className={navItemClasses(isPurchaseActive(pathname), true)}
@@ -201,91 +225,93 @@ const Sidebar = () => {
                 >
                   <ShoppingBasket className="h-4 w-4 shrink-0" />
                 </Button>
-              </Link>
-            ) : (
-              <Collapsible open={purchaseOpen} onOpenChange={setPurchaseOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant={isPurchaseActive(pathname) ? "default" : "ghost"}
-                    className={`${navItemClasses(isPurchaseActive(pathname), false)} justify-between`}
-                  >
-                    <span className="flex items-center gap-3">
-                      <ShoppingBasket className="h-4 w-4 shrink-0" />
-                      <span>Purchases</span>
-                    </span>
-                    {purchaseOpen ? (
-                      <ChevronDown className="h-4 w-4 shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0" />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="ml-8 mt-1 space-y-1">
-                  <Link to="/vendors">
-                    <span className={subItemClasses(isActive("/vendors", true))}>
-                      Vendors
-                    </span>
-                  </Link>
-                  <Collapsible open={poOpen} onOpenChange={setPoOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="flex w-full items-center justify-between px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100 rounded-md"
+              ) : (
+                <Button
+                  variant={isPurchaseActive(pathname) ? "default" : "ghost"}
+                  className={`${navItemClasses(isPurchaseActive(pathname), false)} justify-between`}
+                >
+                  <span className="flex items-center gap-3">
+                    <ShoppingBasket className="h-4 w-4 shrink-0" />
+                    <span>Purchases</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                </Button>
+              )}
+            </div>
+
+            {purchasesOpen && purchasesAnchorRect &&
+              createPortal(
+                <div
+                  className="fixed z-50"
+                  style={{
+                    top: purchasesAnchorRect.top,
+                    left: purchasesAnchorRect.right + 2,
+                  }}
+                  onMouseEnter={handlePurchasesEnter}
+                  onMouseLeave={handlePurchasesLeave}
+                >
+                  <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-1">
+                    <Link to="/vendors">
+                      <span className={subItemClasses(isActive("/vendors", true))}>
+                        Vendors
+                      </span>
+                    </Link>
+
+                    <div className="relative group/po">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
                       >
                         <span>PO</span>
-                        {poOpen ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="ml-4 mt-1 space-y-1">
-                      <Link to="/purchase-orders">
-                        <span className={subItemClasses(isActive("/purchase-orders", true))}>
-                          Add PO
-                        </span>
-                      </Link>
-                      <Link to="/purchaseorderslist">
-                        <span className={subItemClasses(isActive("/purchaseorderslist", true))}>
-                          List of PO
-                        </span>
-                      </Link>
-                    </CollapsibleContent>
-                  </Collapsible>
-                  <Collapsible open={prOpen} onOpenChange={setPrOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="flex w-full items-center justify-between px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100 rounded-md"
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                      <div className="pointer-events-none absolute left-full top-0 ml-2 z-50 opacity-0 transition-opacity duration-150 group-hover/po:opacity-100 group-hover/po:pointer-events-auto">
+                        <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-1">
+                          <Link to="/purchase-orders">
+                            <span className={subItemClasses(isActive("/purchase-orders", true))}>
+                              Add PO
+                            </span>
+                          </Link>
+                          <Link to="/purchaseorderslist">
+                            <span className={subItemClasses(isActive("/purchaseorderslist", true))}>
+                              List of PO
+                            </span>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="relative group/pr">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
                       >
                         <span>PR</span>
-                        {prOpen ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="ml-4 mt-1 space-y-1">
-                      <Link to="/purchase-receives">
-                        <span className={subItemClasses(isActive("/purchase-receives", true))}>
-                          Add PR
-                        </span>
-                      </Link>
-                      <Link to="/purchasereceiveslist">
-                        <span className={subItemClasses(isActive("/purchasereceiveslist", true))}>
-                          List of PR
-                        </span>
-                      </Link>
-                    </CollapsibleContent>
-                  </Collapsible>
-                  <Link to="/bills">
-                    <span className={subItemClasses(isActive("/bills", true))}>Bills</span>
-                  </Link>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                      <div className="pointer-events-none absolute left-full top-0 ml-2 z-50 opacity-0 transition-opacity duration-150 group-hover/pr:opacity-100 group-hover/pr:pointer-events-auto">
+                        <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-1">
+                          <Link to="/purchase-receives">
+                            <span className={subItemClasses(isActive("/purchase-receives", true))}>
+                              Add PR
+                            </span>
+                          </Link>
+                          <Link to="/purchasereceiveslist">
+                            <span className={subItemClasses(isActive("/purchasereceiveslist", true))}>
+                              List of PR
+                            </span>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Link to="/bills">
+                      <span className={subItemClasses(isActive("/bills", true))}>Bills</span>
+                    </Link>
+                  </div>
+                </div>,
+                document.body
+              )}
 
             <Link to="/reports">
               <Button
