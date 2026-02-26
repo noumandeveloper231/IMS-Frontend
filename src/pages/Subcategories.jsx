@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import api from "../utils/api";
-import { ArrowUpAZ, ArrowDownAZ, Edit, Trash2 } from "lucide-react";
+import { ArrowUpAZ, ArrowDownAZ, Edit, Trash2, ChevronDown, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
@@ -15,6 +15,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/UI/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/UI/command";
+import { cn } from "@/lib/utils";
 import {
   Pagination,
   PaginationContent,
@@ -41,6 +55,88 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
+
+function ProductCombobox({
+  options = [],
+  value,
+  onChange,
+  placeholder = "Select...",
+  disabled = false,
+  clearable = true,
+  className = "",
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value) ?? null;
+  const displayLabel = selected ? selected.label : placeholder;
+
+  const handleSelect = (option) => {
+    onChange(option);
+    setOpen(false);
+  };
+
+  const handleClear = (e) => {
+    e.stopPropagation();
+    onChange(null);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen} className={className}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
+            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+            !selected && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <div className="flex items-center gap-1">
+            {clearable && selected && (
+              <span
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && handleClear(e)}
+                onClick={handleClear}
+                className="rounded p-0.5 hover:bg-muted"
+                aria-label="Clear"
+              >
+                ×
+              </span>
+            )}
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search..." />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandGroup>
+              {options.map((opt) => (
+                <CommandItem
+                  key={opt.value}
+                  value={opt.label}
+                  onSelect={() => handleSelect(opt)}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === opt.value ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {opt.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const Subcategories = () => {
   const queryClient = useQueryClient();
@@ -73,6 +169,11 @@ const Subcategories = () => {
     },
   });
   const subcategories = subcategoriesData ?? [];
+
+  const categoryOptions = categories.map((c) => ({
+    value: c._id,
+    label: c.name,
+  }));
 
   const createMutation = useMutation({
     mutationFn: async (payload) => {
@@ -234,24 +335,13 @@ const Subcategories = () => {
             <Field>
               <FieldLabel>Category</FieldLabel>
             </Field>
-            <Select
-              value={categoryId || undefined}
-              onValueChange={setCategoryId}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Category</SelectLabel>
-                  {categories.map((c) => (
-                    <SelectItem key={c._id} value={c._id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <ProductCombobox
+              options={categoryOptions}
+              value={categoryId}
+              onChange={(opt) => setCategoryId(opt?.value ?? "")}
+              placeholder="Select Category"
+              clearable
+            />
 
             <div className="flex gap-4 items-center flex-wrap">
               <Button type="submit" variant="default" disabled={loading}>

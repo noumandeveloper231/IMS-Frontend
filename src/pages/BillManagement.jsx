@@ -3,6 +3,80 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem, SelectLabel } from "@/components/UI/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/UI/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/UI/command";
+import { ChevronDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+function VendorCombobox({
+  vendors = [],
+  value,
+  onChange,
+  placeholder = "Select Vendor",
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = vendors.find((v) => v._id === value) ?? null;
+  const displayLabel = selected ? selected.name : placeholder;
+
+  const handleSelect = (vendor) => {
+    onChange(vendor._id);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
+            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+            !selected && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 max-h-80" align="start">
+        <Command>
+          <CommandInput placeholder="Search vendor..." />
+          <CommandList>
+            <CommandEmpty>No vendors found.</CommandEmpty>
+            <CommandGroup>
+              {vendors.map((v) => (
+                <CommandItem
+                  key={v._id}
+                  value={v.name}
+                  onSelect={() => handleSelect(v)}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === v._id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {v.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const BillCreate = () => {
   const [vendors, setVendors] = useState([]);
@@ -23,8 +97,7 @@ const BillCreate = () => {
   }, []);
 
   // 🔹 Vendor change → us vendor ke receives fetch
-  const handleVendorChange = async (e) => {
-    const vendorId = e.target.value;
+  const handleVendorChange = async (vendorId) => {
     setSelectedVendor(vendorId);
     setSelectedReceive("");
     setBillItems([]);
@@ -105,27 +178,15 @@ const BillCreate = () => {
 
         {/* Vendor Select */}
         <div className="mb-4">
-          <Field>
-            <FieldLabel className="block mb-1 font-medium">Select Vendor</FieldLabel>
-            <Select
-              value={String(selectedVendor)}
-              onValueChange={handleVendorChange}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Vendor" />
-              </SelectTrigger>
-              <SelectContent position="item-aligned">
-                <SelectGroup>
-                  <SelectLabel>Select Vendor</SelectLabel>
-                  {vendors.map((v) => (
-                    <SelectItem key={v._id} value={v._id}>
-                      {v.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
+            <Field>
+              <FieldLabel className="block mb-1 font-medium">Select Vendor</FieldLabel>
+              <VendorCombobox
+                vendors={vendors}
+                value={selectedVendor}
+                onChange={handleVendorChange}
+                placeholder="Select Vendor"
+              />
+            </Field>
         </div>
 
         {/* Purchase Receive Select */}

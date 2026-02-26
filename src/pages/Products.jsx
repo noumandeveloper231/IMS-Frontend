@@ -1058,17 +1058,12 @@ const Products = () => {
                           </TableCell>
                           <TableCell>
                             {p.image ? (
-                              <button
-                                type="button"
+                              <img
+                                src={resolveImageUrl(p.image)}
+                                alt={p.title}
                                 onClick={() => openImageModal(resolveImageUrl(p.image))}
-                                className="cursor-pointer rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                              >
-                                <img
-                                  src={resolveImageUrl(p.image)}
-                                  alt={p.title}
-                                  className="w-12 h-12 object-cover rounded-lg"
-                                />
-                              </button>
+                                className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow cursor-pointer"
+                              />
                             ) : (
                               <span className="text-gray-400 italic">No Image</span>
                             )}

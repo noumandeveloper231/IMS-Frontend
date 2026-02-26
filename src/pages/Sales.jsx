@@ -108,6 +108,69 @@ function SalesProductCombobox({ products = [], value, onChange, placeholder = "S
   );
 }
 
+function SalesEmployeeCombobox({
+  employees = [],
+  value,
+  onChange,
+  placeholder = "Search employee...",
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = employees.find((e) => e._id === value) ?? null;
+  const displayLabel = selected
+    ? `${selected.name} (${selected.role})`
+    : placeholder;
+
+  const handleSelect = (employee) => {
+    onChange(employee._id);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
+            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+            !selected && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 max-h-80" align="start">
+        <Command>
+          <CommandInput placeholder="Search employee..." />
+          <CommandList>
+            <CommandEmpty>No employees found.</CommandEmpty>
+            <CommandGroup>
+              {employees.map((emp) => (
+                <CommandItem
+                  key={emp._id}
+                  value={`${emp.name} ${emp.role}`}
+                  onSelect={() => handleSelect(emp)}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === emp._id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="truncate">
+                    {emp.name} ({emp.role})
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 const Sales = () => {
   const queryClient = useQueryClient();
 
@@ -294,21 +357,15 @@ const Sales = () => {
             </div>
             <div>
               <Field><FieldLabel>Seller Name *</FieldLabel></Field>
-              <Select value={selectedEmployee || undefined} onValueChange={setSelectedEmployee}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Employee</SelectLabel>
-                    {activeEmployees.map((emp) => (
-                      <SelectItem key={emp._id} value={emp._id}>
-                        {emp.name} ({emp.role})
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <div className="mt-1">
+
+              <SalesEmployeeCombobox
+                employees={activeEmployees}
+                value={selectedEmployee}
+                onChange={setSelectedEmployee}
+                placeholder="Select Employee"
+              />
+                </div>
             </div>
           </section>
 

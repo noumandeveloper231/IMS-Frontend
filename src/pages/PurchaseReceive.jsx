@@ -20,6 +20,86 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/UI/table";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/UI/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/UI/command";
+import { ChevronDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+function PurchaseOrderCombobox({
+  purchaseOrders = [],
+  value,
+  onChange,
+  placeholder = "-- Select PO --",
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = purchaseOrders.find((p) => p._id === value) ?? null;
+  const displayLabel = selected
+    ? `${selected.orderNo || selected.poNo || selected._id} - ${
+        selected.vendor?.name || ""
+      }`
+    : placeholder;
+
+  const handleSelect = (po) => {
+    onChange(po._id);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
+            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+            !selected && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 max-h-80" align="start">
+        <Command>
+          <CommandInput placeholder="Search purchase order..." />
+          <CommandList>
+            <CommandEmpty>No purchase orders found.</CommandEmpty>
+            <CommandGroup>
+              {purchaseOrders.map((po) => (
+                <CommandItem
+                  key={po._id}
+                  value={`${po.orderNo || po.poNo || po._id} ${po.vendor?.name || ""}`}
+                  onSelect={() => handleSelect(po)}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === po._id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="truncate">
+                    {po.orderNo || po.poNo || po._id} - {po.vendor?.name}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const PurchaseReceive = () => {
   const queryClient = useQueryClient();
@@ -232,21 +312,12 @@ const PurchaseReceive = () => {
 
         <Field className="mb-6">
           <FieldLabel>Select Purchase Order</FieldLabel>
-          <Select
+          <PurchaseOrderCombobox
+            purchaseOrders={purchaseOrders}
             value={formData.purchaseOrder}
-            onValueChange={handlePOChange}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="-- Select PO --" />
-            </SelectTrigger>
-            <SelectContent>
-              {purchaseOrders.map((po) => (
-                <SelectItem key={po._id} value={po._id}>
-                  {po.orderNo || po.poNo || po._id} - {po.vendor?.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={handlePOChange}
+            placeholder="-- Select PO --"
+          />
         </Field>
 
         {selectedPO && (

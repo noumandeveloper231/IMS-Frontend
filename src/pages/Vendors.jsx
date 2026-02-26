@@ -9,7 +9,9 @@ import { Button } from "@/components/UI/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
@@ -39,7 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
-import { Trash2 } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
 
 const Vendors = () => {
   const queryClient = useQueryClient();
@@ -326,13 +328,16 @@ const Vendors = () => {
                   setForm((prev) => ({ ...prev, status: value }))
                 }
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent position="item-aligned">
+                    <SelectGroup>
+                  <SelectLabel>Status</SelectLabel>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
               </Select>
             </Field>
             <div className="flex gap-4 mt-4 md:col-span-2">

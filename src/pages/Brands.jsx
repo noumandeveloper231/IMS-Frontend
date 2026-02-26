@@ -52,6 +52,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
+import { useImageModal } from "@/context/ImageModalContext";
 
 const Brands = () => {
   const queryClient = useQueryClient();
@@ -261,6 +262,7 @@ const Brands = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const { openImageModal } = useImageModal();
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
       <div className="max-w-7xl mx-auto">
@@ -411,7 +413,8 @@ const Brands = () => {
                             <img
                               src={resolveImageUrl(brand.image)}
                               alt={brand.name}
-                              className="w-12 h-12 object-cover rounded-lg border"
+                              onClick={() => openImageModal(resolveImageUrl(brand.image))}
+                              className="w-12 h-12 object-cover rounded-lg border border-gray-300 shadow cursor-pointer"
                             />
                           ) : (
                             <span className="text-gray-400 italic">No Image</span>

@@ -23,7 +23,80 @@ import {
   TableRow,
 } from "@/components/UI/table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronDown, Check } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/UI/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/UI/command";
+import { cn } from "@/lib/utils";
+
+function VendorCombobox({
+  vendors = [],
+  value,
+  onChange,
+  placeholder = "Select Vendor",
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = vendors.find((v) => v._id === value) ?? null;
+  const displayLabel = selected ? selected.name : placeholder;
+
+  const handleSelect = (vendor) => {
+    onChange(vendor._id);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
+            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+            !selected && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 max-h-80" align="start">
+        <Command>
+          <CommandInput placeholder="Search vendor..." />
+          <CommandList>
+            <CommandEmpty>No vendors found.</CommandEmpty>
+            <CommandGroup>
+              {vendors.map((v) => (
+                <CommandItem
+                  key={v._id}
+                  value={v.name}
+                  onSelect={() => handleSelect(v)}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === v._id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {v.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const PurchaseOrderForm = () => {
   const queryClient = useQueryClient();
@@ -171,27 +244,12 @@ const PurchaseOrderForm = () => {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Field>
             <FieldLabel>Vendor</FieldLabel>
-            <Select value={vendor} onValueChange={setVendor}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Vendor" />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectGroup>
-                  <SelectLabel>Select a Vendor</SelectLabel>
-                  {vendors.length > 0 ? (
-                    vendors.map((v) => (
-                      <SelectItem key={v._id} value={v._id}>
-                        {v.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-vendors" disabled>
-                      No Vendors Found
-                    </SelectItem>
-                  )}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <VendorCombobox
+              vendors={vendors}
+              value={vendor}
+              onChange={setVendor}
+              placeholder="Select Vendor"
+            />
           </Field>
           <Field>
             <FieldLabel>Expected Delivery</FieldLabel>

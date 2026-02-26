@@ -128,9 +128,9 @@ const PurchaseOrderList = () => {
         ) : filteredOrders.length === 0 ? (
           <p className="text-gray-500 py-6">No purchase orders found.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-md border border-gray-300">
             <Table>
-              <TableHeader>
+              <TableHeader className="px-4">
                 <TableRow>
                   <TableHead>Order No</TableHead>
                   <TableHead>Vendor</TableHead>
