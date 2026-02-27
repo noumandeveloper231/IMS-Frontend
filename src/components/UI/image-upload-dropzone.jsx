@@ -12,6 +12,11 @@ export function ImageUploadDropzone({
   disabled = false,
   multiple = false,
   onReorderFrontFromIndex,
+  // enhanced props for non-image uploads (e.g. excel/csv)
+  label,
+  description,
+  type,
+  maxSize,
 }) {
   const inputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -19,17 +24,30 @@ export function ImageUploadDropzone({
   const handleFiles = (files) => {
     if (!files || disabled) return
 
+    const fileArray = Array.from(files)
+    if (!fileArray.length) return
+
+    const limitedFiles =
+      typeof maxSize === "number"
+        ? fileArray.filter((file) => file.size <= maxSize)
+        : fileArray
+
+    if (!limitedFiles.length) return
+
     if (multiple) {
-      const fileArray = Array.from(files)
-      if (!fileArray.length) return
-      onFileSelect(fileArray)
+      onFileSelect(limitedFiles)
     } else {
-      if (!files[0]) return
-      onFileSelect(files[0])
+      onFileSelect(limitedFiles[0])
     }
   }
 
-  const mainText = primaryLabel ?? (previewUrl ? "Change image" : "Drag & drop image")
+  const mainText =
+    primaryLabel ??
+    label ??
+    (previewUrl ? "Change image" : type === "excel" ? "Drag & drop file" : "Drag & drop image")
+
+  const secondaryText =
+    description ?? secondaryLabel ?? "or click to browse"
 
   return (
     <div
@@ -75,7 +93,7 @@ export function ImageUploadDropzone({
         disabled={disabled}
       />
 
-      {previewUrl ? (
+      {previewUrl && accept.startsWith("image") ? (
         <img
           src={previewUrl}
           alt="Preview"
@@ -89,7 +107,7 @@ export function ImageUploadDropzone({
         {mainText}
       </p>
       <p className="text-xs text-muted-foreground">
-        {secondaryLabel}
+        {secondaryText}
       </p>
     </div>
   )

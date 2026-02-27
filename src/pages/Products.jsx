@@ -21,6 +21,16 @@ import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+  DrawerFooter,
+} from "@/components/UI/drawer";
+import {
   Select as UiSelect,
   SelectContent,
   SelectGroup,
@@ -88,6 +98,71 @@ const CONDITION_CODE_MAP = {
   "Max": "MX",
 };
 
+const TEMPLATE_COLUMNS = [
+  "Title",
+  "ASIN",
+  "Purchase Price",
+  "Sale Price",
+  "Quantity",
+  "Model No.",
+  "Description",
+  "Categories",
+  "Subcategories",
+  "Brands",
+  "Conditions",
+  "Images",
+];
+
+function RichTextEditor({ value, onChange, placeholder }) {
+  const editorRef = useRef(null);
+
+  const exec = (command) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(command, false, null);
+  };
+
+  return (
+    <div className="border rounded-md overflow-hidden">
+      <div className="flex gap-1 border-b bg-muted px-2 py-1">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={() => exec("bold")}
+        >
+          <span className="font-bold text-xs">B</span>
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={() => exec("italic")}
+        >
+          <span className="italic text-xs">I</span>
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={() => exec("underline")}
+        >
+          <span className="underline text-xs">U</span>
+        </Button>
+      </div>
+      <div
+        ref={editorRef}
+        className="min-h-[160px] px-3 py-2 text-sm focus:outline-none"
+        contentEditable
+        suppressContentEditableWarning
+        placeholder={placeholder}
+        dangerouslySetInnerHTML={{ __html: value || "" }}
+        onInput={(e) => onChange(e.currentTarget.innerHTML)}
+      />
+    </div>
+  );
+}
+
 function ProductCombobox({
   options = [],
   value,
@@ -141,7 +216,7 @@ function ProductCombobox({
           </div>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
         <Command>
           <CommandInput placeholder="Search..." />
           <CommandList>
@@ -174,6 +249,7 @@ const Products = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const titleInputRef = useRef(null);
+  const descriptionTextareaRef = useRef(null);
   const { openImageModal } = useImageModal();
 
   const [editingId, setEditingId] = useState(null);
@@ -186,6 +262,26 @@ const Products = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [dragImageIndex, setDragImageIndex] = useState(null);
   const [stockFilter, setStockFilter] = useState("all");
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
+  const [productDrawerOpen, setProductDrawerOpen] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importColumns, setImportColumns] = useState([]);
+  const [importStats, setImportStats] = useState({
+    total: 0,
+    valid: 0,
+    errors: 0,
+    duplicates: 0,
+  });
+  const [importLoading, setImportLoading] = useState(false);
+  const [descriptionModalOpen, setDescriptionModalOpen] = useState(false);
+  const [descriptionModalRowIndex, setDescriptionModalRowIndex] = useState(null);
+  const [descriptionModalColumn, setDescriptionModalColumn] = useState(null);
+  const [descriptionModalValue, setDescriptionModalValue] = useState("");
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageModalRowIndex, setImageModalRowIndex] = useState(null);
+  const [imageModalColumn, setImageModalColumn] = useState(null);
+  const [imageModalValue, setImageModalValue] = useState("");
+  const [importImageFiles, setImportImageFiles] = useState({});
 
   const [form, setForm] = useState({
     title: "",
@@ -405,76 +501,6 @@ const Products = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Submit (create/update)
-  // const handleSubmit = async (e) => {
-  //   e.preventDefault();
-  //   if (!form.title || !form.sku)
-  //     return toast.error("Title and SKU required ❌");
-
-  //   setLoading(true);
-  //   try {
-  //     const formData = new FormData();
-  //     Object.entries(form).forEach(([key, value]) => {
-  //       if (Array.isArray(value)) {
-  //         value.forEach((v) => formData.append(key, v));
-  //       } else {
-  //         formData.append(key, value);
-  //       }
-  //     });
-
-  //     // Append images
-  //     images.forEach((img) => formData.append("images", img));
-
-  //     if (editingId) {
-  //       const res = await axios.put(
-  //         `http://localhost:5000/api/products/update/${editingId}`,
-  //         formData,
-  //         { headers: { "Content-Type": "multipart/form-data" } }
-  //       );
-  //       res.data.success
-  //         ? toast.success("Product updated ✅")
-  //         : toast.error(res.data.message);
-  //     } else {
-  //       const res = await axios.post(
-  //         "http://localhost:5000/api/products/create",
-  //         formData,
-  //         { headers: { "Content-Type": "multipart/form-data" } }
-  //       );
-  //       res.data.success
-  //         ? toast.success("Product added ✅")
-  //         : toast.error(res.data.message);
-  //     }
-
-  //     setForm({
-  //       title: "",
-  //       sku: "",
-  //       purchasePrice: "",
-  //       salePrice: "",
-  //       quantity: "",
-  //       description: "",
-  //       modelno: "",
-  //       categories: [],
-  //       brands: [],
-  //       conditions: [],
-  //     });
-  //     setEditingId(null);
-  //     setImages([]);
-  //     setImagePreviews([]);
-  //     fetchAll();
-  //   } catch (err) {
-  //     // ✅ Backend ka message show karo
-  //     const errorMessage =
-  //       err.response?.data?.message || "Error saving product ❌";
-  //     toast.error(errorMessage);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  //   // ✅ File input reset karo
-  //   if (fileInputRef.current) {
-  //     fileInputRef.current.value = "";
-  //   }
-  // };
-
   const handleEdit = (p) => {
     setForm({
       title: p.title,
@@ -491,6 +517,7 @@ const Products = () => {
       condition: (p.conditions || [])[0]?._id ?? "",
     });
     setEditingId(p._id);
+    setProductDrawerOpen(true);
     setImages([]);
     const existingImages = Array.isArray(p.images) && p.images.length
       ? p.images
@@ -507,29 +534,9 @@ const Products = () => {
     setTimeout(() => {
       if (titleInputRef.current) {
         titleInputRef.current.focus();
-        // Agar pura text select karna ho:
-        // titleInputRef.current.select();
       }
     }, 100);
   };
-
-  // Edit
-  // const handleEdit = (p) => {
-  //   setForm({
-  //     title: p.title,
-  //     sku: p.sku,
-  //     purchasePrice: p.purchasePrice,
-  //     salePrice: p.salePrice,
-  //     quantity: p.quantity,
-  //     description: p.description,
-  //     modelno: p.modelno,
-  //     categories: p.categories.map((c) => c._id),
-  //     brands: p.brands.map((b) => b._id),
-  //     conditions: p.conditions.map((c) => c._id),
-  //   });
-  //   setEditingId(p._id);
-  //   setImagePreviews(p.images || []);
-  // };
 
   const filteredProducts = (products || []).filter((p) => {
     const matchesSearch = (p.title || "").toLowerCase().includes(search.toLowerCase());
@@ -584,19 +591,19 @@ const Products = () => {
   const handleExport = () => {
     const worksheet = XLSX.utils.json_to_sheet(
       products.map((p) => ({
-        title: p.title,
-        sku: p.sku,
-        asin: p.asin || "",
-        purchasePrice: p.purchasePrice,
-        salePrice: p.salePrice,
-        quantity: p.quantity,
-        modelno: p.modelno,
-        description: p.description,
-        categories: (p.categories || []).map((c) => c.name).join(", "),
-        subcategories: (p.subcategories || []).map((s) => s.name).join(", "),
-        brands: (p.brands || []).map((b) => b.name).join(", "),
-        conditions: (p.conditions || []).map((c) => c.name).join(", "),
-        image: (() => {
+        Title: p.title,
+        SKU: p.sku,
+        ASIN: p.asin || "",
+        "Purchase Price": p.purchasePrice,
+        "Sale Price": p.salePrice,
+        Quantity: p.quantity,
+        "Model No.": p.modelno,
+        Description: p.description,
+        Categories: (p.categories || []).map((c) => c.name).join(", "),
+        Subcategories: (p.subcategories || []).map((s) => s.name).join(", "),
+        Brands: (p.brands || []).map((b) => b.name).join(", "),
+        Conditions: (p.conditions || []).map((c) => c.name).join(", "),
+        Image: (() => {
           const primaryImage = Array.isArray(p.images) && p.images.length ? p.images[0] : p.image;
           return primaryImage ? resolveImageUrl(primaryImage) : "";
         })(),
@@ -605,30 +612,226 @@ const Products = () => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
-    XLSX.writeFile(workbook, "products.xlsx");
+    XLSX.writeFile(workbook, "Products.xlsx");
   };
 
-  const handleImport = async (e) => {
-    const file = e.target.files[0];
+  const normalizeKey = (key) =>
+    key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const deriveSkuFromRow = (row) => {
+    const asinKey = Object.keys(row).find((k) => normalizeKey(k) === "asin");
+    const condKey = Object.keys(row).find((k) => {
+      const nk = normalizeKey(k);
+      return nk === "conditions" || nk === "condition";
+    });
+
+    const asin = asinKey ? String(row[asinKey] ?? "").trim() : "";
+    const conditionName = condKey ? String(row[condKey] ?? "").trim() : "";
+    const conditionCode = conditionName ? CONDITION_CODE_MAP[conditionName] || "" : "";
+
+    if (!asin) return "";
+    return conditionCode ? `AR-${asin}-${conditionCode}` : `AR-${asin}`;
+  };
+
+  const validateImportedRows = (rows) => {
+    const skuCounts = {};
+
+    rows.forEach((row) => {
+      const skuKey = Object.keys(row).find((k) => normalizeKey(k) === "sku");
+      const explicitSku = skuKey ? String(row[skuKey] ?? "").trim() : "";
+      const derivedSku = deriveSkuFromRow(row);
+      const sku = explicitSku || derivedSku;
+      if (!sku) return;
+      skuCounts[sku] = (skuCounts[sku] || 0) + 1;
+    });
+
+    let valid = 0;
+    let errors = 0;
+    let duplicates = 0;
+
+    const validated = rows.map((row) => {
+      const fieldErrors = {};
+
+      const skuKey = Object.keys(row).find((k) => normalizeKey(k) === "sku");
+      const nameKey =
+        Object.keys(row).find((k) => ["name", "title"].includes(normalizeKey(k))) ?? null;
+      const priceKey =
+        Object.keys(row).find((k) =>
+          ["price", "saleprice", "sale_price", "purchaseprice"].includes(normalizeKey(k))
+        ) ?? null;
+      const stockKey =
+        Object.keys(row).find((k) =>
+          ["stock", "qty", "quantity"].includes(normalizeKey(k))
+        ) ?? null;
+
+      const explicitSku = skuKey ? String(row[skuKey] ?? "").trim() : "";
+      const derivedSku = deriveSkuFromRow(row);
+      const effectiveSku = explicitSku || derivedSku;
+
+      const name = nameKey ? String(row[nameKey] ?? "").trim() : "";
+      const price = priceKey != null ? Number(row[priceKey]) : NaN;
+      const stock = stockKey != null ? Number(row[stockKey]) : NaN;
+
+      if (!effectiveSku) fieldErrors[skuKey || "SKU"] = "Required";
+      if (!name) fieldErrors[nameKey || "Name"] = "Required";
+      if (!Number.isFinite(price) || price <= 0) {
+        fieldErrors[priceKey || "Price"] = "Invalid price";
+      }
+      if (!Number.isFinite(stock) || stock < 0) {
+        fieldErrors[stockKey || "Stock"] = "Invalid stock";
+      }
+
+      if (effectiveSku && skuCounts[effectiveSku] > 1) {
+        fieldErrors[skuKey || "SKU"] = "Duplicate SKU";
+        duplicates += 1;
+      }
+
+      const hasErrors = Object.keys(fieldErrors).length > 0;
+      if (hasErrors) errors += 1;
+      else valid += 1;
+
+      return {
+        ...row,
+        __sku: effectiveSku,
+        __errors: fieldErrors,
+        __status: hasErrors ? "error" : "valid",
+      };
+    });
+
+    setImportStats({
+      total: rows.length,
+      valid,
+      errors,
+      duplicates,
+    });
+
+    return validated;
+  };
+
+  const handleImportFileSelected = async (fileOrFiles) => {
+    const file = Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles;
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const workbook = XLSX.read(evt.target.result, { type: "binary" });
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.SheetNames[0];
-      const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheet]);
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { defval: "" });
 
-      try {
-        await api.post("/products/bulk-create", data);
-        queryClient.invalidateQueries({ queryKey: ["products"] });
-        toast.success("Bulk import complete ✅");
-      } catch (err) {
-        toast.error("Bulk import failed ❌");
-        console.error("Import error:", err.response?.data || err.message);
+      if (!rows.length) {
+        toast.error("File is empty ❌");
+        setImportRows([]);
+        setImportColumns([]);
+        setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+        return;
       }
-    };
 
-    reader.readAsBinaryString(file);
+      const validatedRows = validateImportedRows(rows);
+      setImportRows(validatedRows);
+      const allColumns = Object.keys(rows[0] || {});
+      setImportColumns(allColumns.filter((c) => normalizeKey(c) !== "sku"));
+      toast.success("File loaded. Review and import ✅");
+    } catch (err) {
+      console.error("Import parse error:", err);
+      toast.error("Unable to read file ❌");
+    }
+  };
+
+  const handleImportCellChange = (rowIndex, columnKey, value) => {
+    setImportRows((prev) => {
+      const next = [...prev];
+      const updatedRow = { ...next[rowIndex], [columnKey]: value };
+      next[rowIndex] = updatedRow;
+      return validateImportedRows(next);
+    });
+  };
+
+  const handleImportValidSubmit = async () => {
+    const validRows = importRows.filter((row) => row.__status === "valid");
+    if (!validRows.length) {
+      toast.error("No valid rows to import ❌");
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      const payload = validRows.map(({ __errors, __status, __sku, ...rest }) => ({
+        ...rest,
+        sku: __sku,
+      }));
+      await api.post("/products/bulk-create", payload);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`Imported ${payload.length} products ✅`);
+      setImportDrawerOpen(false);
+      setImportRows([]);
+      setImportColumns([]);
+      setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+    } catch (err) {
+      toast.error("Bulk import failed ❌");
+      console.error("Bulk import error:", err.response?.data || err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleViewTemplate = () => {
+    setImportColumns(TEMPLATE_COLUMNS);
+    setImportRows([
+      Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""])),
+    ]);
+    setImportStats({ total: 1, valid: 0, errors: 0, duplicates: 0 });
+  };
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_COLUMNS]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "products-import-template.xlsx");
+  };
+
+  const handleOpenDescriptionModal = (rowIndex, col) => {
+    setDescriptionModalRowIndex(rowIndex);
+    setDescriptionModalColumn(col);
+    setDescriptionModalValue(importRows[rowIndex]?.[col] ?? "");
+    setDescriptionModalOpen(true);
+  };
+
+  const handleSaveDescriptionModal = () => {
+    if (descriptionModalRowIndex == null || !descriptionModalColumn) {
+      setDescriptionModalOpen(false);
+      return;
+    }
+    setImportRows((prev) => {
+      const next = [...prev];
+      next[descriptionModalRowIndex] = {
+        ...next[descriptionModalRowIndex],
+        [descriptionModalColumn]: descriptionModalValue,
+      };
+      return validateImportedRows(next);
+    });
+    setDescriptionModalOpen(false);
+  };
+
+  const handleOpenImageModal = (rowIndex, col) => {
+    setImageModalRowIndex(rowIndex);
+    setImageModalColumn(col);
+    setImageModalValue(importRows[rowIndex]?.[col] ?? "");
+    setImageModalOpen(true);
+  };
+  const handleSaveImageModal = () => {
+    if (imageModalRowIndex == null || !imageModalColumn) {
+      setImageModalOpen(false);
+      return;
+    }
+    setImportRows((prev) => {
+      const next = [...prev];
+      next[imageModalRowIndex] = {
+        ...next[imageModalRowIndex],
+        [imageModalColumn]: imageModalValue,
+      };
+      return validateImportedRows(next);
+    });
+    setImageModalOpen(false);
   };
   const handleProductImageSelect = (fileOrFiles) => {
     if (!fileOrFiles) return;
@@ -684,46 +887,7 @@ const Products = () => {
     setImages([]);
     setImagePreviews([]);
   };
-  // Import
-  // const handleImport = (e) => {
-  //   const file = e.target.files[0];
-  //   if (!file) return;
-  //   const reader = new FileReader();
-  //   reader.onload = async (evt) => {
-  //     const workbook = XLSX.read(evt.target.result, { type: "binary" });
-  //     const sheet = workbook.SheetNames[0];
-  //     const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheet]);
 
-  //     for (let item of data) {
-  //       try {
-  //         if (item.title && !products.some((p) => p.sku === item.sku)) {
-  //           await axios.post("http://localhost:5000/api/products/create", item);
-  //         }
-  //       } catch (err) {
-  //         console.error("Import error", item.title);
-  //       }
-  //     }
-  //     fetchAll();
-  //     toast.success("Import complete ✅");
-  //   };
-  //   reader.readAsBinaryString(file);
-  // };
-
-  // Delete
-  // const handleDelete = async (id) => {
-  //   if (!window.confirm("Delete this product?")) return;
-
-  //   try {
-  //     const res = await axios.delete(
-  //       `http://localhost:5000/api/products/delete/${id}`
-  //     );
-
-  //     if (res.data.success) toast.success("Deleted ✅");
-  //     fetchAll();
-  //   } catch {
-  //     toast.error("Failed to delete ❌");
-  //   }
-  // };
   const confirmDelete = (id) => {
     setDeleteId(id);
     setDeleteOpen(true);
@@ -761,339 +925,715 @@ const Products = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full  ">
-      <div className="max-w-7xl mx-auto">
-        {/* Product Form */}
-        <div className="bg-white rounded-xl shadow-md p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            {editingId ? "Edit Product" : "Add New Product"}
-          </h2>
-          <form
-            onSubmit={handleSubmit}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
+      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
+        {/* Header + Actions */}
+        <div className="">
+          <Drawer
+            direction="right"
+            open={productDrawerOpen}
+            onOpenChange={setProductDrawerOpen}
           >
-            {/* Form Fields */}
-            <div className="col-span-1 md:col-span-2">
-              <Field>
-                <FieldLabel htmlFor="product-title">Product Title</FieldLabel>
-              </Field>
-              <Input
-                id="product-title"
-                type="text"
-                name="title"
-                placeholder="Product Title"
-                ref={titleInputRef}
-                value={form.title}
-                onChange={handleChange}
-                className="mt-1"
-                required
-              />
-            </div>
+            <div className="flex justify-between items-center">
+              <h2 className="flex-4 text-2xl font-semibold text-gray-700">
+                Products List ({filteredProducts.length})
+              </h2>
+              <div className="flex gap-4 items-center">
+                <Drawer
+                  open={importDrawerOpen}
+                  onOpenChange={setImportDrawerOpen}
+                >
+                  <DrawerTrigger asChild>
+                    <Label
+                      variant="light"
+                      className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer"
+                    >
+                      Import Excel
+                    </Label>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[90vh]">
+                    <DrawerHeader className="border-b">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <DrawerTitle>Bulk Product Import</DrawerTitle>
+                          <DrawerDescription>
+                            Upload CSV or Excel file to create multiple products.
+                          </DrawerDescription>
+                        </div>
+                        <DrawerClose asChild>
+                          <Button variant="outline" size="icon">
+                            ✕
+                          </Button>
+                        </DrawerClose>
+                      </div>
+                    </DrawerHeader>
+                    <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
+                      {/* Template actions */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleViewTemplate}
+                        >
+                          View Template
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleDownloadTemplate}
+                        >
+                          Download Template
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                        </p>
+                      </div>
 
-            <div>
-              <Field>
-                <FieldLabel htmlFor="product-asin">ASIN</FieldLabel>
-              </Field>
-              <Input
-                id="product-asin"
-                type="text"
-                name="asin"
-                placeholder="ASIN"
-                value={form.asin}
-                onChange={handleChange}
-                className="mt-1"
-                required
-              />
-            </div>
-            <div>
-              <Field>
-                <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
-              </Field>
-              <Input
-                id="product-sku"
-                type="text"
-                name="sku"
-                placeholder="SKU"
-                value={form.sku}
-                className="mt-1"
-                readOnly
-                disabled
-              />
-            </div>
-            <div>
-              <Field>
-                <FieldLabel htmlFor="product-modelno">Model No.</FieldLabel>
-              </Field>
-              <Input
-                id="product-modelno"
-                type="text"
-                name="modelno"
-                placeholder="Model No."
-                value={form.modelno}
-                onChange={handleChange}
-                className="mt-1"
-                required
-              />
-            </div>
-            <div>
-              <Field>
-                <FieldLabel htmlFor="product-purchasePrice">Purchase Price</FieldLabel>
-              </Field>
-              <Input
-                id="product-purchasePrice"
-                type="number"
-                min="1"
-                name="purchasePrice"
-                placeholder="Purchase Price"
-                value={form.purchasePrice}
-                onChange={handleChange}
-                className="mt-1"
-                required
-              />
-            </div>
-            <div>
-              <Field>
-                <FieldLabel htmlFor="product-salePrice">Sale Price</FieldLabel>
-              </Field>
-              <Input
-                id="product-salePrice"
-                type="number"
-                min="1"
-                name="salePrice"
-                placeholder="Sale Price"
-                value={form.salePrice}
-                onChange={handleChange}
-                className="mt-1"
-                required
-              />
-            </div>
-            <div>
-              <Field>
-                <FieldLabel htmlFor="product-quantity">Quantity</FieldLabel>
-              </Field>
-              <Input
-                id="product-quantity"
-                type="number"
-                min="0"
-                name="quantity"
-                placeholder="Quantity"
-                value={form.quantity}
-                onChange={handleChange}
-                className="mt-1"
-                required
-              />
-            </div>
+                      {/* Upload zone */}
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Upload file</p>
+                        <ImageUploadDropzone
+                          accept=".csv,.xlsx"
+                          type="excel"
+                          label="Drag & Drop Excel or CSV File"
+                          description="Upload bulk product file"
+                          maxSize={10 * 1024 * 1024}
+                          onFileSelect={handleImportFileSelected}
+                        />
+                      </div>
 
-            <div>
-              <Field>
-                <FieldLabel className={"mb-1"}>Category</FieldLabel>
-              </Field>
-              <ProductCombobox
-                options={categoryOptions}
-                value={form.category}
-                onChange={(selected) => handleSingleSelect("category", selected)}
-                placeholder="Select Category..."
-                clearable
-              // className="mt-1"
-              />
-            </div>
-            <div>
-              <Field>
-                <FieldLabel className={"mb-1"}>Subcategory</FieldLabel>
-              </Field>
-              <div className="flex items-center gap-3">
+                      {/* Preview table */}
+                      {importRows.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">
+                              Preview ({importStats.total} rows)
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Click any cell to edit. Validation runs automatically.
+                            </p>
+                          </div>
+                          <div className="border w-full rounded-md max-h-80 overflow-auto">
+                            <div className="min-w-max">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>#</TableHead>
+                                    <TableHead>SKU</TableHead>
+                                    {importColumns.map((col) => (
+                                      <TableHead className="whitespace-nowrap w-auto" key={col}>{col}</TableHead>
+                                    ))}
+                                    <TableHead>Status</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {importRows.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                      <TableCell className="text-xs text-muted-foreground">
+                                        {rowIndex + 1}
+                                      </TableCell>
+                                      <TableCell className="text-xs">
+                                        {row.__sku || (
+                                          <span className="text-muted-foreground">Auto</span>
+                                        )}
+                                      </TableCell>
+                                      {importColumns.map((col) => {
+                                        const errorMessage = row.__errors?.[col];
+                                        const nk = normalizeKey(col);
+                                        const isDescription = nk === "description";
+                                        const isImages = nk === "images" || nk === "image";
+                                        const isCategory = nk === "categories";
+                                        const isSubcategory = nk === "subcategories";
+                                        const isBrand = nk === "brands";
+                                        const isCondition = nk === "conditions";
 
-                <ProductCombobox
-                  options={subcategoryOptions.map((o) => ({ value: o.value, label: o.label }))}
-                  value={form.subcategory}
-                  onChange={(selected) => handleSingleSelect("subcategory", selected)}
-                  placeholder={form.category ? "Select Subcategory..." : "Select category first"}
-                  disabled={!form.category}
-                  clearable
-                />
-                {
-                  !form?.category && (
-                    <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <InfoIcon className="w-6 h-6" />
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-black text-black">
-                          Select a Category first to see the subcategories
-                        </TooltipContent>
-                      </Tooltip>
-                    </>
-                  )
-                }
+                                        if (isDescription) {
+                                          const raw = row[col] ? String(row[col]) : "";
+                                          const trimmed = raw.trim();
+                                          const display =
+                                            trimmed.length > 0
+                                              ? trimmed.slice(0, 40) +
+                                              (trimmed.length > 40 ? "…" : "")
+                                              : "Click to edit description";
+
+                                          return (
+                                            <TableCell key={col}>
+                                              <Button
+                                                type="button"
+                                                size="xs"
+                                                variant="outline"
+                                                onClick={() =>
+                                                  handleOpenDescriptionModal(rowIndex, col)
+                                                }
+                                                className={cn(
+                                                  "w-full rounded border px-2 py-1 text-left text-xs hover:bg-muted whitespace-nowrap",
+                                                  errorMessage &&
+                                                  "border-red-500"
+                                                )}
+                                              >
+                                                {display}
+                                              </Button>
+                                              {errorMessage && (
+                                                <p className="mt-1 text-[10px] text-red-600">
+                                                  {errorMessage}
+                                                </p>
+                                              )}
+                                            </TableCell>
+                                          );
+                                        }
+
+                                        if (isImages) {
+                                          const rawImages = row[col] ? String(row[col]) : "";
+                                          const urls = rawImages
+                                            .split(",")
+                                            .map((u) => u.trim())
+                                            .filter(Boolean);
+                                          return (
+                                            <TableCell key={col}>
+                                              <div className="flex items-center gap-2">
+                                                <div className="flex -space-x-1">
+                                                  {urls.slice(0, 3).map((u, idx) => (
+                                                    <img
+                                                      key={idx}
+                                                      src={resolveImageUrl(u)}
+                                                      alt="Preview"
+                                                      className="h-8 w-8 rounded border object-cover"
+                                                    />
+                                                  ))}
+                                                  {urls.length === 0 && (
+                                                    <span className="h-8 w-8 rounded border border-dashed text-[10px] flex items-center justify-center text-muted-foreground">
+                                                      N/A
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <Button
+                                                  type="button"
+                                                  size="xs"
+                                                  variant="outline"
+                                                  onClick={() =>
+                                                    handleOpenImageModal(rowIndex, col)
+                                                  }
+                                                >
+                                                  {urls.length ? "Manage Images" : "Add Images"}
+                                                </Button>
+                                              </div>
+                                            </TableCell>
+                                          );
+                                        }
+
+                                        if (isCategory) {
+                                          const currentCategory =
+                                            categoryOptions.find((o) => o.value === row[col]) ||
+                                            categoryOptions.find((o) => o.label === row[col]);
+                                          const selectedValue = currentCategory?.value ?? "";
+
+                                          return (
+                                            <TableCell key={col}>
+                                              <ProductCombobox
+                                                options={categoryOptions}
+                                                value={selectedValue}
+                                                onChange={(selected) =>
+                                                  handleImportCellChange(
+                                                    rowIndex,
+                                                    col,
+                                                    selected?.value ?? ""
+                                                  )
+                                                }
+                                                placeholder="Select Category"
+                                                clearable
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+
+                                        if (isSubcategory) {
+                                          const subOptions = subcategoryOptions.map((o) => ({
+                                            value: o.value,
+                                            label: o.label,
+                                          }));
+                                          const currentSub =
+                                            subOptions.find((o) => o.value === row[col]) ||
+                                            subOptions.find((o) => o.label === row[col]);
+                                          const selectedValue = currentSub?.value ?? "";
+
+                                          return (
+                                            <TableCell key={col}>
+                                              <ProductCombobox
+                                                options={subOptions}
+                                                value={selectedValue}
+                                                onChange={(selected) =>
+                                                  handleImportCellChange(
+                                                    rowIndex,
+                                                    col,
+                                                    selected?.value ?? ""
+                                                  )
+                                                }
+                                                placeholder="Select Subcategory"
+                                                clearable
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+
+                                        if (isBrand) {
+                                          const currentBrand =
+                                            brandOptions.find((o) => o.value === row[col]) ||
+                                            brandOptions.find((o) => o.label === row[col]);
+                                          const selectedValue = currentBrand?.value ?? "";
+
+                                          return (
+                                            <TableCell key={col}>
+                                              <ProductCombobox
+                                                options={brandOptions}
+                                                value={selectedValue}
+                                                onChange={(selected) =>
+                                                  handleImportCellChange(
+                                                    rowIndex,
+                                                    col,
+                                                    selected?.value ?? ""
+                                                  )
+                                                }
+                                                placeholder="Select Brand"
+                                                clearable
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+
+                                        if (isCondition) {
+                                          const currentCondition =
+                                            conditionOptions.find((o) => o.value === row[col]) ||
+                                            conditionOptions.find((o) => o.label === row[col]);
+                                          const selectedValue = currentCondition?.value ?? "";
+
+                                          return (
+                                            <TableCell key={col}>
+                                              <ProductCombobox
+                                                options={conditionOptions}
+                                                value={selectedValue}
+                                                onChange={(selected) =>
+                                                  handleImportCellChange(
+                                                    rowIndex,
+                                                    col,
+                                                    selected?.value ?? ""
+                                                  )
+                                                }
+                                                placeholder="Select Condition"
+                                                clearable
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+
+                                        return (
+                                          <TableCell key={col}>
+                                            <Input
+                                              value={row[col] ?? ""}
+                                              onChange={(e) =>
+                                                handleImportCellChange(
+                                                  rowIndex,
+                                                  col,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className={cn(
+                                                "h-8 text-xs",
+                                                errorMessage &&
+                                                "border-red-500 focus-visible:ring-red-500"
+                                              )}
+                                            />
+                                            {errorMessage && (
+                                              <p className="mt-1 text-[10px] text-red-600">
+                                                {errorMessage}
+                                              </p>
+                                            )}
+                                          </TableCell>
+                                        );
+                                      })}
+                                      <TableCell>
+                                        <span
+                                          className={cn(
+                                            "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                                            row.__status === "valid"
+                                              ? "bg-emerald-50 text-emerald-700"
+                                              : "bg-red-50 text-red-700"
+                                          )}
+                                        >
+                                          {row.__status === "valid" ? "Valid" : "Error"}
+                                        </span>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <DrawerFooter className="border-t">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          <span className="text-muted-foreground">
+                            ✔ Valid:{" "}
+                            <span className="font-semibold text-emerald-700">
+                              {importStats.valid}
+                            </span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            ⚠ Errors:{" "}
+                            <span className="font-semibold text-red-700">
+                              {importStats.errors}
+                            </span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            ✖ Duplicates:{" "}
+                            <span className="font-semibold text-orange-700">
+                              {importStats.duplicates}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => toast.info("Error-fixing helper not implemented yet")}
+                            disabled={!importRows.length}
+                          >
+                            Fix Errors
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="default"
+                            onClick={handleImportValidSubmit}
+                            disabled={!importStats.valid || importLoading}
+                          >
+                            {importLoading ? "Importing..." : "Import Valid Only"}
+                          </Button>
+                          <DrawerClose asChild>
+                            <Button type="button" variant="ghost">
+                              Cancel
+                            </Button>
+                          </DrawerClose>
+                        </div>
+                      </div>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+
+                <Label
+                  variant="success"
+                  onClick={handleExport}
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md"
+                >
+                  Export Excel
+                </Label>
+                <DrawerTrigger asChild>
+                  <Button variant="default">
+                    {editingId ? "Edit Product" : "Add New Product"}
+                  </Button>
+                </DrawerTrigger>
               </div>
             </div>
-            <div>
-              <Field>
-                <FieldLabel className={"mb-1"}>Brand</FieldLabel>
-              </Field>
-              <ProductCombobox
-                options={brandOptions}
-                value={form.brand}
-                onChange={(selected) => handleSingleSelect("brand", selected)}
-                placeholder="Select Brand..."
-                clearable
-              />
-            </div>
-            <div>
-              <Field>
-                <FieldLabel className={"mb-1"}>Condition</FieldLabel>
-              </Field>
-              <ProductCombobox
-                options={conditionOptions}
-                value={form.condition}
-                onChange={(selected) => handleSingleSelect("condition", selected)}
-                placeholder="Select Condition..."
-                clearable
-              />
-            </div>
-            <div className="col-span-1 md:col-span-2">
-              <Field>
-                <FieldLabel htmlFor="product-description">Description</FieldLabel>
-              </Field>
-              <textarea
-                id="product-description"
-                name="description"
-                placeholder="Description"
-                value={form.description}
-                onChange={handleChange}
-                className="mt-1 flex min-h-32 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm resize-y col-span-1 md:col-span-2"
-              />
-            </div>
-            {/* Image Upload */}
-            <div className="col-span-1 md:col-span-2">
-              <Field>
-                <FieldLabel htmlFor="product-image">Product Image</FieldLabel>
-              </Field>
-              <ImageUploadDropzone
-                onFileSelect={handleProductImageSelect}
-                previewUrl={imagePreviews[0]}
-                accept="image/*"
-                className="mt-1"
-                multiple
-                primaryLabel="Upload product images"
-                secondaryLabel="You can select multiple images (first will show in list)"
-                onReorderFrontFromIndex={(index) => {
-                  setImages((prev) => moveItem(prev, index, 0));
-                  setImagePreviews((prev) => moveItem(prev, index, 0));
-                }}
-              />
-              {imagePreviews.length > 0 && (
-                <>
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    {imagePreviews.map((src, index) => (
-                      <div
-                        key={index}
-                        className="relative w-24 h-24 rounded-md overflow-hidden border border-muted bg-muted/40 cursor-move"
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("text/image-index", String(index));
-                          handleThumbnailDragStart(index);
-                        }}
-                        onDragOver={handleThumbnailDragOver}
-                        onDrop={() => handleThumbnailDrop(index)}
-                      >
-                        <img
-                          src={src}
-                          alt={`Selected ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
+            <DrawerContent className="ml-auto h-full max-w-3xl">
+              <DrawerHeader>
+                <DrawerTitle>{editingId ? "Edit Product" : "Add New Product"}</DrawerTitle>
+                <DrawerDescription>
+                  {editingId
+                    ? "Update the product details."
+                    : "Fill in the details below to add a new product."}
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="no-scrollbar overflow-y-auto px-6 pb-8">
+                <form
+                  onSubmit={handleSubmit}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                >
+                  {/* Form Fields */}
+                  <div className="col-span-1 md:col-span-2">
+                    <Field>
+                      <FieldLabel htmlFor="product-title">Product Title</FieldLabel>
+                    </Field>
+                    <Input
+                      id="product-title"
+                      type="text"
+                      name="title"
+                      placeholder="Product Title"
+                      ref={titleInputRef}
+                      value={form.title}
+                      onChange={handleChange}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Field>
+                      <FieldLabel htmlFor="product-asin">ASIN</FieldLabel>
+                    </Field>
+                    <Input
+                      id="product-asin"
+                      type="text"
+                      name="asin"
+                      placeholder="ASIN"
+                      value={form.asin}
+                      onChange={handleChange}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
+                    </Field>
+                    <Input
+                      id="product-sku"
+                      type="text"
+                      name="sku"
+                      placeholder="SKU"
+                      value={form.sku}
+                      className="mt-1"
+                      readOnly
+                      disabled
+                    />
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel htmlFor="product-modelno">Model No.</FieldLabel>
+                    </Field>
+                    <Input
+                      id="product-modelno"
+                      type="text"
+                      name="modelno"
+                      placeholder="Model No."
+                      value={form.modelno}
+                      onChange={handleChange}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel htmlFor="product-purchasePrice">Purchase Price</FieldLabel>
+                    </Field>
+                    <Input
+                      id="product-purchasePrice"
+                      type="number"
+                      min="1"
+                      name="purchasePrice"
+                      placeholder="Purchase Price"
+                      value={form.purchasePrice}
+                      onChange={handleChange}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel htmlFor="product-salePrice">Sale Price</FieldLabel>
+                    </Field>
+                    <Input
+                      id="product-salePrice"
+                      type="number"
+                      min="1"
+                      name="salePrice"
+                      placeholder="Sale Price"
+                      value={form.salePrice}
+                      onChange={handleChange}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel htmlFor="product-quantity">Quantity</FieldLabel>
+                    </Field>
+                    <Input
+                      id="product-quantity"
+                      type="number"
+                      min="0"
+                      name="quantity"
+                      placeholder="Quantity"
+                      value={form.quantity}
+                      onChange={handleChange}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Field>
+                      <FieldLabel className={"mb-1"}>Category</FieldLabel>
+                    </Field>
+                    <ProductCombobox
+                      options={categoryOptions}
+                      value={form.category}
+                      onChange={(selected) => handleSingleSelect("category", selected)}
+                      placeholder="Select Category..."
+                      clearable
+                    />
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel className={"mb-1"}>Subcategory</FieldLabel>
+                    </Field>
+                    <div className="flex items-center gap-3">
+                      <ProductCombobox
+                        options={subcategoryOptions.map((o) => ({ value: o.value, label: o.label }))}
+                        value={form.subcategory}
+                        onChange={(selected) => handleSingleSelect("subcategory", selected)}
+                        placeholder={form.category ? "Select Subcategory..." : "Select category first"}
+                        disabled={!form.category}
+                        clearable
+                      />
+                      {!form?.category && (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <InfoIcon className="w-6 h-6" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-black text-black">
+                              Select a Category first to see the subcategories
+                            </TooltipContent>
+                          </Tooltip>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel className={"mb-1"}>Brand</FieldLabel>
+                    </Field>
+                    <ProductCombobox
+                      options={brandOptions}
+                      value={form.brand}
+                      onChange={(selected) => handleSingleSelect("brand", selected)}
+                      placeholder="Select Brand..."
+                      clearable
+                    />
+                  </div>
+                  <div>
+                    <Field>
+                      <FieldLabel className={"mb-1"}>Condition</FieldLabel>
+                    </Field>
+                    <ProductCombobox
+                      options={conditionOptions}
+                      value={form.condition}
+                      onChange={(selected) => handleSingleSelect("condition", selected)}
+                      placeholder="Select Condition..."
+                      clearable
+                    />
+                  </div>
+                  <div className="col-span-1 md:col-span-2">
+                    <Field>
+                      <FieldLabel htmlFor="product-description">Description</FieldLabel>
+                    </Field>
+                    <div className="mt-1">
+                      <RichTextEditor
+                        value={form.description}
+                        onChange={(html) =>
+                          setForm((prev) => ({ ...prev, description: html }))
+                        }
+                        placeholder="Description"
+                      />
+                    </div>
+                  </div>
+                  {/* Image Upload */}
+                  <div className="col-span-1 md:col-span-2">
+                    <Field>
+                      <FieldLabel htmlFor="product-image">Product Image</FieldLabel>
+                    </Field>
+                    <ImageUploadDropzone
+                      onFileSelect={handleProductImageSelect}
+                      previewUrl={imagePreviews[0]}
+                      accept="image/*"
+                      className="mt-1"
+                      multiple
+                      primaryLabel="Upload product images"
+                      secondaryLabel="You can select multiple images (first will show in list)"
+                      onReorderFrontFromIndex={(index) => {
+                        setImages((prev) => moveItem(prev, index, 0));
+                        setImagePreviews((prev) => moveItem(prev, index, 0));
+                      }}
+                    />
+                    {imagePreviews.length > 0 && (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          {imagePreviews.map((src, index) => (
+                            <div
+                              key={index}
+                              className="relative w-24 h-24 rounded-md overflow-hidden border border-muted bg-muted/40 cursor-move"
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("text/image-index", String(index));
+                                handleThumbnailDragStart(index);
+                              }}
+                              onDragOver={handleThumbnailDragOver}
+                              onDrop={() => handleThumbnailDrop(index)}
+                            >
+                              <img
+                                src={src}
+                                alt={`Selected ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImageAtIndex(index)}
+                                className="absolute top-1 right-1 rounded-full bg-white/95 shadow-md text-red-500 hover:bg-red-50 p-0.5 z-10"
+                                aria-label="Remove image"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                         <button
                           type="button"
-                          onClick={() => handleRemoveImageAtIndex(index)}
-                          className="absolute top-1 right-1 rounded-full bg-white/95 shadow-md text-red-500 hover:bg-red-50 p-0.5 z-10"
-                          aria-label="Remove image"
+                          onClick={handleClearProductImage}
+                          className="mt-2 text-sm text-muted-foreground hover:text-foreground underline block"
                         >
-                          <XCircle className="w-4 h-4" />
+                          Clear all images
                         </button>
-                      </div>
-                    ))}
+                      </>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleClearProductImage}
-                    className="mt-2 text-sm text-muted-foreground hover:text-foreground underline block"
-                  >
-                    Clear all images
-                  </button>
-                </>
-              )}
-            </div>
 
-            {/* Image Upload */}
-            {/* <div className="col-span-1 md:col-span-2">
-              <label className="block mb-2 font-medium text-gray-700">
-                Product Images
-              </label>
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*"
-                onChange={handleImageChange}
-                className="p-2 border border-gray-300 rounded-xl"
-              />
-              {preview && (
-                <div className="mt-2">
-                  <img
-                    src={preview}
-                    alt="Product Preview"
-                    className="w-24 h-24 object-cover rounded-lg border"
-                  />
-                </div>
-              )}
-            </div> */}
-
-            {/* Action Buttons */}
-            <div className="flex gap-4 items-center flex-wrap col-span-1 md:col-span-2">
-              <Button type="submit" variant="default" disabled={loading}>
-                {loading
-                  ? "Please wait..."
-                  : editingId
-                    ? "Update Product"
-                    : "Add Product"}
-              </Button>
-              <Label
-                variant="light"
-                onClick={handleImport}
-                className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer"
-              >
-                <Input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImport}
-                  className="hidden"
-                />
-                Import Excel
-              </Label>
-              <Label
-                variant="success"
-                onClick={handleExport}
-                className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md"
-              >
-                Export Excel
-              </Label>
-              <Button
-                variant="danger"
-                onClick={handleClear}
-                className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md"
-              >
-                Clear
-              </Button>
-            </div>
-          </form>
+                  {/* Action Buttons */}
+                  <div className="flex gap-4 items-center flex-wrap col-span-1 md:col-span-2">
+                    <Button type="submit" variant="default" disabled={loading}>
+                      {loading
+                        ? "Please wait..."
+                        : editingId
+                          ? "Update Product"
+                          : "Add Product"}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={handleClear}
+                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md"
+                    >
+                      Clear
+                    </Button>
+                    <DrawerClose asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="ml-auto"
+                      >
+                        Cancel
+                      </Button>
+                    </DrawerClose>
+                  </div>
+                </form>
+              </div>
+            </DrawerContent>
+          </Drawer>
         </div>
 
         {/* Product Table */}
-        <div className="bg-white rounded-xl shadow-md p-8">
+        <div className="">
           <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="w-full text-2xl font-semibold text-gray-700">
-              Products List ({filteredProducts.length})
-            </h2>
             <div className="w-full flex flex-col md:flex-row gap-4 items-center">
-              <div className="flex-1 w-full">
+              <div className="flex-4 w-full">
                 <Input
                   type="text"
                   placeholder="Search products..."
@@ -1287,14 +1827,6 @@ const Products = () => {
                                   </p>
                                 )}
 
-                                {/* Model No */}
-                                {/* <p className="text-xs text-gray-600">
-                              <span className="font-medium text-gray-700">
-                                Model No:
-                              </span>{" "}
-                              {p.modelno}
-                            </p> */}
-
                                 {/* SKU full width */}
                                 <p className="text-xs text-gray-600 col-span-1 md:col-span-2">
                                   <span className="font-medium text-gray-700">
@@ -1391,6 +1923,62 @@ const Products = () => {
         </div>
       </div>
 
+      <AlertDialog open={descriptionModalOpen} onOpenChange={setDescriptionModalOpen}>
+        <AlertDialogContent className="max-w-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Description</AlertDialogTitle>
+            <AlertDialogDescription>
+              Edit the full product description. Formatting will be preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <RichTextEditor
+              value={descriptionModalValue}
+              onChange={setDescriptionModalValue}
+              placeholder="Description"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSaveDescriptionModal}>
+              Save
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={imageModalOpen} onOpenChange={setImageModalOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Image</AlertDialogTitle>
+            <AlertDialogDescription>
+              Provide an image URL to be used during bulk import.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Input
+              type="text"
+              placeholder="https://example.com/image.jpg"
+              value={imageModalValue}
+              onChange={(e) => setImageModalValue(e.target.value)}
+            />
+            {imageModalValue && (
+              <img
+                src={resolveImageUrl(imageModalValue)}
+                alt="Preview"
+                className="mt-2 h-24 w-24 rounded border object-cover"
+              />
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSaveImageModal}>
+              Save
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1409,247 +1997,6 @@ const Products = () => {
       </AlertDialog>
     </div>
   );
-
-  // return (
-  //   <div className="max-w-full md:max-w-7xl ml-16 md:ml-64 p-6">
-  //     {/* Form */}
-  //     <div className="bg-white p-6 rounded-xl shadow mb-6">
-  //       <h2 className="text-xl font-semibold mb-4">
-  //         {editingId ? "Edit Product" : "Add Product"}
-  //       </h2>
-  //       <form
-  //         onSubmit={handleSubmit}
-  //         className="grid grid-cols-1 md:grid-cols-2 gap-4"
-  //       >
-  //         <input
-  //           type="text"
-  //           name="title"
-  //           placeholder="Product Title"
-  //           value={form.title}
-  //           onChange={handleChange}
-  //           className="p-3 border rounded-lg h-11 col-span-2"
-  //           required
-  //         />
-  //         <input
-  //           type="text"
-  //           name="sku"
-  //           placeholder="SKU"
-  //           value={form.sku}
-  //           onChange={handleChange}
-  //           className="p-3 border rounded-lg h-11"
-  //           required
-  //         />
-  //         <input
-  //           type="number"
-  //           name="purchasePrice"
-  //           placeholder="Purchase Price"
-  //           value={form.purchasePrice}
-  //           onChange={handleChange}
-  //           className="p-3 border rounded-lg h-11"
-  //           required
-  //         />
-  //         <input
-  //           type="number"
-  //           name="salePrice"
-  //           placeholder="Sale Price"
-  //           value={form.salePrice}
-  //           onChange={handleChange}
-  //           className="p-3 border rounded-lg h-11"
-  //           required
-  //         />
-  //         <input
-  //           type="number"
-  //           name="quantity"
-  //           placeholder="Quantity"
-  //           value={form.quantity}
-  //           onChange={handleChange}
-  //           className="p-3 border rounded-lg h-11"
-  //           required
-  //         />
-  //         <textarea
-  //           name="description"
-  //           placeholder="Description"
-  //           value={form.description}
-  //           onChange={handleChange}
-  //           className="p-3 border rounded-lg col-span-2"
-  //         />
-  //         <select
-  //           value={form.categories}
-  //           onChange={(e) => handleMultiSelect(e, "categories")}
-  //           className="p-3 border rounded-lg h-11"
-  //         >
-  //           {categories.map((c) => (
-  //             <option key={c._id} value={c._id}>
-  //               {c.name}
-  //             </option>
-  //           ))}
-  //         </select>
-  //         <select
-  //           value={form.brands}
-  //           onChange={(e) => handleMultiSelect(e, "brands")}
-  //           className="p-3 border rounded-lg h-11"
-  //         >
-  //           {brands.map((b) => (
-  //             <option key={b._id} value={b._id}>
-  //               {b.name}
-  //             </option>
-  //           ))}
-  //         </select>
-  //         <select
-  //           value={form.conditions}
-  //           onChange={(e) => handleMultiSelect(e, "conditions")}
-  //           className="p-3 border rounded-lg h-11"
-  //         >
-  //           {conditions.map((c) => (
-  //             <option key={c._id} value={c._id}>
-  //               {c.name}
-  //             </option>
-  //           ))}
-  //         </select>
-  //         <div className="flex gap-2">
-  //           <button
-  //             type="submit"
-  //             disabled={loading}
-  //             className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-  //           >
-  //             {editingId ? "Update" : "Add"}
-  //           </button>
-  //           <input
-  //             type="file"
-  //             accept=".xlsx,.xls"
-  //             onChange={handleImport}
-  //             className="border p-2 rounded-lg"
-  //           />
-  //           <button
-  //             type="button"
-  //             onClick={handleExport}
-  //             className="px-4 py-2 bg-green-600 text-white rounded-lg"
-  //           >
-  //             Export
-  //           </button>
-  //         </div>
-  //       </form>
-  //     </div>
-
-  //     {/* Table */}
-  //     <div className="bg-white p-6 rounded-xl shadow">
-  //       <div className="flex justify-between mb-4">
-  //         <input
-  //           type="text"
-  //           placeholder="Search product..."
-  //           value={search}
-  //           onChange={(e) => setSearch(e.target.value)}
-  //           className="p-3 border rounded-lg h-11"
-  //         />
-  //         <select
-  //           value={itemsPerPage}
-  //           onChange={(e) => {
-  //             setItemsPerPage(Number(e.target.value));
-  //             setCurrentPage(1);
-  //           }}
-  //           className="p-3 border rounded-lg h-11"
-  //         >
-  //           <option value={5}>5 / page</option>
-  //           <option value={10}>10 / page</option>
-  //           <option value={20}>20 / page</option>
-  //         </select>
-  //       </div>
-
-  //       <table className="w-full border">
-  //         <thead className="bg-gray-100">
-  //           <tr>
-  //             <th className="p-2 border">#</th>
-  //             <th className="p-2 border">Title</th>
-  //             <th className="p-2 border">QR</th>
-  //             <th className="p-2 border">SKU</th>
-  //             <th className="p-2 border">Purchase</th>
-  //             <th className="p-2 border">Sale</th>
-  //             <th className="p-2 border">Qty</th>
-  //             <th className="p-2 border">Categories</th>
-  //             <th className="p-2 border">Brands</th>
-  //             <th className="p-2 border">Conditions</th>
-  //             <th className="p-2 border">Actions</th>
-  //           </tr>
-  //         </thead>
-  //         <tbody>
-  //           {currentProducts.map((p, i) => (
-  //             <tr key={p._id}>
-  //               <td className="p-2 border">{indexOfFirst + i + 1}</td>
-  //               <td className="p-2 border">{p.title}</td>
-  //               <td className="p-2 border">
-  //                 <img src={p.qrCode} alt="QR Code" />
-  //               </td>
-
-  //               <td className="p-2 border">{p.sku}</td>
-  //               <td className="p-2 border">${p.purchasePrice}</td>
-  //               <td className="p-2 border">${p.salePrice}</td>
-  //               <td className="p-2 border">{p.quantity}</td>
-  //               <td className="p-2 border">
-  //                 {p.categories.map((c) => c.name).join(", ")}
-  //               </td>
-  //               <td className="p-2 border">
-  //                 {p.brands.map((b) => b.name).join(", ")}
-  //               </td>
-  //               <td className="p-2 border">
-  //                 {p.conditions.map((c) => c.name).join(", ")}
-  //               </td>
-  //               <td className="p-2 border flex gap-2">
-  //                 <button
-  //                   onClick={() => handleEdit(p)}
-  //                   className="p-2 text-blue-600"
-  //                 >
-  //                   <Edit size={18} />
-  //                 </button>
-  //                 <button
-  //                   onClick={() => handleDelete(p._id)}
-  //                   className="p-2 text-red-600"
-  //                 >
-  //                   <Trash2 size={18} />
-  //                 </button>
-  //               </td>
-  //             </tr>
-  //           ))}
-  //           {currentProducts.length === 0 && (
-  //             <tr>
-  //               <td colSpan="10" className="text-center py-4 text-gray-500">
-  //                 No products found
-  //               </td>
-  //             </tr>
-  //           )}
-  //         </tbody>
-  //       </table>
-
-  //       {/* Pagination */}
-  //       {totalPages > 1 && (
-  //         <div className="flex justify-center gap-2 mt-4">
-  //           <button
-  //             onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-  //             className="px-3 py-1 border rounded-lg"
-  //           >
-  //             Prev
-  //           </button>
-  //           {[...Array(totalPages)].map((_, i) => (
-  //             <button
-  //               key={i}
-  //               onClick={() => setCurrentPage(i + 1)}
-  //               className={`px-3 py-1 border rounded-lg ${
-  //                 currentPage === i + 1 ? "bg-blue-200" : ""
-  //               }`}
-  //             >
-  //               {i + 1}
-  //             </button>
-  //           ))}
-  //           <button
-  //             onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-  //             className="px-3 py-1 border rounded-lg"
-  //           >
-  //             Next
-  //           </button>
-  //         </div>
-  //       )}
-  //     </div>
-  //   </div>
-  // );
 };
 
 export default Products;
