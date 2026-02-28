@@ -2,19 +2,29 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const Table = React.forwardRef(({ className, ...props }, ref) => (
-  <div className="relative w-full">
+const Table = React.forwardRef(({ className, stickyHeader, ...props }, ref) => {
+  const tableEl = (
     <table
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}
-      {...props} />
-  </div>
-))
+      {...props}
+    />
+  );
+  if (stickyHeader) {
+    return tableEl;
+  }
+  return (
+    <div className="relative w-full overflow-auto">
+      {tableEl}
+    </div>
+  );
+});
 Table.displayName = "Table"
 
 const TableHeader = React.forwardRef(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  <thead ref={ref} className={cn("[&_tr]:border-b text-black", className)} {...props} />
 ))
+
 TableHeader.displayName = "TableHeader"
 
 const TableBody = React.forwardRef(({ className, ...props }, ref) => (
@@ -48,10 +58,11 @@ const TableHead = React.forwardRef(({ className, ...props }, ref) => (
   <th
     ref={ref}
     className={cn(
-      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      "h-10 px-2 text-left align-middle font-medium text-black [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
       className
     )}
-    {...props} />
+    {...props}
+  />
 ))
 TableHead.displayName = "TableHead"
 

@@ -1,24 +1,27 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
-import { ArrowUpAZ, ArrowDownAZ, ArrowUp01, ArrowDown01, Edit, Trash2 } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Field, FieldDescription, FieldLabel } from "@/components/UI/field"
-import { Input } from "@/components/UI/input"
+import { Field, FieldLabel } from "@/components/UI/field";
+import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
-import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone"
-
-const resolveImageUrl = (src) => {
-  if (!src) return null;
-  if (src.startsWith("http://") || src.startsWith("https://")) return src;
-  return `${API_HOST}${src}`;
-};
 import {
-  Select,
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+  DrawerFooter,
+} from "@/components/UI/drawer";
+import {
+  Select as UiSelect,
   SelectContent,
   SelectGroup,
   SelectItem,
@@ -27,15 +30,6 @@ import {
   SelectValue,
 } from "@/components/UI/select";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/UI/pagination";
-
-import {
   Table,
   TableBody,
   TableCell,
@@ -43,7 +37,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/UI/table";
-
+import { DataTable } from "@/components/UI/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/UI/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,34 +56,41 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
+import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { useImageModal } from "@/context/ImageModalContext";
 
+const resolveImageUrl = (src) => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  return `${API_HOST}${src}`;
+};
+
+const TEMPLATE_COLUMNS = ["Name"];
 
 const Categories = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const nameInputRef = useRef(null);
   const navigate = useNavigate();
+  const { openImageModal } = useImageModal();
+
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [search, setSearch] = useState("");
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
-
-  const handleDropFile = (file) => {
-    handleFileChange({ target: { files: [file] } });
-    setPreview(URL.createObjectURL(file));
-  };
-  const [sortField, setSortField] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  const handleClick = (id) => {
-    navigate(`/products/filter/category/${id}`);
-  };
-
-  const [currentPage, setCurrentPage] = useState(1);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importColumns, setImportColumns] = useState([]);
+  const [importStats, setImportStats] = useState({
+    total: 0,
+    valid: 0,
+    errors: 0,
+  });
+  const [importLoading, setImportLoading] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
@@ -104,6 +113,8 @@ const Categories = () => {
       if (data?.success) {
         toast.success("Category created successfully ✅");
         queryClient.invalidateQueries({ queryKey: ["categories"] });
+        setCategoryDrawerOpen(false);
+        handleClearForm();
       } else {
         toast.error("Failed to create category ❌");
       }
@@ -122,6 +133,8 @@ const Categories = () => {
       if (data?.success) {
         toast.success("Category updated successfully ✅");
         queryClient.invalidateQueries({ queryKey: ["categories"] });
+        setCategoryDrawerOpen(false);
+        handleClearForm();
       } else {
         toast.error("Failed to update category ❌");
       }
@@ -153,12 +166,24 @@ const Categories = () => {
 
   const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
+  const handleClick = (id) => {
+    navigate(`/products/filter/category/${id}`);
+  };
+
+  const handleClearForm = () => {
+    setName("");
+    setImage(null);
+    setPreview(null);
+    setEditingId(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) return toast.error("Name is required ❌");
 
     const formData = new FormData();
-    formData.append("name", name);
+    formData.append("name", name.trim());
     if (image) formData.append("image", image);
 
     if (editingId) {
@@ -166,14 +191,18 @@ const Categories = () => {
     } else {
       await createMutation.mutateAsync(formData);
     }
+  };
 
-    setName("");
+  const handleEdit = (cat) => {
+    setName(cat.name);
+    setEditingId(cat._id);
+    setPreview(cat.image ? resolveImageUrl(cat.image) : null);
     setImage(null);
-    setPreview(null);
-    setEditingId(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setCategoryDrawerOpen(true);
+    toast.info(`Editing Category: ${cat.name}`);
+    setTimeout(() => {
+      if (nameInputRef.current) nameInputRef.current.focus();
+    }, 100);
   };
 
   const confirmDelete = (id) => {
@@ -186,423 +215,583 @@ const Categories = () => {
     deleteMutation.mutate(deleteId);
   };
 
-  // Edit Category
-  const handleEdit = (cat) => {
-    setName(cat.name);
-    setEditingId(cat._id);
-    setPreview(cat.image ? resolveImageUrl(cat.image) : null);
-    toast.info(`Editing Category: ${cat.name}`);
-    // 🔹 input auto focus
-    setTimeout(() => {
-      if (nameInputRef.current) {
-        nameInputRef.current.focus();
-      }
-    }, 100);
+  const handleDropFile = (file) => {
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
   };
 
-  // 🔹 File change handler
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setImage(file);
-      setPreview(URL.createObjectURL(file)); // nayi image preview
+      setPreview(URL.createObjectURL(file));
     }
   };
 
   const filteredCategories = (categories || []).filter((c) =>
-    (c.name || "").toLowerCase().includes(searchTerm.toLowerCase())
+    (c.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const sortedCategories = [...filteredCategories].sort((a, b) => {
-    if (sortField === "name") {
-      return sortOrder === "asc"
-        ? (a.name || "").localeCompare(b.name || "")
-        : (b.name || "").localeCompare(a.name || "");
-    }
-    return sortOrder === "asc"
-      ? (a.productCount ?? 0) - (b.productCount ?? 0)
-      : (b.productCount ?? 0) - (a.productCount ?? 0);
-  });
+  const normalizeKey = (key) =>
+    key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  // Pagination
-  const totalPages = Math.ceil(filteredCategories.length / itemsPerPage);
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentCategories = sortedCategories.slice(indexOfFirst, indexOfLast);
+  const validateImportedRows = (rows) => {
+    let valid = 0;
+    let errors = 0;
+    const validated = rows.map((row) => {
+      const nameKey =
+        Object.keys(row).find((k) => ["name"].includes(normalizeKey(k))) ?? null;
+      const name = nameKey ? String(row[nameKey] ?? "").trim() : "";
+      const fieldErrors = {};
+      if (!name) {
+        fieldErrors[nameKey || "Name"] = "Required";
+        errors += 1;
+      } else {
+        valid += 1;
+      }
+      const hasErrors = Object.keys(fieldErrors).length > 0;
+      return {
+        ...row,
+        __name: name,
+        __errors: fieldErrors,
+        __status: hasErrors ? "error" : "valid",
+      };
+    });
+    setImportStats({ total: rows.length, valid, errors });
+    return validated;
+  };
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      // same field → toggle order
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      // new field → reset to asc
-      setSortField(field);
-      setSortOrder("asc");
+  const handleImportFileSelected = async (fileOrFiles) => {
+    const file = Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles;
+    if (!file) return;
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { defval: "" });
+      if (!rows.length) {
+        toast.error("File is empty ❌");
+        setImportRows([]);
+        setImportColumns([]);
+        setImportStats({ total: 0, valid: 0, errors: 0 });
+        return;
+      }
+      const validatedRows = validateImportedRows(rows);
+      setImportRows(validatedRows);
+      const allColumns = Object.keys(rows[0] || {});
+      setImportColumns(allColumns);
+      toast.success("File loaded. Review and import ✅");
+    } catch (err) {
+      console.error("Import parse error:", err);
+      toast.error("Unable to read file ❌");
     }
   };
 
-  // Export Excel
+  const handleImportValidSubmit = async () => {
+    const validRows = importRows.filter((row) => row.__status === "valid");
+    if (!validRows.length) {
+      toast.error("No valid rows to import ❌");
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const payload = validRows.map(({ __errors, __status, __name, ...rest }) => ({
+        ...rest,
+        name: __name,
+      }));
+      await api.post("/categories/createbulk", payload);
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success(`Imported ${payload.length} categories ✅`);
+      setImportDrawerOpen(false);
+      setImportRows([]);
+      setImportColumns([]);
+      setImportStats({ total: 0, valid: 0, errors: 0 });
+    } catch (err) {
+      toast.error("Bulk import failed ❌");
+      console.error("Bulk import error:", err.response?.data || err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleViewTemplate = () => {
+    setImportColumns(TEMPLATE_COLUMNS);
+    setImportRows([Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))]);
+    setImportStats({ total: 1, valid: 0, errors: 0 });
+  };
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_COLUMNS]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "categories-import-template.xlsx");
+  };
+
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredCategories);
+    const worksheet = XLSX.utils.json_to_sheet(
+      filteredCategories.map((c) => ({
+        "Name": c.name,
+        "Product Count": c.productCount ?? 0,
+        "Created At": c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "",
+        "Updated At": c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : "",
+      })),
+    );
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Categories");
     XLSX.writeFile(workbook, "categories.xlsx");
   };
 
-  const handleImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const data = evt.target.result;
-      const workbook = XLSX.read(data, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      try {
-        await api.post("/categories/createbulk", jsonData);
-        toast.success("Import complete ✅");
-        queryClient.invalidateQueries({ queryKey: ["categories"] });
-      } catch (err) {
-        console.error("Bulk import error:", err);
-        toast.error("Import failed");
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-  // Import Excel/CSV
-  // const handleImport = (e) => {
-  //   const file = e.target.files[0];
-  //   if (!file) return;
-  //   const reader = new FileReader();
-  //   reader.onload = async (evt) => {
-  //     const data = evt.target.result;
-  //     const workbook = XLSX.read(data, { type: "binary" });
-  //     const sheetName = workbook.SheetNames[0];
-  //     const worksheet = workbook.Sheets[sheetName];
-  //     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-  //     for (let item of jsonData) {
-  //       try {
-  //         if (item.name && !categories.some((c) => c.name === item.name)) {
-  //           await axios.post("http://localhost:5000/api/categories/create", {
-  //             name: item.name,
-  //           });
-  //         }
-  //       } catch (err) {
-  //         console.error("Import error:", item.name);
-  //       }
-  //     }
-  //     fetchCategories();
-  //     toast.success("Import complete ✅");
-  //   };
-  //   reader.readAsBinaryString(file);
-  // };
-
-  const { openImageModal } = useImageModal()
-
-  const handleClear = () => {
-    setName("");
-    setImage(null);
-    setPreview(null);
-    setEditingId(null);
-
-    // ✅ file input bhi reset karna hoga
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
+  const categoryColumns = useMemo(
+    () => [
+      {
+        id: "index",
+        header: "#",
+        cell: ({ row }) => row.index + 1,
+      },
+      {
+        id: "image",
+        header: "Image",
+        accessorKey: "image",
+        cell: ({ row }) => {
+          const cat = row.original;
+          if (!cat.image) {
+            return <span className="text-gray-400 italic">No Image</span>;
+          }
+          return (
+            <img
+              src={resolveImageUrl(cat.image)}
+              alt={cat.name}
+              onClick={() => openImageModal(resolveImageUrl(cat.image))}
+              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+            />
+          );
+        },
+      },
+      {
+        id: "name",
+        header: "Category Name",
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <span className="font-medium text-gray-800">{row.original.name}</span>
+        ),
+      },
+      {
+        id: "productCount",
+        header: "Product Count",
+        accessorKey: "productCount",
+        cell: ({ row }) => {
+          const cat = row.original;
+          return (
+            <button
+              type="button"
+              onClick={() => handleClick(cat._id)}
+              className="text-center font-medium text-blue-600 hover:underline"
+            >
+              {cat.productCount ?? 0}
+            </button>
+          );
+        },
+      },
+      {
+        id: "createdAt",
+        header: "Created At",
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">
+            {row.original.createdAt
+              ? new Date(row.original.createdAt).toLocaleDateString()
+              : ""}
+          </span>
+        ),
+      },
+      {
+        id: "updatedAt",
+        header: "Updated At",
+        accessorKey: "updatedAt",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">
+            {row.original.updatedAt
+              ? new Date(row.original.updatedAt).toLocaleDateString()
+              : ""}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const cat = row.original;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-40"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleEdit(cat)}>
+                  Edit category
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={() => confirmDelete(cat._id)}
+                >
+                  Delete category
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [openImageModal]
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto">
-        {/* Form section with enhanced styling */}
-        <div className="bg-white rounded-xl shadow-md p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            {editingId ? "Edit Category" : "Add New Category"}
-          </h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Field>
-              <FieldLabel htmlFor="input-field-category">Name</FieldLabel>
-            </Field>
-            <Input
-              type="text"
-              placeholder="Category Name"
-              ref={nameInputRef}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              // className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300"
-              required
-            />
-            <ImageUploadDropzone
-              onFileSelect={handleDropFile}
-              previewUrl={preview}
-            />
-            {/* Image Preview */}
-            {preview && (
-              <div className="mt-2">
-                <img
-                  src={preview}
-                  alt="Categories Preview"
-                  className="w-24 h-24 object-cover rounded-lg border"
-                />
-              </div>
-            )}
+      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
+        {/* Header + Actions - same structure as Products */}
+        <div className="">
+          <Drawer
+            direction="right"
+            open={categoryDrawerOpen}
+            onOpenChange={setCategoryDrawerOpen}
+          >
+            <div className="flex justify-between items-center">
+              <h2 className="flex-4 text-2xl font-semibold text-gray-700">
+                Categories List ({filteredCategories.length})
+              </h2>
+              <div className="flex gap-4 items-center">
+                <Drawer
+                  open={importDrawerOpen}
+                  onOpenChange={setImportDrawerOpen}
+                >
+                  <DrawerTrigger asChild>
+                    <Label
+                      variant="light"
+                      className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer"
+                    >
+                      Import Excel
+                    </Label>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[90vh]">
+                    <DrawerHeader className="border-b">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <DrawerTitle>Bulk Category Import</DrawerTitle>
+                          <DrawerDescription>
+                            Upload CSV or Excel file to create multiple categories.
+                          </DrawerDescription>
+                        </div>
+                        <DrawerClose asChild>
+                          <Button variant="outline" size="icon">
+                            ✕
+                          </Button>
+                        </DrawerClose>
+                      </div>
+                    </DrawerHeader>
+                    <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleViewTemplate}
+                        >
+                          View Template
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleDownloadTemplate}
+                        >
+                          Download Template
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Upload file</p>
+                        <ImageUploadDropzone
+                          accept=".csv,.xlsx"
+                          type="excel"
+                          label="Drag & Drop Excel or CSV File"
+                          description="Upload bulk category file"
+                          maxSize={10 * 1024 * 1024}
+                          onFileSelect={handleImportFileSelected}
+                        />
+                      </div>
+                      {importRows.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">
+                              Preview ({importStats.total} rows)
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Valid: {importStats.valid} | Errors: {importStats.errors}
+                            </p>
+                          </div>
+                          <div className="border w-full rounded-md max-h-80 overflow-auto">
+                            <div className="min-w-max">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>#</TableHead>
+                                    <TableHead>Name</TableHead>
+                                    {importColumns.map((col) => (
+                                      <TableHead
+                                        className="whitespace-nowrap w-auto"
+                                        key={col}
+                                      >
+                                        {col}
+                                      </TableHead>
+                                    ))}
+                                    <TableHead>Status</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {importRows.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                      <TableCell className="text-xs text-muted-foreground">
+                                        {rowIndex + 1}
+                                      </TableCell>
+                                      <TableCell className="text-xs">
+                                        {row.__name ?? row.Name ?? row.name ?? "—"}
+                                      </TableCell>
+                                      {importColumns.map((col) => (
+                                        <TableCell key={col} className="text-xs">
+                                          {String(row[col] ?? "")}
+                                        </TableCell>
+                                      ))}
+                                      <TableCell>
+                                        <span
+                                          className={
+                                            row.__status === "valid"
+                                              ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
+                                              : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
+                                          }
+                                        >
+                                          {row.__status === "valid" ? "Valid" : "Error"}
+                                        </span>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <DrawerFooter className="border-t">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          <span className="text-muted-foreground">
+                            ✔ Valid:{" "}
+                            <span className="font-semibold text-emerald-700">
+                              {importStats.valid}
+                            </span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            ⚠ Errors:{" "}
+                            <span className="font-semibold text-red-700">
+                              {importStats.errors}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <Button
+                            type="button"
+                            variant="default"
+                            onClick={handleImportValidSubmit}
+                            disabled={!importStats.valid || importLoading}
+                          >
+                            {importLoading ? "Importing..." : "Import Valid Only"}
+                          </Button>
+                          <DrawerClose asChild>
+                            <Button type="button" variant="ghost">
+                              Cancel
+                            </Button>
+                          </DrawerClose>
+                        </div>
+                      </div>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
 
-            <div className="flex gap-4 items-center flex-wrap">
-              <Button
-                variant="default"
-                disabled={loading}
-              >
-                {loading
-                  ? "Please wait..."
-                  : editingId
-                    ? "Update Category"
-                    : "Add Category"}
-              </Button>
-              <Label
-                variant="light"
-                onClick={handleImport}
-                className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer "
-              >
-                <Input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImport}
-                  className="hidden"
-                />
-                Import Excel
-              </Label>
-              <Label
-                variant="success"
-                onClick={handleExport}
-                className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md"
-              >
-                Export Excel
-              </Label>
-              <Button
-                variant="danger"
-                onClick={handleClear}
-                className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5! rounded-md"
-              >
-                Clear
-              </Button>
+                <Label
+                  variant="success"
+                  onClick={handleExport}
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md cursor-pointer"
+                >
+                  Export Excel
+                </Label>
+                <DrawerTrigger asChild>
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      if (!editingId) handleClearForm();
+                    }}
+                  >
+                    {editingId ? "Edit Category" : "Add New Category"}
+                  </Button>
+                </DrawerTrigger>
+              </div>
             </div>
-          </form>
+
+            {/* Right-side drawer: Add/Edit Category form */}
+            <DrawerContent className="ml-auto h-full max-w-3xl">
+              <DrawerHeader>
+                <DrawerTitle>
+                  {editingId ? "Edit Category" : "Add New Category"}
+                </DrawerTitle>
+                <DrawerDescription>
+                  {editingId
+                    ? "Update the category details."
+                    : "Fill in the details below to add a new category."}
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="no-scrollbar overflow-y-auto px-6 pb-8">
+                <form
+                  onSubmit={handleSubmit}
+                  className="flex flex-col gap-6"
+                >
+                  <Field>
+                    <FieldLabel htmlFor="category-name">Name</FieldLabel>
+                    <Input
+                      id="category-name"
+                      type="text"
+                      placeholder="Category Name"
+                      ref={nameInputRef}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="mt-1"
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Image</FieldLabel>
+                    <ImageUploadDropzone
+                      onFileSelect={handleDropFile}
+                      previewUrl={preview}
+                      className="mt-1"
+                      accept="image/*"
+                    />
+                    {preview && (
+                      <div className="mt-2">
+                        <img
+                          src={preview}
+                          alt="Preview"
+                          className="w-24 h-24 object-cover rounded-lg border"
+                        />
+                      </div>
+                    )}
+                  </Field>
+                  <div className="flex gap-4 items-center flex-wrap">
+                    <Button type="submit" variant="default" disabled={loading}>
+                      {loading
+                        ? "Please wait..."
+                        : editingId
+                          ? "Update Category"
+                          : "Add Category"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={handleClearForm}
+                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md"
+                    >
+                      Clear
+                    </Button>
+                    <DrawerClose asChild>
+                      <Button type="button" variant="outline" className="ml-auto">
+                        Cancel
+                      </Button>
+                    </DrawerClose>
+                  </div>
+                </form>
+              </div>
+            </DrawerContent>
+          </Drawer>
         </div>
 
-        {/* Table section with a more subtle card design */}
-        <div className="bg-white rounded-xl shadow-md p-8">
-          <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="w-full text-2xl font-semibold text-gray-700">
-              Categories List ({filteredCategories.length})
-            </h2>
-            <div className="w-full flex gap-4 items-center">
-              {/* Search - takes more space */}
-              <div className="flex-3">
+        {/* Table section - same layout as Products */}
+        <div className="">
+          <div className="flex justify-between items-center mb-4 gap-4">
+            <div className="w-full flex flex-col md:flex-row gap-4 items-center">
+              <div className="flex-3 w-full">
                 <Input
                   type="text"
                   placeholder="Search categories..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                   className="w-full"
                 />
               </div>
-
-              {/* Select - smaller */}
-              <div className="flex-1">
-                <Select
+              <div className="flex-1 w-full md:w-auto">
+                <UiSelect
                   value={String(itemsPerPage)}
-                  onValueChange={(value) => {
-                    setItemsPerPage(Number(value));
-                    setCurrentPage(1);
-                  }}
+                  onValueChange={(value) => setItemsPerPage(Number(value))}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Items per page" />
+                    <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent position="item-aligned">
                     <SelectGroup>
-                      <SelectLabel>Items per page</SelectLabel>
+                      <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                     </SelectGroup>
                   </SelectContent>
-                </Select>
+                </UiSelect>
               </div>
             </div>
           </div>
 
           {categoriesLoading ? (
             <div className="flex justify-center items-center py-10">
-              <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin"></div>
+              <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Image</TableHead>
-                      <TableHead onClick={() => handleSort("name")}>
-                        <div className="flex items-center gap-2">
-                          Category Name
-                          {sortField === "name" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUpAZ className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDownAZ className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead onClick={() => handleSort("productCount")}>
-                        <div className="flex justify-center items-center gap-2">
-                          Product Count
-                          {sortField === "productCount" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUp01 className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDown01 className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead>Created At</TableHead>
-                      <TableHead>Updated At</TableHead>
-                      <TableHead className="text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-
-                  <TableBody>
-                    {currentCategories.map((cat, index) => (
-                      <TableRow key={cat._id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <TableCell>{(currentPage - 1) * itemsPerPage + index + 1}</TableCell>
-                        <TableCell>
-                          {cat.image ? (
-                            <img
-                              src={cat.image ? resolveImageUrl(cat.image) : undefined}
-                              alt={cat.name}
-                              onClick={() => openImageModal(resolveImageUrl(cat.image))}
-                              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow-sm active:shadow cursor-pointer"
-                            />
-                          ) : (
-                            <span className="text-gray-400 italic">No Image</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">{cat.name}</TableCell>
-                        <TableCell className="text-center font-medium" onClick={() => handleClick(cat._id)}>
-                          {cat.productCount || 0}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(cat.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(cat.updatedAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleEdit(cat)}
-                              className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => confirmDelete(cat._id)}
-                              className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {currentCategories.length === 0 && (
-                <p className="text-gray-500 text-center py-6">
-                  No categories found
-                </p>
-              )}
-
-              {/* Pagination with a cleaner look */}
-              {totalPages > 1 && (
-                <Pagination>
-                  <PaginationContent>
-                    {/* Previous Button */}
-                    <PaginationItem>
-                      <PaginationPrevious
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.max(p - 1, 1));
-                        }}
-                        disabled={currentPage === 1}
-                      />
-                    </PaginationItem>
-
-                    {/* Page Numbers */}
-                    {[...Array(totalPages)].map((_, i) => (
-                      <PaginationItem key={i}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === i + 1}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setCurrentPage(i + 1);
-                          }}
-                        >
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-
-                    {/* Next Button */}
-                    <PaginationItem>
-                      <PaginationNext
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.min(p + 1, totalPages));
-                        }}
-                        disabled={currentPage === totalPages}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              )}
-            </>
+            <div className="overflow-x-auto">
+              <DataTable
+                columns={categoryColumns}
+                data={filteredCategories}
+                pageSize={itemsPerPage}
+              />
+            </div>
           )}
         </div>
+      </div>
 
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete category?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the
-                selected category.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteConfirmed}
-                disabled={loading}
-              >
-                {loading ? "Deleting..." : "Yes, delete"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div >
-    </div >
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete category?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              selected category.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirmed}
+              disabled={loading}
+            >
+              {loading ? "Deleting..." : "Yes, delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 };
 

@@ -1,11 +1,18 @@
-import React, { useState } from "react";
-import { Eye, Trash2 } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Eye, Trash2, MoreVertical, CalendarIcon } from "lucide-react";
 import api from "../utils/api";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/UI/popover";
+import { Calendar } from "@/components/UI/calendar";
 import {
   Select,
   SelectContent,
@@ -30,7 +37,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  } from "@/components/UI/table";
+} from "@/components/UI/table";
+import { DataTable } from "@/components/UI/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/UI/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,12 +69,14 @@ const Orders = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [dateRange, setDateRange] = useState(undefined);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
+  const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : "";
 
   const { data, isLoading } = useQuery({
     queryKey: ["orders", "sales", currentPage, itemsPerPage, searchTerm, startDate, endDate],
@@ -153,88 +171,199 @@ const Orders = () => {
 
   const loading = isLoading || deleteMutation.isPending;
 
+  const orderColumns = useMemo(
+    () => [
+      { id: "index", header: "#", cell: ({ row }) => row.index + 1 },
+      {
+        id: "invoiceNo",
+        header: "Invoice No",
+        accessorKey: "invoiceNo",
+        cell: ({ row }) => (
+          <span className="font-medium text-blue-600">{row.original.invoiceNo}</span>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Customer",
+        accessorKey: "customer",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-900">{row.original.customer?.name ?? "—"}</span>
+        ),
+      },
+      {
+        id: "phone",
+        header: "Phone",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-900">{row.original.customer?.phone ?? "—"}</span>
+        ),
+      },
+      {
+        id: "grandTotal",
+        header: "Grand Total",
+        accessorKey: "grandTotal",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-900">
+            AED {Number(row.original.grandTotal).toFixed(2)}
+          </span>
+        ),
+      },
+      {
+        id: "paymentMethod",
+        header: "Payment",
+        accessorKey: "paymentMethod",
+        cell: ({ row }) => {
+          const pm = row.original.paymentMethod;
+          const isCash = pm === "cash" || pm === "Cash";
+          return (
+            <span
+              className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${isCash ? "bg-green-100 text-green-800" : "bg-indigo-100 text-indigo-800"
+                }`}
+            >
+              {pm ?? "—"}
+            </span>
+          );
+        },
+      },
+      {
+        id: "createdAt",
+        header: "Created At",
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">
+            {row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : "—"}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const order = row.original;
+          const invoiceUrl = `${import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") || ""}/api/sales/${order._id}/invoice`;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-44"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleViewOrder(order)}>
+                  View
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href={invoiceUrl} target="_blank" rel="noopener noreferrer">
+                    Invoice
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={() => confirmDelete(order._id)}
+                >
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-md p-8 mb-8">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6">
-            Order Management
-          </h1>
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex-1 min-w-[200px]">
-              <Input
-                type="text"
-                placeholder="Search orders..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full"
-              />
-            </div>
-            <Button variant="default" onClick={handleExport} className="bg-green-600 hover:bg-green-700">
-              Export to Excel
-            </Button>
+      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
+        <div className="w-full flex justify-between items-center">
+          <h2 className="text-2xl font-semibold text-gray-700">
+            Orders List ({filteredOrders.length})
+          </h2>
+          <Button
+            variant="default"
+            onClick={handleExport}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            Export to Excel
+          </Button>
+        </div>
+        <div className="w-full flex justify-between items-center flex-wrap gap-4">
+          <div className="flex-3 w-full">
+            <Input
+              type="text"
+              placeholder="Search orders..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[200px]"
+            />
+          </div>
+          <div className="flex-1 w-full md:w-auto">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="min-w-[260px] justify-start px-2.5 font-normal text-left"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} – {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick date range</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={(range) => {
+                    setDateRange(range);
+                    setCurrentPage(1);
+                  }}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="flex-1 w-full md:w-auto">
+            <Select
+              value={String(itemsPerPage)}
+              onValueChange={(v) => {
+                setItemsPerPage(Number(v));
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="">
+                <SelectValue placeholder="Per page" />
+              </SelectTrigger>
+              <SelectContent position="item-aligned">
+                <SelectGroup>
+                  <SelectLabel>Per page</SelectLabel>
+                  <SelectItem value="5">5 per page</SelectItem>
+                  <SelectItem value="10">10 per page</SelectItem>
+                  <SelectItem value="20">20 per page</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-8">
-          <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-            <h2 className="text-2xl font-semibold text-gray-700">
-              Orders List ({filteredOrders.length})
-            </h2>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-gray-600 mb-1">
-                  Start date
-                </span>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="min-w-[160px]"
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-gray-600 mb-1">
-                  End date
-                </span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="min-w-[160px]"
-                />
-              </div>
-              <Select
-                value={String(itemsPerPage)}
-                onValueChange={(v) => {
-                  setItemsPerPage(Number(v));
-                  setCurrentPage(1);
-                }}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Per page" />
-                </SelectTrigger>
-                <SelectContent position="item-aligned">
-                  <SelectGroup>
-                    <SelectLabel>Per page</SelectLabel>
-                    <SelectItem value="5">5 per page</SelectItem>
-                    <SelectItem value="10">10 per page</SelectItem>
-                    <SelectItem value="20">20 per page</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
+        <div className="">
           {isLoading ? (
             <div className="flex justify-center items-center py-10">
               <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
@@ -242,89 +371,8 @@ const Orders = () => {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead>#</TableHead>
-                      <TableHead>Invoice No</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Grand Total</TableHead>
-                      <TableHead>Payment</TableHead>
-                      <TableHead>Created At</TableHead>
-                      <TableHead className="text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredOrders.map((order, index) => (
-                      <TableRow key={order._id} className="hover:bg-gray-50">
-                        <TableCell className="text-sm text-gray-900">
-                          {(currentPage - 1) * itemsPerPage + index + 1}
-                        </TableCell>
-                        <TableCell className="font-medium text-blue-600">
-                          {order.invoiceNo}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-900">
-                          {order.customer?.name ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-900">
-                          {order.customer?.phone ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-900">
-                          AED {Number(order.grandTotal).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
-                              order.paymentMethod === "cash" || order.paymentMethod === "Cash"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-indigo-100 text-indigo-800"
-                            }`}
-                          >
-                            {order.paymentMethod ?? "—"}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex gap-2 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => handleViewOrder(order)}
-                              className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors"
-                              title="View"
-                            >
-                              <Eye size={18} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => confirmDelete(order._id)}
-                              className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                            <a
-                              href={`${import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") || ""}/api/sales/${order._id}/invoice`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center px-3 py-1.5 text-sm bg-blue-500 text-white rounded-full hover:bg-blue-600"
-                            >
-                              Invoice
-                            </a>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <DataTable columns={orderColumns} data={filteredOrders} pageSize={itemsPerPage} />
               </div>
-
-              {filteredOrders.length === 0 && (
-                <p className="text-gray-500 text-center py-6">No orders found</p>
-              )}
-
               {totalPages > 1 && (
                 <Pagination className="mt-6">
                   <PaginationContent>

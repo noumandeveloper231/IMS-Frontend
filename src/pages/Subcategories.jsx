@@ -1,14 +1,26 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import api from "../utils/api";
-import { ArrowUpAZ, ArrowDownAZ, ArrowUp01, ArrowDown01, Edit, Trash2, ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, MoreVertical } from "lucide-react";
 import { toast } from "sonner";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
+import { Label } from "@/components/UI/label";
 import {
-  Select,
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+  DrawerFooter,
+} from "@/components/UI/drawer";
+import {
+  Select as UiSelect,
   SelectContent,
   SelectGroup,
   SelectItem,
@@ -29,15 +41,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/UI/command";
-import { cn } from "@/lib/utils";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/UI/pagination";
 import {
   Table,
   TableBody,
@@ -46,6 +49,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/UI/table";
+import { DataTable } from "@/components/UI/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/UI/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,8 +68,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
+import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+import { cn } from "@/lib/utils";
 
-function ProductCombobox({
+function CategoryCombobox({
   options = [],
   value,
   onChange,
@@ -110,7 +124,7 @@ function ProductCombobox({
           </div>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)]  p-0" align="start">
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search..." />
           <CommandList className="h-50 overflow-y-auto">
@@ -139,20 +153,26 @@ function ProductCombobox({
   );
 }
 
+const TEMPLATE_COLUMNS = ["Name", "Category"];
+
 const Subcategories = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const nameInputRef = useRef(null);
+
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortField, setSortField] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [subcategoryDrawerOpen, setSubcategoryDrawerOpen] = useState(false);
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importColumns, setImportColumns] = useState([]);
+  const [importStats, setImportStats] = useState({ total: 0, valid: 0, errors: 0 });
+  const [importLoading, setImportLoading] = useState(false);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
   const { data: categoriesData } = useQuery({
     queryKey: ["categories-list"],
@@ -181,9 +201,23 @@ const Subcategories = () => {
   });
   const products = productsData ?? [];
 
-  const categoryOptions = categories.map((c) => ({
-    value: c._id,
-    label: c.name,
+  const categoryOptions = categories.map((c) => ({ value: c._id, label: c.name }));
+
+  const productCountBySubcategoryId = useMemo(() => {
+    const counts = {};
+    (products || []).forEach((p) => {
+      (p.subcategories || []).forEach((s) => {
+        const id = s?._id ?? s;
+        if (!id) return;
+        counts[id] = (counts[id] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [products]);
+
+  const subcategoriesWithCounts = (subcategories || []).map((s) => ({
+    ...s,
+    productCount: productCountBySubcategoryId[s._id] ?? 0,
   }));
 
   const createMutation = useMutation({
@@ -195,13 +229,14 @@ const Subcategories = () => {
       if (data?.success) {
         toast.success("Subcategory created ✅");
         queryClient.invalidateQueries({ queryKey: ["subcategories"] });
+        setSubcategoryDrawerOpen(false);
+        handleClearForm();
       } else {
         toast.error(data?.message || "Create failed ❌");
       }
     },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || "Something went wrong ❌");
-    },
+    onError: (err) =>
+      toast.error(err.response?.data?.message || "Something went wrong ❌"),
   });
 
   const updateMutation = useMutation({
@@ -213,13 +248,14 @@ const Subcategories = () => {
       if (data?.success) {
         toast.success("Subcategory updated ✅");
         queryClient.invalidateQueries({ queryKey: ["subcategories"] });
+        setSubcategoryDrawerOpen(false);
+        handleClearForm();
       } else {
         toast.error(data?.message || "Update failed ❌");
       }
     },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || "Something went wrong ❌");
-    },
+    onError: (err) =>
+      toast.error(err.response?.data?.message || "Something went wrong ❌"),
   });
 
   const deleteMutation = useMutation({
@@ -237,35 +273,39 @@ const Subcategories = () => {
       setDeleteOpen(false);
       setDeleteId(null);
     },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || "Delete failed ❌");
+    onError: () => {
+      toast.error("Delete failed ❌");
       setDeleteOpen(false);
       setDeleteId(null);
     },
   });
 
-  const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const loading =
+    createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+
+  const handleClearForm = () => {
+    setName("");
+    setCategoryId("");
+    setEditingId(null);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return toast.error("Subcategory name required");
     if (!categoryId) return toast.error("Please select a category");
-
     const payload = { name: name.trim(), category: categoryId };
     if (editingId) {
       updateMutation.mutate({ id: editingId, payload });
     } else {
       createMutation.mutate(payload);
     }
-    setName("");
-    setCategoryId("");
-    setEditingId(null);
   };
 
   const handleEdit = (sub) => {
     setName(sub.name);
     setCategoryId(sub.category?._id ?? sub.category ?? "");
     setEditingId(sub._id);
+    setSubcategoryDrawerOpen(true);
     toast.info(`Editing: ${sub.name}`);
     setTimeout(() => nameInputRef.current?.focus(), 100);
   };
@@ -280,161 +320,511 @@ const Subcategories = () => {
     deleteMutation.mutate(deleteId);
   };
 
-  const handleClear = () => {
-    setName("");
-    setCategoryId("");
-    setEditingId(null);
-  };
-
   const handleProductsClick = (id) => {
     navigate(`/products/filter/subcategory/${id}`);
   };
 
-  const productCountBySubcategoryId = React.useMemo(() => {
-    const counts = {};
-    (products || []).forEach((p) => {
-      (p.subcategories || []).forEach((s) => {
-        const id = s?._id ?? s;
-        if (!id) return;
-        counts[id] = (counts[id] || 0) + 1;
-      });
-    });
-    return counts;
-  }, [products]);
-
-  const subcategoriesWithCounts = (subcategories || []).map((s) => ({
-    ...s,
-    productCount: productCountBySubcategoryId[s._id] ?? 0,
-  }));
-
   const filtered = (subcategoriesWithCounts || []).filter(
     (s) =>
-      (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.category?.name || "").toLowerCase().includes(searchTerm.toLowerCase())
+      (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (s.category?.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortField === "name") {
-      return sortOrder === "asc"
-        ? (a.name || "").localeCompare(b.name || "")
-        : (b.name || "").localeCompare(a.name || "");
-    }
-    if (sortField === "category") {
-      const aCat = a.category?.name || "";
-      const bCat = b.category?.name || "";
-      return sortOrder === "asc"
-        ? aCat.localeCompare(bCat)
-        : bCat.localeCompare(aCat);
-    }
-    if (sortField === "productCount") {
-      return sortOrder === "asc"
-        ? (a.productCount ?? 0) - (b.productCount ?? 0)
-        : (b.productCount ?? 0) - (a.productCount ?? 0);
-    }
-    return 0;
-  });
+  const normalizeKey = (key) =>
+    key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  const totalPages = Math.ceil(sorted.length / itemsPerPage);
-  const currentItems = sorted.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const validateImportedRows = (rows) => {
+    let valid = 0;
+    let errors = 0;
+    const validated = rows.map((row) => {
+      const nameKey =
+        Object.keys(row).find((k) => normalizeKey(k) === "name") ?? null;
+      const catKey =
+        Object.keys(row).find((k) => normalizeKey(k) === "category") ?? null;
+      const name = nameKey ? String(row[nameKey] ?? "").trim() : "";
+      const categoryName = catKey ? String(row[catKey] ?? "").trim() : "";
+      const category = categories.find(
+        (c) =>
+          (c.name || "").toLowerCase() === categoryName.toLowerCase()
+      );
+      const fieldErrors = {};
+      if (!name) {
+        fieldErrors[nameKey || "Name"] = "Required";
+        errors += 1;
+      } else if (!categoryName || !category?._id) {
+        fieldErrors[catKey || "Category"] = "Required / must match";
+        errors += 1;
+      } else {
+        valid += 1;
+      }
+      const hasErrors = Object.keys(fieldErrors).length > 0;
+      return {
+        ...row,
+        __name: name,
+        __categoryId: category?._id ?? "",
+        __errors: fieldErrors,
+        __status: hasErrors ? "error" : "valid",
+      };
+    });
+    setImportStats({ total: rows.length, valid, errors });
+    return validated;
+  };
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
+  const handleImportFileSelected = async (fileOrFiles) => {
+    const file = Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles;
+    if (!file) return;
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { defval: "" });
+      if (!rows.length) {
+        toast.error("File is empty ❌");
+        setImportRows([]);
+        setImportColumns([]);
+        setImportStats({ total: 0, valid: 0, errors: 0 });
+        return;
+      }
+      const validatedRows = validateImportedRows(rows);
+      setImportRows(validatedRows);
+      setImportColumns(Object.keys(rows[0] || {}));
+      toast.success("File loaded. Review and import ✅");
+    } catch (err) {
+      console.error("Import parse error:", err);
+      toast.error("Unable to read file ❌");
     }
   };
 
+  const handleImportValidSubmit = async () => {
+    const validRows = importRows.filter((row) => row.__status === "valid");
+    if (!validRows.length) {
+      toast.error("No valid rows to import ❌");
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const payload = validRows.map((row) => ({
+        name: row.__name,
+        category: row.__categoryId,
+      }));
+      await api.post("/subcategories/createbulk", payload);
+      queryClient.invalidateQueries({ queryKey: ["subcategories"] });
+      toast.success(`Imported ${payload.length} subcategories ✅`);
+      setImportDrawerOpen(false);
+      setImportRows([]);
+      setImportColumns([]);
+      setImportStats({ total: 0, valid: 0, errors: 0 });
+    } catch (err) {
+      toast.error("Bulk import failed ❌");
+      console.error("Bulk import error:", err.response?.data || err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleViewTemplate = () => {
+    setImportColumns(TEMPLATE_COLUMNS);
+    setImportRows([
+      Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""])),
+    ]);
+    setImportStats({ total: 1, valid: 0, errors: 0 });
+  };
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_COLUMNS]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "subcategories-import-template.xlsx");
+  };
+
+  const handleExport = () => {
+    const worksheet = XLSX.utils.json_to_sheet(
+      filtered.map((s) => ({
+        "Name": s.name,
+        "Category": s.category?.name ?? "",
+        "Product Count": s.productCount ?? 0,
+        "Created At": s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "",
+        "Updated At": s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : "",
+      }))
+    );
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Subcategories");
+    XLSX.writeFile(workbook, "subcategories.xlsx");
+  };
+
+  const subcategoryColumns = useMemo(
+    () => [
+      { id: "index", header: "#", cell: ({ row }) => row.index + 1 },
+      {
+        id: "name",
+        header: "Subcategory Name",
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <span className="font-medium text-gray-800">{row.original.name}</span>
+        ),
+      },
+      {
+        id: "category",
+        header: "Category",
+        accessorKey: "category",
+        cell: ({ row }) => (
+          <span className="text-gray-600">
+            {row.original.category?.name ?? "-"}
+          </span>
+        ),
+      },
+      {
+        id: "productCount",
+        header: "Product Count",
+        accessorKey: "productCount",
+        cell: ({ row }) => {
+          const sub = row.original;
+          return (
+            <button
+              type="button"
+              onClick={() => handleProductsClick(sub._id)}
+              className="text-center font-medium text-blue-600 hover:underline"
+            >
+              {sub.productCount ?? 0}
+            </button>
+          );
+        },
+      },
+      {
+        id: "createdAt",
+        header: "Created At",
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">
+            {row.original.createdAt
+              ? new Date(row.original.createdAt).toLocaleDateString()
+              : ""}
+          </span>
+        ),
+      },
+      {
+        id: "updatedAt",
+        header: "Updated At",
+        accessorKey: "updatedAt",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">
+            {row.original.updatedAt
+              ? new Date(row.original.updatedAt).toLocaleDateString()
+              : ""}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const sub = row.original;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-40"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleEdit(sub)}>
+                  Edit subcategory
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={() => confirmDelete(sub._id)}
+                >
+                  Delete subcategory
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    []
+  );
+
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-md p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            {editingId ? "Edit Subcategory" : "Add New Subcategory"}
-          </h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Field>
-              <FieldLabel htmlFor="input-field-subcategory-name">Name</FieldLabel>
-            </Field>
-            <Input
-              id="input-field-subcategory-name"
-              type="text"
-              ref={nameInputRef}
-              placeholder="Subcategory Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <Field>
-              <FieldLabel>Category</FieldLabel>
-            </Field>
-            <ProductCombobox
-              options={categoryOptions}
-              value={categoryId}
-              onChange={(opt) => setCategoryId(opt?.value ?? "")}
-              placeholder="Select Category"
-              clearable
-            />
+      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
+        <div className="">
+          <Drawer
+            direction="right"
+            open={subcategoryDrawerOpen}
+            onOpenChange={setSubcategoryDrawerOpen}
+          >
+            <div className="flex justify-between items-center">
+              <h2 className="flex-4 text-2xl font-semibold text-gray-700">
+                Subcategories List ({filtered.length})
+              </h2>
+              <div className="flex gap-4 items-center">
+                <Drawer
+                  open={importDrawerOpen}
+                  onOpenChange={setImportDrawerOpen}
+                >
+                  <DrawerTrigger asChild>
+                    <Label
+                      variant="light"
+                      className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer"
+                    >
+                      Import Excel
+                    </Label>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[90vh]">
+                    <DrawerHeader className="border-b">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <DrawerTitle>Bulk Subcategory Import</DrawerTitle>
+                          <DrawerDescription>
+                            Upload CSV or Excel file to create multiple subcategories. Include Name and Category columns.
+                          </DrawerDescription>
+                        </div>
+                        <DrawerClose asChild>
+                          <Button variant="outline" size="icon">
+                            ✕
+                          </Button>
+                        </DrawerClose>
+                      </div>
+                    </DrawerHeader>
+                    <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleViewTemplate}
+                        >
+                          View Template
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleDownloadTemplate}
+                        >
+                          Download Template
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Upload file</p>
+                        <ImageUploadDropzone
+                          accept=".csv,.xlsx"
+                          type="excel"
+                          label="Drag & Drop Excel or CSV File"
+                          description="Upload bulk subcategory file"
+                          maxSize={10 * 1024 * 1024}
+                          onFileSelect={handleImportFileSelected}
+                        />
+                      </div>
+                      {importRows.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">
+                              Preview ({importStats.total} rows)
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Valid: {importStats.valid} | Errors: {importStats.errors}
+                            </p>
+                          </div>
+                          <div className="border w-full rounded-md max-h-80 overflow-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>#</TableHead>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Category</TableHead>
+                                  <TableHead>Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {importRows.map((row, rowIndex) => (
+                                  <TableRow key={rowIndex}>
+                                    <TableCell className="text-xs text-muted-foreground">
+                                      {rowIndex + 1}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                      {row.__name ?? "—"}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                      {categoryOptions.find((c) => c.value === row.__categoryId)?.label ?? row.Category ?? "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                      <span
+                                        className={
+                                          row.__status === "valid"
+                                            ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
+                                            : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
+                                        }
+                                      >
+                                        {row.__status === "valid" ? "Valid" : "Error"}
+                                      </span>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <DrawerFooter className="border-t">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          <span className="text-muted-foreground">
+                            ✔ Valid:{" "}
+                            <span className="font-semibold text-emerald-700">
+                              {importStats.valid}
+                            </span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            ⚠ Errors:{" "}
+                            <span className="font-semibold text-red-700">
+                              {importStats.errors}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <Button
+                            type="button"
+                            variant="default"
+                            onClick={handleImportValidSubmit}
+                            disabled={!importStats.valid || importLoading}
+                          >
+                            {importLoading ? "Importing..." : "Import Valid Only"}
+                          </Button>
+                          <DrawerClose asChild>
+                            <Button type="button" variant="ghost">
+                              Cancel
+                            </Button>
+                          </DrawerClose>
+                        </div>
+                      </div>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
 
-            <div className="flex gap-4 items-center flex-wrap">
-              <Button type="submit" variant="default" disabled={loading}>
-                {loading
-                  ? "Please wait..."
-                  : editingId
-                    ? "Update Subcategory"
-                    : "Add Subcategory"}
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                onClick={handleClear}
-                className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md"
-              >
-                Clear
-              </Button>
+                <Label
+                  variant="success"
+                  onClick={handleExport}
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md cursor-pointer"
+                >
+                  Export Excel
+                </Label>
+                <DrawerTrigger asChild>
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      if (!editingId) handleClearForm();
+                    }}
+                  >
+                    {editingId ? "Edit Subcategory" : "Add New Subcategory"}
+                  </Button>
+                </DrawerTrigger>
+              </div>
             </div>
-          </form>
+
+            <DrawerContent className="ml-auto h-full max-w-3xl">
+              <DrawerHeader>
+                <DrawerTitle>
+                  {editingId ? "Edit Subcategory" : "Add New Subcategory"}
+                </DrawerTitle>
+                <DrawerDescription>
+                  {editingId
+                    ? "Update the subcategory details."
+                    : "Fill in the details below to add a new subcategory."}
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="no-scrollbar overflow-y-auto px-6 pb-8">
+                <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+                  <Field>
+                    <FieldLabel htmlFor="subcategory-name">Name</FieldLabel>
+                    <Input
+                      id="subcategory-name"
+                      type="text"
+                      placeholder="Subcategory Name"
+                      ref={nameInputRef}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="mt-1"
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Category</FieldLabel>
+                    <CategoryCombobox
+                      options={categoryOptions}
+                      value={categoryId}
+                      onChange={(opt) => setCategoryId(opt?.value ?? "")}
+                      placeholder="Select Category"
+                      clearable
+                      className="mt-1"
+                    />
+                  </Field>
+                  <div className="flex gap-4 items-center flex-wrap">
+                    <Button type="submit" variant="default" disabled={loading}>
+                      {loading
+                        ? "Please wait..."
+                        : editingId
+                          ? "Update Subcategory"
+                          : "Add Subcategory"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={handleClearForm}
+                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md"
+                    >
+                      Clear
+                    </Button>
+                    <DrawerClose asChild>
+                      <Button type="button" variant="outline" className="ml-auto">
+                        Cancel
+                      </Button>
+                    </DrawerClose>
+                  </div>
+                </form>
+              </div>
+            </DrawerContent>
+          </Drawer>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-8">
-          <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="w-full text-2xl font-semibold text-gray-700">
-              Subcategories List ({sorted.length})
-            </h2>
-            <div className="w-full flex gap-4 items-center">
-              <div className="flex-3">
+        <div className="">
+          <div className="flex justify-between items-center mb-4 gap-4">
+            <div className="w-full flex flex-col md:flex-row gap-4 items-center">
+              <div className="flex-3 w-full">
                 <Input
                   type="text"
                   placeholder="Search subcategories..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                   className="w-full"
                 />
               </div>
-              <div className="flex-1">
-                <Select
+              <div className="flex-1 w-full md:w-auto">
+                <UiSelect
                   value={String(itemsPerPage)}
-                  onValueChange={(value) => {
-                    setItemsPerPage(Number(value));
-                    setCurrentPage(1);
-                  }}
+                  onValueChange={(value) => setItemsPerPage(Number(value))}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Items per page" />
+                    <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent position="item-aligned">
                     <SelectGroup>
-                      <SelectLabel>Items per page</SelectLabel>
+                      <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                     </SelectGroup>
                   </SelectContent>
-                </Select>
+                </UiSelect>
               </div>
             </div>
           </div>
@@ -444,176 +834,37 @@ const Subcategories = () => {
               <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("name")}
-                      >
-                        <div className="flex items-center gap-2">
-                          Subcategory Name
-                          {sortField === "name" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUpAZ className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDownAZ className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("category")}
-                      >
-                        <div className="flex items-center gap-2">
-                          Category
-                          {sortField === "category" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUpAZ className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDownAZ className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("productCount")}
-                      >
-                        <div className="flex justify-center items-center gap-2">
-                          Product Count
-                          {sortField === "productCount" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUp01 className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDown01 className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead>Created At</TableHead>
-                      <TableHead>Updated At</TableHead>
-                      <TableHead className="text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {currentItems.map((sub, i) => (
-                      <TableRow key={sub._id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <TableCell>
-                          {(currentPage - 1) * itemsPerPage + i + 1}
-                        </TableCell>
-                        <TableCell className="font-medium">{sub.name}</TableCell>
-                        <TableCell className="text-gray-600">
-                          {sub.category?.name ?? "-"}
-                        </TableCell>
-                        <TableCell
-                          className="text-center font-medium cursor-pointer"
-                          onClick={() => handleProductsClick(sub._id)}
-                        >
-                          {sub.productCount ?? 0}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(sub.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(sub.updatedAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-center">
-                            <div className="flex gap-2">
-                              <button
-                              onClick={() => handleEdit(sub)}
-                              className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => confirmDelete(sub._id)}
-                              className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {currentItems.length === 0 && (
-                <p className="text-gray-500 text-center py-6">
-                  No subcategories found
-                </p>
-              )}
-
-              {totalPages > 1 && (
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.max(p - 1, 1));
-                        }}
-                        disabled={currentPage === 1}
-                      />
-                    </PaginationItem>
-                    {[...Array(totalPages)].map((_, i) => (
-                      <PaginationItem key={i}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === i + 1}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setCurrentPage(i + 1);
-                          }}
-                        >
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.min(p + 1, totalPages));
-                        }}
-                        disabled={currentPage === totalPages}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              )}
-            </>
+            <div className="overflow-x-auto">
+              <DataTable
+                columns={subcategoryColumns}
+                data={filtered}
+                pageSize={itemsPerPage}
+              />
+            </div>
           )}
         </div>
-
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete subcategory?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the
-                selected subcategory.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteConfirmed}
-                disabled={loading}
-              >
-                {loading ? "Deleting..." : "Yes, delete"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete subcategory?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              selected subcategory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirmed}
+              disabled={loading}
+            >
+              {loading ? "Deleting..." : "Yes, delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

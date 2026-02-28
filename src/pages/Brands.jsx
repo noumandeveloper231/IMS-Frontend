@@ -1,7 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
-import { ArrowUpAZ, ArrowDownAZ, ArrowUp01, ArrowDown01, Trash2, Edit } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
@@ -10,15 +10,18 @@ import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
-import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-
-const resolveImageUrl = (src) => {
-  if (!src) return null;
-  if (src.startsWith("http://") || src.startsWith("https://")) return src;
-  return `${API_HOST}${src}`;
-};
 import {
-  Select,
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+  DrawerFooter,
+} from "@/components/UI/drawer";
+import {
+  Select as UiSelect,
   SelectContent,
   SelectGroup,
   SelectItem,
@@ -27,14 +30,6 @@ import {
   SelectValue,
 } from "@/components/UI/select";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/UI/pagination";
-import {
   Table,
   TableBody,
   TableCell,
@@ -42,6 +37,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/UI/table";
+import { DataTable } from "@/components/UI/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/UI/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,33 +56,38 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
+import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { useImageModal } from "@/context/ImageModalContext";
+
+const resolveImageUrl = (src) => {
+  if (!src) return null;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  return `${API_HOST}${src}`;
+};
+
+const TEMPLATE_COLUMNS = ["Name"];
 
 const Brands = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const nameInputRef = useRef(null);
   const navigate = useNavigate();
+  const { openImageModal } = useImageModal();
+
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [search, setSearch] = useState("");
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [sortField, setSortField] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [brandDrawerOpen, setBrandDrawerOpen] = useState(false);
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importColumns, setImportColumns] = useState([]);
+  const [importStats, setImportStats] = useState({ total: 0, valid: 0, errors: 0 });
+  const [importLoading, setImportLoading] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(5);
-
-  const handleClick = (id) => {
-    navigate(`/products/filter/brand/${id}`);
-  };
-
-  const handleDropFile = (file) => {
-    handleFileChange({ target: { files: [file] } });
-    setPreview(URL.createObjectURL(file));
-  };
 
   const { data: brandsData, isLoading: brandsLoading } = useQuery({
     queryKey: ["brands"],
@@ -100,6 +109,8 @@ const Brands = () => {
       if (data?.success) {
         toast.success(data?.message || "Brand created ✅");
         queryClient.invalidateQueries({ queryKey: ["brands"] });
+        setBrandDrawerOpen(false);
+        handleClearForm();
       } else {
         toast.error(data?.message || "Failed to create ❌");
       }
@@ -118,6 +129,8 @@ const Brands = () => {
       if (data?.success) {
         toast.success(data?.message || "Brand updated ✅");
         queryClient.invalidateQueries({ queryKey: ["brands"] });
+        setBrandDrawerOpen(false);
+        handleClearForm();
       } else {
         toast.error(data?.message || "Failed to update ❌");
       }
@@ -149,25 +162,39 @@ const Brands = () => {
 
   const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const handleClick = (id) => {
+    navigate(`/products/filter/brand/${id}`);
+  };
 
-    const formData = new FormData();
-    formData.append("name", name);
-    if (image) formData.append("image", image);
-
-    if (editingId) {
-      await updateMutation.mutateAsync({ id: editingId, formData });
-    } else {
-      await createMutation.mutateAsync(formData);
-    }
-
+  const handleClearForm = () => {
     setName("");
     setImage(null);
     setPreview(null);
     setEditingId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return toast.error("Name is required ❌");
+    const formData = new FormData();
+    formData.append("name", name.trim());
+    if (image) formData.append("image", image);
+    if (editingId) {
+      await updateMutation.mutateAsync({ id: editingId, formData });
+    } else {
+      await createMutation.mutateAsync(formData);
+    }
+  };
+
+  const handleEdit = (brand) => {
+    setName(brand.name);
+    setEditingId(brand._id);
+    setPreview(brand.image ? resolveImageUrl(brand.image) : null);
+    setImage(null);
+    setBrandDrawerOpen(true);
+    toast.info(`Editing brand: ${brand.name}`);
+    setTimeout(() => nameInputRef.current?.focus(), 100);
   };
 
   const confirmDelete = (id) => {
@@ -180,12 +207,9 @@ const Brands = () => {
     deleteMutation.mutate(deleteId);
   };
 
-  const handleEdit = (brand) => {
-    setName(brand.name);
-    setEditingId(brand._id);
-    setPreview(brand.image ? resolveImageUrl(brand.image) : null);
-    toast.info(`Editing brand: ${brand.name}`);
-    setTimeout(() => nameInputRef.current?.focus(), 100);
+  const handleDropFile = (file) => {
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
   };
 
   const handleFileChange = (e) => {
@@ -197,331 +221,452 @@ const Brands = () => {
   };
 
   const filteredBrands = (brands || []).filter((b) =>
-    (b.name || "").toLowerCase().includes(searchTerm.toLowerCase())
+    (b.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const sortedBrands = [...filteredBrands].sort((a, b) => {
-    if (sortField === "name") {
-      return sortOrder === "asc"
-        ? (a.name || "").localeCompare(b.name || "")
-        : (b.name || "").localeCompare(a.name || "");
-    }
-    return sortOrder === "asc"
-      ? (a.productCount ?? 0) - (b.productCount ?? 0)
-      : (b.productCount ?? 0) - (a.productCount ?? 0);
-  });
+  const normalizeKey = (key) =>
+    key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  const totalPages = Math.ceil(filteredBrands.length / itemsPerPage);
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentBrands = sortedBrands.slice(indexOfFirst, indexOfLast);
+  const validateImportedRows = (rows) => {
+    let valid = 0;
+    let errors = 0;
+    const validated = rows.map((row) => {
+      const nameKey =
+        Object.keys(row).find((k) => ["name"].includes(normalizeKey(k))) ?? null;
+      const name = nameKey ? String(row[nameKey] ?? "").trim() : "";
+      const fieldErrors = {};
+      if (!name) {
+        fieldErrors[nameKey || "Name"] = "Required";
+        errors += 1;
+      } else {
+        valid += 1;
+      }
+      return {
+        ...row,
+        __name: name,
+        __errors: fieldErrors,
+        __status: Object.keys(fieldErrors).length > 0 ? "error" : "valid",
+      };
+    });
+    setImportStats({ total: rows.length, valid, errors });
+    return validated;
+  };
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
+  const handleImportFileSelected = async (fileOrFiles) => {
+    const file = Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles;
+    if (!file) return;
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { defval: "" });
+      if (!rows.length) {
+        toast.error("File is empty ❌");
+        setImportRows([]);
+        setImportColumns([]);
+        setImportStats({ total: 0, valid: 0, errors: 0 });
+        return;
+      }
+      const validatedRows = validateImportedRows(rows);
+      setImportRows(validatedRows);
+      setImportColumns(Object.keys(rows[0] || {}));
+      toast.success("File loaded. Review and import ✅");
+    } catch (err) {
+      console.error("Import parse error:", err);
+      toast.error("Unable to read file ❌");
     }
   };
 
+  const handleImportValidSubmit = async () => {
+    const validRows = importRows.filter((row) => row.__status === "valid");
+    if (!validRows.length) {
+      toast.error("No valid rows to import ❌");
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const payload = validRows.map(({ __errors, __status, __name, ...rest }) => ({
+        ...rest,
+        name: __name,
+      }));
+      await api.post("/brands/createbulk", payload);
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+      toast.success(`Imported ${payload.length} brands ✅`);
+      setImportDrawerOpen(false);
+      setImportRows([]);
+      setImportColumns([]);
+      setImportStats({ total: 0, valid: 0, errors: 0 });
+    } catch (err) {
+      toast.error("Bulk import failed ❌");
+      console.error("Bulk import error:", err.response?.data || err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleViewTemplate = () => {
+    setImportColumns(TEMPLATE_COLUMNS);
+    setImportRows([Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))]);
+    setImportStats({ total: 1, valid: 0, errors: 0 });
+  };
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_COLUMNS]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "brands-import-template.xlsx");
+  };
+
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredBrands);
+    const worksheet = XLSX.utils.json_to_sheet(
+      filteredBrands.map((b) => ({
+        "Name": b.name,
+        "Product Count": b.productCount ?? 0,
+        "Created At": b.createdAt ? new Date(b.createdAt).toLocaleDateString() : "",
+        "Updated At": b.updatedAt ? new Date(b.updatedAt).toLocaleDateString() : "",
+      })),
+    );
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Brands");
     XLSX.writeFile(workbook, "brands.xlsx");
   };
 
-  const handleImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const data = evt.target.result;
-      const workbook = XLSX.read(data, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-      try {
-        await api.post("/brands/createbulk", jsonData);
-        toast.success("Import complete ✅");
-        queryClient.invalidateQueries({ queryKey: ["brands"] });
-      } catch (err) {
-        console.error("Bulk import error:", err);
-        toast.error("Import failed");
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
+  const brandColumns = useMemo(
+    () => [
+      { id: "index", header: "#", cell: ({ row }) => row.index + 1 },
+      {
+        id: "image",
+        header: "Image",
+        accessorKey: "image",
+        cell: ({ row }) => {
+          const brand = row.original;
+          if (!brand.image) {
+            return <span className="text-gray-400 italic">No Image</span>;
+          }
+          return (
+            <img
+              src={resolveImageUrl(brand.image)}
+              alt={brand.name}
+              onClick={() => openImageModal(resolveImageUrl(brand.image))}
+              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+            />
+          );
+        },
+      },
+      {
+        id: "name",
+        header: "Brand Name",
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <span className="font-medium text-gray-800">{row.original.name}</span>
+        ),
+      },
+      {
+        id: "productCount",
+        header: "Product Count",
+        accessorKey: "productCount",
+        cell: ({ row }) => {
+          const brand = row.original;
+          return (
+            <button
+              type="button"
+              onClick={() => handleClick(brand._id)}
+              className="text-center font-medium text-blue-600 hover:underline"
+            >
+              {brand.productCount ?? 0}
+            </button>
+          );
+        },
+      },
+      {
+        id: "createdAt",
+        header: "Created At",
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">
+            {row.original.createdAt
+              ? new Date(row.original.createdAt).toLocaleDateString()
+              : ""}
+          </span>
+        ),
+      },
+      {
+        id: "updatedAt",
+        header: "Updated At",
+        accessorKey: "updatedAt",
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">
+            {row.original.updatedAt
+              ? new Date(row.original.updatedAt).toLocaleDateString()
+              : ""}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const brand = row.original;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-40"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleEdit(brand)}>
+                  Edit brand
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={() => confirmDelete(brand._id)}
+                >
+                  Delete brand
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [openImageModal],
+  );
 
-  const handleClear = () => {
-    setName("");
-    setImage(null);
-    setPreview(null);
-    setEditingId(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const { openImageModal } = useImageModal();
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-md p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            {editingId ? "Edit Brand" : "Add New Brand"}
-          </h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Field>
-              <FieldLabel htmlFor="input-field-brand">Name</FieldLabel>
-            </Field>
-            <Input
-              id="input-field-brand"
-              type="text"
-              placeholder="Brand Name"
-              ref={nameInputRef}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <ImageUploadDropzone onFileSelect={handleDropFile} previewUrl={preview} />
-            {preview && (
-              <div className="mt-2">
-                <img
-                  src={preview}
-                  alt="Brand Preview"
-                  className="w-24 h-24 object-cover rounded-lg border"
-                />
-              </div>
-            )}
-            <div className="flex gap-4 items-center flex-wrap">
-              <Button type="submit" variant="default" disabled={loading}>
-                {loading ? "Please wait..." : editingId ? "Update Brand" : "Add Brand"}
-              </Button>
-              <Label
-                variant="light"
-                onClick={handleImport}
-                className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer"
-              >
-                <Input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImport}
-                  className="hidden"
-                />
-                Import Excel
-              </Label>
-              <Label
-                variant="success"
-                onClick={handleExport}
-                className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md"
-              >
-                Export Excel
-              </Label>
-              <Button
-                variant="danger"
-                onClick={handleClear}
-                className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md"
-              >
-                Clear
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-md p-8">
-          <div className="flex justify-between items-center mb-6 gap-4">
-            <h2 className="w-full text-2xl font-semibold text-gray-700">
-              Brands List ({filteredBrands.length})
-            </h2>
-            <div className="w-full flex gap-4 items-center">
-              <div className="flex-3">
-                <Input
-                  type="text"
-                  placeholder="Search brands..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-              <div className="flex-1">
-                <Select
-                  value={String(itemsPerPage)}
-                  onValueChange={(value) => {
-                    setItemsPerPage(Number(value));
-                    setCurrentPage(1);
-                  }}
+      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
+        <div className="">
+          <Drawer
+            direction="right"
+            open={brandDrawerOpen}
+            onOpenChange={setBrandDrawerOpen}
+          >
+            <div className="flex justify-between items-center">
+              <h2 className="flex-4 text-2xl font-semibold text-gray-700">
+                Brands List ({filteredBrands.length})
+              </h2>
+              <div className="flex gap-4 items-center">
+                <Drawer
+                  open={importDrawerOpen}
+                  onOpenChange={setImportDrawerOpen}
                 >
+                  <DrawerTrigger asChild>
+                    <Label
+                      variant="light"
+                      className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer"
+                    >
+                      Import Excel
+                    </Label>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[90vh]">
+                    <DrawerHeader className="border-b">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <DrawerTitle>Bulk Brand Import</DrawerTitle>
+                          <DrawerDescription>
+                            Upload CSV or Excel file to create multiple brands.
+                          </DrawerDescription>
+                        </div>
+                        <DrawerClose asChild>
+                          <Button variant="outline" size="icon">
+                            ✕
+                          </Button>
+                        </DrawerClose>
+                      </div>
+                    </DrawerHeader>
+                    <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button type="button" variant="outline" onClick={handleViewTemplate}>
+                          View Template
+                        </Button>
+                        <Button type="button" variant="outline" onClick={handleDownloadTemplate}>
+                          Download Template
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Upload file</p>
+                        <ImageUploadDropzone
+                          accept=".csv,.xlsx"
+                          type="excel"
+                          label="Drag & Drop Excel or CSV File"
+                          description="Upload bulk brand file"
+                          maxSize={10 * 1024 * 1024}
+                          onFileSelect={handleImportFileSelected}
+                        />
+                      </div>
+                      {importRows.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">Preview ({importStats.total} rows)</p>
+                            <p className="text-xs text-muted-foreground">
+                              Valid: {importStats.valid} | Errors: {importStats.errors}
+                            </p>
+                          </div>
+                          <div className="border w-full rounded-md max-h-80 overflow-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>#</TableHead>
+                                  <TableHead>Name</TableHead>
+                                  {importColumns.map((col) => (
+                                    <TableHead className="whitespace-nowrap w-auto" key={col}>{col}</TableHead>
+                                  ))}
+                                  <TableHead>Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {importRows.map((row, rowIndex) => (
+                                  <TableRow key={rowIndex}>
+                                    <TableCell className="text-xs text-muted-foreground">{rowIndex + 1}</TableCell>
+                                    <TableCell className="text-xs">{row.__name ?? row.Name ?? row.name ?? "—"}</TableCell>
+                                    {importColumns.map((col) => (
+                                      <TableCell key={col} className="text-xs">{String(row[col] ?? "")}</TableCell>
+                                    ))}
+                                    <TableCell>
+                                      <span
+                                        className={
+                                          row.__status === "valid"
+                                            ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
+                                            : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
+                                        }
+                                      >
+                                        {row.__status === "valid" ? "Valid" : "Error"}
+                                      </span>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <DrawerFooter className="border-t">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          <span className="text-muted-foreground">✔ Valid: <span className="font-semibold text-emerald-700">{importStats.valid}</span></span>
+                          <span className="text-muted-foreground">⚠ Errors: <span className="font-semibold text-red-700">{importStats.errors}</span></span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <Button type="button" variant="default" onClick={handleImportValidSubmit} disabled={!importStats.valid || importLoading}>
+                            {importLoading ? "Importing..." : "Import Valid Only"}
+                          </Button>
+                          <DrawerClose asChild>
+                            <Button type="button" variant="ghost">Cancel</Button>
+                          </DrawerClose>
+                        </div>
+                      </div>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+                <Label variant="success" onClick={handleExport} className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md cursor-pointer">
+                  Export Excel
+                </Label>
+                <DrawerTrigger asChild>
+                  <Button variant="default" onClick={() => { if (!editingId) handleClearForm(); }}>
+                    {editingId ? "Edit Brand" : "Add New Brand"}
+                  </Button>
+                </DrawerTrigger>
+              </div>
+            </div>
+            <DrawerContent className="ml-auto h-full max-w-3xl">
+              <DrawerHeader>
+                <DrawerTitle>{editingId ? "Edit Brand" : "Add New Brand"}</DrawerTitle>
+                <DrawerDescription>
+                  {editingId ? "Update the brand details." : "Fill in the details below to add a new brand."}
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="no-scrollbar overflow-y-auto px-6 pb-8">
+                <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+                  <Field>
+                    <FieldLabel htmlFor="brand-name">Name</FieldLabel>
+                    <Input id="brand-name" type="text" placeholder="Brand Name" ref={nameInputRef} value={name} onChange={(e) => setName(e.target.value)} className="mt-1" required />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Image</FieldLabel>
+                    <ImageUploadDropzone onFileSelect={handleDropFile} previewUrl={preview} className="mt-1" accept="image/*" />
+                    {preview && (
+                      <div className="mt-2">
+                        <img src={preview} alt="Preview" className="w-24 h-24 object-cover rounded-lg border" />
+                      </div>
+                    )}
+                  </Field>
+                  <div className="flex gap-4 items-center flex-wrap">
+                    <Button type="submit" variant="default" disabled={loading}>
+                      {loading ? "Please wait..." : editingId ? "Update Brand" : "Add Brand"}
+                    </Button>
+                    <Button type="button" variant="danger" onClick={handleClearForm} className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md">
+                      Clear
+                    </Button>
+                    <DrawerClose asChild>
+                      <Button type="button" variant="outline" className="ml-auto">Cancel</Button>
+                    </DrawerClose>
+                  </div>
+                </form>
+              </div>
+            </DrawerContent>
+          </Drawer>
+        </div>
+        <div className="">
+          <div className="flex justify-between items-center mb-4 gap-4">
+            <div className="w-full flex flex-col md:flex-row gap-4 items-center">
+              <div className="flex-3 w-full">
+                <Input type="text" placeholder="Search brands..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full" />
+              </div>
+              <div className="flex-1 w-full md:w-auto">
+                <UiSelect value={String(itemsPerPage)} onValueChange={(value) => setItemsPerPage(Number(value))}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Items per page" />
+                    <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent position="item-aligned">
                     <SelectGroup>
-                      <SelectLabel>Items per page</SelectLabel>
+                      <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                     </SelectGroup>
                   </SelectContent>
-                </Select>
+                </UiSelect>
               </div>
             </div>
           </div>
-
           {brandsLoading ? (
             <div className="flex justify-center items-center py-10">
               <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Image</TableHead>
-                      <TableHead onClick={() => handleSort("name")}>
-                        <div className="flex items-center gap-2">
-                          Brand Name
-                          {sortField === "name" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUpAZ className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDownAZ className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead onClick={() => handleSort("productCount")}>
-                        <div className="flex justify-center items-center gap-2">
-                          Product Count
-                          {sortField === "productCount" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUp01 className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDown01 className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead>Created At</TableHead>
-                      <TableHead>Updated At</TableHead>
-                      <TableHead className="text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {currentBrands.map((brand, index) => (
-                      <TableRow key={brand._id} className="hover:bg-gray-50 transition-colors duration-200">
-                        <TableCell>{(currentPage - 1) * itemsPerPage + index + 1}</TableCell>
-                        <TableCell>
-                          {brand.image ? (
-                            <img
-                              src={resolveImageUrl(brand.image)}
-                              alt={brand.name}
-                              onClick={() => openImageModal(resolveImageUrl(brand.image))}
-                              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
-                            />
-                          ) : (
-                            <span className="text-gray-400 italic">No Image</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">{brand.name}</TableCell>
-                        <TableCell
-                          className="text-center font-medium cursor-pointer"
-                          onClick={() => handleClick(brand._id)}
-                        >
-                          {brand.productCount ?? 0}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(brand.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(brand.updatedAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleEdit(brand)}
-                              className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => confirmDelete(brand._id)}
-                              className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {currentBrands.length === 0 && (
-                <p className="text-gray-500 text-center py-6">No brands found</p>
-              )}
-              {totalPages > 1 && (
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.max(p - 1, 1));
-                        }}
-                        disabled={currentPage === 1}
-                      />
-                    </PaginationItem>
-                    {[...Array(totalPages)].map((_, i) => (
-                      <PaginationItem key={i}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === i + 1}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setCurrentPage(i + 1);
-                          }}
-                        >
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.min(p + 1, totalPages));
-                        }}
-                        disabled={currentPage === totalPages}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              )}
-            </>
+            <div className="overflow-x-auto">
+              <DataTable columns={brandColumns} data={filteredBrands} pageSize={itemsPerPage} />
+            </div>
           )}
         </div>
-
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete brand?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the selected brand.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteConfirmed} disabled={loading}>
-                {loading ? "Deleting..." : "Yes, delete"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete brand?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the selected brand.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirmed} disabled={loading}>
+              {loading ? "Deleting..." : "Yes, delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

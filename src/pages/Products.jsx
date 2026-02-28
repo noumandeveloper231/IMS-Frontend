@@ -1,15 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowUpAZ,
-  ArrowDownAZ,
-  ArrowUp01,
-  ArrowDown01,
   ChevronDown,
   Check,
-  Edit,
-  Trash2,
   XCircle,
+  MoreVertical,
 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
@@ -39,22 +34,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/UI/table";
+import { DataTable } from "@/components/UI/data-table";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/UI/pagination";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/UI/table";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/UI/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -254,8 +243,6 @@ const Products = () => {
 
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState("title");
-  const [sortOrder, setSortOrder] = useState("asc");
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [deleteId, setDeleteId] = useState(null);
@@ -298,7 +285,6 @@ const Products = () => {
     condition: "",
   });
 
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
@@ -551,41 +537,165 @@ const Products = () => {
     return matchesSearch && matchesStock;
   });
 
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sortField === "title") {
-      return sortOrder === "asc"
-        ? a.title.localeCompare(b.title)
-        : b.title.localeCompare(a.title);
-    }
-    if (sortField === "quantity") {
-      return sortOrder === "asc"
-        ? a.quantity - b.quantity
-        : b.quantity - a.quantity;
-    }
-    if (sortField === "salePrice") {
-      return sortOrder === "asc"
-        ? a.salePrice - b.salePrice
-        : b.salePrice - a.salePrice;
-    }
-    return 0;
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentProducts = sortedProducts.slice(indexOfFirst, indexOfLast);
-
-  const handleSort = (field) => {
-    if (sortField === field) {
-      // same field → toggle order
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      // new field → reset to asc
-      setSortField(field);
-      setSortOrder("asc");
-    }
-  };
+  const productColumns = useMemo(
+    () => [
+      {
+        id: "index",
+        header: "#",
+        cell: ({ row }) => row.index + 1,
+      },
+      {
+        id: "image",
+        header: "Image",
+        cell: ({ row }) => {
+          const p = row.original;
+          const primaryImage =
+            Array.isArray(p.images) && p.images.length ? p.images[0] : p.image;
+          if (!primaryImage) {
+            return <span className="text-gray-400 italic">No Image</span>;
+          }
+          return (
+            <img
+              src={resolveImageUrl(primaryImage)}
+              alt={p.title}
+              onClick={() => openImageModal(resolveImageUrl(primaryImage))}
+              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+            />
+          );
+        },
+      },
+      {
+        id: "details",
+        header: "Details",
+        cell: ({ row }) => {
+          const p = row.original;
+          return (
+            <div className="flex flex-col gap-1 w-80">
+              <h3 className="font-semibold line-clamp-2 text-gray-800">
+                <Link
+                  to={`/products/${p._id}`}
+                  className="hover:text-blue-600 hover:underline"
+                >
+                  {p.title}
+                </Link>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-2 rounded">
+                {(p.brands || []).length > 0 && (
+                  <p className="text-xs text-gray-600">
+                    <span className="font-medium text-gray-700">Brand:</span>{" "}
+                    {(p.brands || []).map((b) => b.name).join(", ")}
+                  </p>
+                )}
+                {(p.conditions || []).length > 0 && (
+                  <p className="text-xs text-gray-600">
+                    <span className="font-medium text-gray-700">Condition:</span>{" "}
+                    {(p.conditions || []).map((c) => c.name).join(", ")}
+                  </p>
+                )}
+                {(p.categories?.length > 0 || p.subcategories?.length > 0) && (
+                  <p className="text-xs text-gray-600 col-span-1 md:col-span-2">
+                    <span className="font-medium text-gray-700">
+                      Categories:
+                    </span>{" "}
+                    {(p.categories || []).map((c) => c.name).join(", ")}
+                    {p.subcategories?.length > 0 && (
+                      <>
+                        {" · "}
+                        <span className="font-medium text-gray-700">Sub:</span>{" "}
+                        {(p.subcategories || []).map((s) => s.name).join(", ")}
+                      </>
+                    )}
+                  </p>
+                )}
+                <p className="text-xs text-gray-600 col-span-1 md:col-span-2">
+                  <span className="font-medium text-gray-700">SKU:</span>{" "}
+                  {p.sku}
+                </p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "qr",
+        header: "QR Code",
+        cell: ({ row }) => {
+          const p = row.original;
+          return (
+            <img
+              src={p.qrCode}
+              onClick={() => openImageModal(p.qrCode)}
+              alt="QR Code"
+              className="h-16 w-16 object-contain cursor-pointer"
+            />
+          );
+        },
+      },
+      {
+        id: "purchase",
+        header: "Purchase",
+        cell: ({ row }) => {
+          const p = row.original;
+          return <span className="text-sm text-gray-500">AED {p.purchasePrice}</span>;
+        },
+      },
+      {
+        id: "sale",
+        header: "Sale",
+        cell: ({ row }) => {
+          const p = row.original;
+          return <span className="text-sm text-gray-500">AED {p.salePrice}</span>;
+        },
+      },
+      {
+        id: "stock",
+        header: "Stock",
+        cell: ({ row }) => {
+          const p = row.original;
+          return <span className="text-sm text-gray-500">{p.quantity}</span>;
+        },
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const p = row.original;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-40"
+                onCloseAutoFocus={(event) => event.preventDefault()}
+              >
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleEdit(p)}>
+                  Edit product
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={() => confirmDelete(p._id)}
+                >
+                  Delete product
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [openImageModal]
+  );
 
   // Export
   const handleExport = () => {
@@ -1631,9 +1741,9 @@ const Products = () => {
 
         {/* Product Table */}
         <div className="">
-          <div className="flex justify-between items-center mb-6 gap-4">
+          <div className="flex justify-between items-center mb-4 gap-4">
             <div className="w-full flex flex-col md:flex-row gap-4 items-center">
-              <div className="flex-4 w-full">
+              <div className="flex-3 w-full">
                 <Input
                   type="text"
                   placeholder="Search products..."
@@ -1642,12 +1752,11 @@ const Products = () => {
                   className="w-full"
                 />
               </div>
-              <div className="flex-1 w-full">
+              <div className="flex-1 w-full md:w-auto">
                 <UiSelect
                   value={stockFilter}
                   onValueChange={(value) => {
                     setStockFilter(value);
-                    setCurrentPage(1);
                   }}
                 >
                   <SelectTrigger className="w-full">
@@ -1668,15 +1777,14 @@ const Products = () => {
                   value={String(itemsPerPage)}
                   onValueChange={(value) => {
                     setItemsPerPage(Number(value));
-                    setCurrentPage(1);
                   }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Items per page" />
+                    <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent position="item-aligned">
                     <SelectGroup>
-                      <SelectLabel>Items per page</SelectLabel>
+                      <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
@@ -1694,230 +1802,12 @@ const Products = () => {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Image</TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("title")}
-                      >
-                        <div className="flex items-center gap-2">
-                          Title
-                          {sortField === "title" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUpAZ className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDownAZ className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead>QR Code</TableHead>
-                      <TableHead>Purchase</TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("salePrice")}
-                      >
-                        <div className="flex items-center gap-2">
-                          Sale
-                          {sortField === "salePrice" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUp01 className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDown01 className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("quantity")}
-                      >
-                        <div className="flex items-center gap-2">
-                          Stock
-                          {sortField === "quantity" &&
-                            (sortOrder === "asc" ? (
-                              <ArrowUp01 className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <ArrowDown01 className="w-4 h-4 text-blue-600" />
-                            ))}
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {currentProducts.length > 0 ? (
-                      currentProducts.map((p, i) => (
-                        <TableRow
-                          key={p._id}
-                          className="hover:bg-gray-50 transition-colors duration-200"
-                        >
-                          <TableCell className="text-sm text-gray-900">
-                            {indexOfFirst + i + 1}
-                          </TableCell>
-                          <TableCell>
-                            {(() => {
-                              const primaryImage =
-                                Array.isArray(p.images) && p.images.length
-                                  ? p.images[0]
-                                  : p.image;
-                              if (!primaryImage) {
-                                return (
-                                  <span className="text-gray-400 italic">No Image</span>
-                                );
-                              }
-                              return (
-                                <img
-                                  src={resolveImageUrl(primaryImage)}
-                                  alt={p.title}
-                                  onClick={() =>
-                                    openImageModal(resolveImageUrl(primaryImage))
-                                  }
-                                  className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
-                                />
-                              );
-                            })()}
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-900">
-                            <div className="flex flex-col gap-1 w-80">
-                              {/* Title */}
-                              <h3 className="font-semibold line-clamp-2 text-gray-800">
-                                <Link
-                                  to={`/products/${p._id}`}
-                                  className="hover:text-blue-600 hover:underline"
-                                >
-                                  {p.title}
-                                </Link>
-                              </h3>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-2 rounded">
-                                {/* Brands */}
-                                {(p.brands || []).length > 0 && (
-                                  <p className="text-xs text-gray-600">
-                                    <span className="font-medium text-gray-700">
-                                      Brand:
-                                    </span>{" "}
-                                    {(p.brands || []).map((b) => b.name).join(", ")}
-                                  </p>
-                                )}
-
-                                {/* Conditions */}
-                                {(p.conditions || []).length > 0 && (
-                                  <p className="text-xs text-gray-600">
-                                    <span className="font-medium text-gray-700">
-                                      Condition:
-                                    </span>{" "}
-                                    {(p.conditions || []).map((c) => c.name).join(", ")}
-                                  </p>
-                                )}
-                                {/* Categories */}
-                                {(p.categories?.length > 0 || p.subcategories?.length > 0) && (
-                                  <p className="text-xs text-gray-600 col-span-1 md:col-span-2">
-                                    <span className="font-medium text-gray-700">
-                                      Categories:
-                                    </span>{" "}
-                                    {(p.categories || []).map((c) => c.name).join(", ")}
-                                    {p.subcategories?.length > 0 && (
-                                      <>
-                                        {" · "}
-                                        <span className="font-medium text-gray-700">Sub:</span>{" "}
-                                        {(p.subcategories || []).map((s) => s.name).join(", ")}
-                                      </>
-                                    )}
-                                  </p>
-                                )}
-
-                                {/* SKU full width */}
-                                <p className="text-xs text-gray-600 col-span-1 md:col-span-2">
-                                  <span className="font-medium text-gray-700">
-                                    SKU:
-                                  </span>{" "}
-                                  {p.sku}
-                                </p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <img
-                              src={p.qrCode}
-                              onClick={() => openImageModal(p.qrCode)}
-                              alt="QR Code"
-                              className="h-16 w-16 object-contain cursor-pointer"
-                            />
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-500">
-                            AED {p.purchasePrice}
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-500">
-                            AED {p.salePrice}
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-500">
-                            {p.quantity}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex  gap-2">
-                              <button onClick={() => handleEdit(p)} className="p-2 text-blue-500 hover:text-white hover:bg-blue-500 rounded-full transition-colors duration-200">
-                                <Edit size={18} />
-                              </button>
-                              {/* </Button> */}
-                              <button onClick={() => confirmDelete(p._id)} className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200">
-                                <Trash2 size={18} />
-                              </button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-6 text-gray-500">
-                          No products found
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  columns={productColumns}
+                  data={filteredProducts}
+                  pageSize={itemsPerPage}
+                />
               </div>
-
-              {totalPages > 1 && (
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.max(p - 1, 1));
-                        }}
-                        disabled={currentPage === 1}
-                      />
-                    </PaginationItem>
-                    {[...Array(totalPages)].map((_, i) => (
-                      <PaginationItem key={i}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === i + 1}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setCurrentPage(i + 1);
-                          }}
-                        >
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setCurrentPage((p) => Math.min(p + 1, totalPages));
-                        }}
-                        disabled={currentPage === totalPages}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              )}
             </>
           )}
         </div>
