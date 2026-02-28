@@ -45,7 +45,39 @@ const Customers = () => {
 
   const validate = () => {
     const e = {};
-    if (!formData.name?.trim()) e.name = "Name is required";
+    const trimmedName = formData.name?.trim() || "";
+    const trimmedPhone = formData.phone?.trim() || "";
+    const trimmedEmail = formData.email?.trim() || "";
+
+    if (!trimmedName) e.name = "Name is required";
+
+    if (trimmedEmail) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(trimmedEmail)) {
+        e.email = "Enter a valid email address";
+      } else {
+        const existingByEmail = customers.find(
+          (c) =>
+            c._id !== editingId &&
+            (c.email || "").toLowerCase() === trimmedEmail.toLowerCase(),
+        );
+        if (existingByEmail) {
+          e.email = `Customer with email "${trimmedEmail}" already exists`;
+        }
+      }
+    }
+
+    if (trimmedPhone) {
+      const existingByPhone = customers.find(
+        (c) =>
+          c._id !== editingId &&
+          (c.phone || "").trim() === trimmedPhone,
+      );
+      if (existingByPhone) {
+        e.phone = `Customer with phone "${trimmedPhone}" already exists`;
+      }
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };

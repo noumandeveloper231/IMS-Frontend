@@ -67,6 +67,9 @@ const resolveImageUrl = (src) => {
 
 const TEMPLATE_COLUMNS = ["Name"];
 
+const normalizeBrandName = (value) =>
+  (value ?? "").toString().trim().toLowerCase();
+
 const Brands = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
@@ -115,7 +118,28 @@ const Brands = () => {
         toast.error(data?.message || "Failed to create ❌");
       }
     },
-    onError: () => toast.error("Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const trimmedName = name.trim();
+        toast.error(
+          trimmedName
+            ? `Brand "${trimmedName}" already exists ❌`
+            : "Brand already exists ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to create brand. Please try again ❌");
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -135,7 +159,28 @@ const Brands = () => {
         toast.error(data?.message || "Failed to update ❌");
       }
     },
-    onError: () => toast.error("Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const trimmedName = name.trim();
+        toast.error(
+          trimmedName
+            ? `Brand "${trimmedName}" already exists ❌`
+            : "Brand already exists ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to update brand. Please try again ❌");
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -153,8 +198,22 @@ const Brands = () => {
       setDeleteOpen(false);
       setDeleteId(null);
     },
-    onError: () => {
-      toast.error("Something went wrong ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (error?.response?.status === 409) {
+        toast.error(
+          messageFromServer ||
+            "Cannot delete brand because it is linked with other records ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to delete brand. Please try again ❌");
+      }
       setDeleteOpen(false);
       setDeleteId(null);
     },
@@ -176,9 +235,54 @@ const Brands = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return toast.error("Name is required ❌");
+
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      toast.error("Brand name is required ❌");
+      return;
+    }
+
+    if (trimmedName.length < 2) {
+      toast.error("Brand name must be at least 2 characters long ❌");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      toast.error("Brand name must be at most 50 characters ❌");
+      return;
+    }
+
+    const normalizedNewName = normalizeBrandName(trimmedName);
+
+    const hasDuplicateOnCreate =
+      !editingId &&
+      brands.some(
+        (b) => normalizeBrandName(b.name) === normalizedNewName,
+      );
+
+    if (hasDuplicateOnCreate) {
+      toast.error(`Brand "${trimmedName}" already exists ❌`);
+      return;
+    }
+
+    if (editingId) {
+      const hasDuplicateOnUpdate = brands.some(
+        (b) =>
+          b._id !== editingId &&
+          normalizeBrandName(b.name) === normalizedNewName,
+      );
+
+      if (hasDuplicateOnUpdate) {
+        toast.error(
+          `Another brand with name "${trimmedName}" already exists ❌`,
+        );
+        return;
+      }
+    }
+
     const formData = new FormData();
-    formData.append("name", name.trim());
+    formData.append("name", trimmedName);
     if (image) formData.append("image", image);
     if (editingId) {
       await updateMutation.mutateAsync({ id: editingId, formData });
@@ -208,16 +312,40 @@ const Brands = () => {
   };
 
   const handleDropFile = (file) => {
+    if (!file) return;
+
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please upload a valid image file ❌");
+      return;
+    }
+
+    const maxSizeInMB = 2;
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+      toast.error(`Image must be smaller than ${maxSizeInMB} MB ❌`);
+      return;
+    }
+
     setImage(file);
     setPreview(URL.createObjectURL(file));
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setImage(file);
-      setPreview(URL.createObjectURL(file));
+    if (!file) return;
+
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please upload a valid image file ❌");
+      return;
     }
+
+    const maxSizeInMB = 2;
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+      toast.error(`Image must be smaller than ${maxSizeInMB} MB ❌`);
+      return;
+    }
+
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
   };
 
   const filteredBrands = (brands || []).filter((b) =>
@@ -273,7 +401,15 @@ const Brands = () => {
       toast.success("File loaded. Review and import ✅");
     } catch (err) {
       console.error("Import parse error:", err);
-      toast.error("Unable to read file ❌");
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Unable to read file: ${messageFromServer} ❌`
+          : "Unable to read file ❌",
+      );
     }
   };
 
@@ -297,8 +433,16 @@ const Brands = () => {
       setImportColumns([]);
       setImportStats({ total: 0, valid: 0, errors: 0 });
     } catch (err) {
-      toast.error("Bulk import failed ❌");
-      console.error("Bulk import error:", err.response?.data || err.message);
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Bulk import failed: ${messageFromServer} ❌`
+          : "Bulk import failed ❌",
+      );
+      console.error("Bulk import error:", err?.response?.data || err?.message);
     } finally {
       setImportLoading(false);
     }

@@ -106,8 +106,32 @@ const Vendors = () => {
       setVendorDrawerOpen(false);
       resetForm();
     },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || "Something went wrong ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const email = form.email?.trim();
+        const name = form.name?.trim();
+        if (email) {
+          toast.error(
+            `Vendor with email "${email}" already exists ❌`,
+          );
+        } else if (name) {
+          toast.error(`Vendor "${name}" already exists ❌`);
+        } else {
+          toast.error("Vendor already exists ❌");
+        }
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to create vendor. Please try again ❌");
+      }
     },
   });
 
@@ -122,8 +146,32 @@ const Vendors = () => {
       setVendorDrawerOpen(false);
       resetForm();
     },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || "Something went wrong ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const email = form.email?.trim();
+        const name = form.name?.trim();
+        if (email) {
+          toast.error(
+            `Vendor with email "${email}" already exists ❌`,
+          );
+        } else if (name) {
+          toast.error(`Vendor "${name}" already exists ❌`);
+        } else {
+          toast.error("Vendor already exists ❌");
+        }
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to update vendor. Please try again ❌");
+      }
     },
   });
 
@@ -137,8 +185,22 @@ const Vendors = () => {
       setDeleteOpen(false);
       setDeleteId(null);
     },
-    onError: () => {
-      toast.error("Failed to delete vendor ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (error?.response?.status === 409) {
+        toast.error(
+          messageFromServer ||
+            "Cannot delete vendor because it is linked with other records ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Failed to delete vendor ❌");
+      }
       setDeleteOpen(false);
       setDeleteId(null);
     },
@@ -172,23 +234,58 @@ const Vendors = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name?.trim() || !form.phone?.trim()) {
-      toast.error("Name & Phone required!");
+
+    const trimmedName = form.name?.trim() || "";
+    const trimmedPhone = form.phone?.trim() || "";
+    const trimmedEmail = form.email?.trim() || "";
+
+    if (!trimmedName || !trimmedPhone) {
+      toast.error("Vendor name and phone are required ❌");
       return;
     }
-    if (form.email?.trim()) {
-      const existing = vendors.find(
+
+    if (trimmedName.length < 2) {
+      toast.error("Vendor name must be at least 2 characters long ❌");
+      return;
+    }
+
+    if (trimmedEmail) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(trimmedEmail)) {
+        toast.error("Please enter a valid email address ❌");
+        return;
+      }
+      const existingByEmail = vendors.find(
         (v) =>
-          v.email?.toLowerCase() === form.email.trim().toLowerCase() &&
-          v._id !== editingId
+          (v.email || "").toLowerCase() === trimmedEmail.toLowerCase() &&
+          v._id !== editingId,
       );
-      if (existing) {
-        toast.error("A vendor with this email already exists.");
+      if (existingByEmail) {
+        toast.error(
+          `Vendor with email "${trimmedEmail}" already exists ❌`,
+        );
         return;
       }
     }
+
+    const existingByNamePhone = vendors.find(
+      (v) =>
+        v._id !== editingId &&
+        (v.name || "").trim().toLowerCase() === trimmedName.toLowerCase() &&
+        (v.phone || "").trim() === trimmedPhone,
+    );
+    if (existingByNamePhone) {
+      toast.error(
+        `Vendor "${trimmedName}" with phone "${trimmedPhone}" already exists ❌`,
+      );
+      return;
+    }
+
     const payload = {
       ...form,
+      name: trimmedName,
+      phone: trimmedPhone,
+      email: trimmedEmail,
       openingBalance: Number(form.openingBalance) || 0,
     };
     if (editingId) {
@@ -280,7 +377,15 @@ const Vendors = () => {
       toast.success("File loaded. Review and import ✅");
     } catch (err) {
       console.error("Import parse error:", err);
-      toast.error("Unable to read file ❌");
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Unable to read file: ${messageFromServer} ❌`
+          : "Unable to read file ❌",
+      );
     }
   };
 
@@ -321,7 +426,15 @@ const Vendors = () => {
       setImportColumns([]);
       setImportStats({ total: 0, valid: 0, errors: 0 });
     } catch (err) {
-      toast.error("Import failed ❌");
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Import failed: ${messageFromServer} ❌`
+          : "Import failed ❌",
+      );
     } finally {
       setImportLoading(false);
     }

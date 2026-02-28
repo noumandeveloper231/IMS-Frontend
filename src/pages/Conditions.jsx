@@ -67,6 +67,9 @@ const resolveImageUrl = (src) => {
 
 const TEMPLATE_COLUMNS = ["Name"];
 
+const normalizeConditionName = (value) =>
+  (value ?? "").toString().trim().toLowerCase();
+
 const Conditions = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
@@ -115,7 +118,28 @@ const Conditions = () => {
         toast.error(data?.message || "Failed to create ❌");
       }
     },
-    onError: () => toast.error("Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const trimmedName = name.trim();
+        toast.error(
+          trimmedName
+            ? `Condition "${trimmedName}" already exists ❌`
+            : "Condition already exists ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to create condition. Please try again ❌");
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -135,7 +159,28 @@ const Conditions = () => {
         toast.error(data?.message || "Failed to update ❌");
       }
     },
-    onError: () => toast.error("Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const trimmedName = name.trim();
+        toast.error(
+          trimmedName
+            ? `Condition "${trimmedName}" already exists ❌`
+            : "Condition already exists ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to update condition. Please try again ❌");
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -153,8 +198,22 @@ const Conditions = () => {
       setDeleteOpen(false);
       setDeleteId(null);
     },
-    onError: () => {
-      toast.error("Something went wrong ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (error?.response?.status === 409) {
+        toast.error(
+          messageFromServer ||
+            "Cannot delete condition because it is linked with other records ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to delete condition. Please try again ❌");
+      }
       setDeleteOpen(false);
       setDeleteId(null);
     },
@@ -176,9 +235,54 @@ const Conditions = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return toast.error("Name is required ❌");
+
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      toast.error("Condition name is required ❌");
+      return;
+    }
+
+    if (trimmedName.length < 2) {
+      toast.error("Condition name must be at least 2 characters long ❌");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      toast.error("Condition name must be at most 50 characters ❌");
+      return;
+    }
+
+    const normalizedNewName = normalizeConditionName(trimmedName);
+
+    const hasDuplicateOnCreate =
+      !editingId &&
+      conditions.some(
+        (c) => normalizeConditionName(c.name) === normalizedNewName,
+      );
+
+    if (hasDuplicateOnCreate) {
+      toast.error(`Condition "${trimmedName}" already exists ❌`);
+      return;
+    }
+
+    if (editingId) {
+      const hasDuplicateOnUpdate = conditions.some(
+        (c) =>
+          c._id !== editingId &&
+          normalizeConditionName(c.name) === normalizedNewName,
+      );
+
+      if (hasDuplicateOnUpdate) {
+        toast.error(
+          `Another condition with name "${trimmedName}" already exists ❌`,
+        );
+        return;
+      }
+    }
+
     const formData = new FormData();
-    formData.append("name", name.trim());
+    formData.append("name", trimmedName);
     if (image) formData.append("image", image);
     if (editingId) {
       await updateMutation.mutateAsync({ id: editingId, formData });
@@ -208,16 +312,40 @@ const Conditions = () => {
   };
 
   const handleDropFile = (file) => {
+    if (!file) return;
+
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please upload a valid image file ❌");
+      return;
+    }
+
+    const maxSizeInMB = 2;
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+      toast.error(`Image must be smaller than ${maxSizeInMB} MB ❌`);
+      return;
+    }
+
     setImage(file);
     setPreview(URL.createObjectURL(file));
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setImage(file);
-      setPreview(URL.createObjectURL(file));
+    if (!file) return;
+
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please upload a valid image file ❌");
+      return;
     }
+
+    const maxSizeInMB = 2;
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+      toast.error(`Image must be smaller than ${maxSizeInMB} MB ❌`);
+      return;
+    }
+
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
   };
 
   const filteredConditions = (conditions || []).filter((c) =>
@@ -273,7 +401,15 @@ const Conditions = () => {
       toast.success("File loaded. Review and import ✅");
     } catch (err) {
       console.error("Import parse error:", err);
-      toast.error("Unable to read file ❌");
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Unable to read file: ${messageFromServer} ❌`
+          : "Unable to read file ❌",
+      );
     }
   };
 
@@ -297,8 +433,16 @@ const Conditions = () => {
       setImportColumns([]);
       setImportStats({ total: 0, valid: 0, errors: 0 });
     } catch (err) {
-      toast.error("Bulk import failed ❌");
-      console.error("Bulk import error:", err.response?.data || err.message);
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Bulk import failed: ${messageFromServer} ❌`
+          : "Bulk import failed ❌",
+      );
+      console.error("Bulk import error:", err?.response?.data || err?.message);
     } finally {
       setImportLoading(false);
     }

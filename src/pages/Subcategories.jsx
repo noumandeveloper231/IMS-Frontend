@@ -155,6 +155,9 @@ function CategoryCombobox({
 
 const TEMPLATE_COLUMNS = ["Name", "Category"];
 
+const normalizeSubcategoryName = (value) =>
+  (value ?? "").toString().trim().toLowerCase();
+
 const Subcategories = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -235,8 +238,33 @@ const Subcategories = () => {
         toast.error(data?.message || "Create failed ❌");
       }
     },
-    onError: (err) =>
-      toast.error(err.response?.data?.message || "Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const trimmedName = name.trim();
+        const categoryName =
+          categories.find((c) => c._id === categoryId)?.name || "";
+        const label = categoryName
+          ? `"${trimmedName}" in category "${categoryName}"`
+          : `"${trimmedName}"`;
+        toast.error(
+          trimmedName
+            ? `Subcategory ${label} already exists ❌`
+            : "Subcategory already exists ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to create subcategory. Please try again ❌");
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -254,8 +282,33 @@ const Subcategories = () => {
         toast.error(data?.message || "Update failed ❌");
       }
     },
-    onError: (err) =>
-      toast.error(err.response?.data?.message || "Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const trimmedName = name.trim();
+        const categoryName =
+          categories.find((c) => c._id === categoryId)?.name || "";
+        const label = categoryName
+          ? `"${trimmedName}" in category "${categoryName}"`
+          : `"${trimmedName}"`;
+        toast.error(
+          trimmedName
+            ? `Subcategory ${label} already exists ❌`
+            : "Subcategory already exists ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to update subcategory. Please try again ❌");
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -273,8 +326,22 @@ const Subcategories = () => {
       setDeleteOpen(false);
       setDeleteId(null);
     },
-    onError: () => {
-      toast.error("Delete failed ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (error?.response?.status === 409) {
+        toast.error(
+          messageFromServer ||
+            "Cannot delete subcategory because it is linked with other records ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Delete failed ❌");
+      }
       setDeleteOpen(false);
       setDeleteId(null);
     },
@@ -291,9 +358,50 @@ const Subcategories = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim()) return toast.error("Subcategory name required");
-    if (!categoryId) return toast.error("Please select a category");
-    const payload = { name: name.trim(), category: categoryId };
+
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      toast.error("Subcategory name is required ❌");
+      return;
+    }
+
+    if (trimmedName.length < 2) {
+      toast.error("Subcategory name must be at least 2 characters long ❌");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      toast.error("Subcategory name must be at most 50 characters ❌");
+      return;
+    }
+
+    if (!categoryId) {
+      toast.error("Please select a category ❌");
+      return;
+    }
+
+    const normalizedNewName = normalizeSubcategoryName(trimmedName);
+
+    const hasDuplicate = (subcategories || []).some(
+      (s) =>
+        (!editingId || s._id !== editingId) &&
+        normalizeSubcategoryName(s.name) === normalizedNewName &&
+        (s.category?._id ?? s.category) === categoryId,
+    );
+
+    if (hasDuplicate) {
+      const categoryName =
+        categories.find((c) => c._id === categoryId)?.name || "";
+      toast.error(
+        categoryName
+          ? `Subcategory "${trimmedName}" already exists in category "${categoryName}" ❌`
+          : `Subcategory "${trimmedName}" already exists ❌`,
+      );
+      return;
+    }
+
+    const payload = { name: trimmedName, category: categoryId };
     if (editingId) {
       updateMutation.mutate({ id: editingId, payload });
     } else {
@@ -391,7 +499,15 @@ const Subcategories = () => {
       toast.success("File loaded. Review and import ✅");
     } catch (err) {
       console.error("Import parse error:", err);
-      toast.error("Unable to read file ❌");
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Unable to read file: ${messageFromServer} ❌`
+          : "Unable to read file ❌",
+      );
     }
   };
 
@@ -415,8 +531,16 @@ const Subcategories = () => {
       setImportColumns([]);
       setImportStats({ total: 0, valid: 0, errors: 0 });
     } catch (err) {
-      toast.error("Bulk import failed ❌");
-      console.error("Bulk import error:", err.response?.data || err.message);
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Bulk import failed: ${messageFromServer} ❌`
+          : "Bulk import failed ❌",
+      );
+      console.error("Bulk import error:", err?.response?.data || err?.message);
     } finally {
       setImportLoading(false);
     }

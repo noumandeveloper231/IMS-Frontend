@@ -106,8 +106,33 @@ const Employees = () => {
       setEmployeeDrawerOpen(false);
       handleClearForm();
     },
-    onError: (err) =>
-      toast.error(err.response?.data?.message || "Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const email = formData.email?.trim();
+        const name = formData.name?.trim();
+        if (email) {
+          toast.error(
+            `Employee with email "${email}" already exists ❌`,
+          );
+        } else if (name) {
+          toast.error(`Employee "${name}" already exists ❌`);
+        } else {
+          toast.error("Employee already exists ❌");
+        }
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Something went wrong ❌");
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -121,8 +146,33 @@ const Employees = () => {
       setEmployeeDrawerOpen(false);
       handleClearForm();
     },
-    onError: (err) =>
-      toast.error(err.response?.data?.message || "Something went wrong ❌"),
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (
+        error?.response?.status === 409 ||
+        /already exists?/i.test(messageFromServer || "")
+      ) {
+        const email = formData.email?.trim();
+        const name = formData.name?.trim();
+        if (email) {
+          toast.error(
+            `Employee with email "${email}" already exists ❌`,
+          );
+        } else if (name) {
+          toast.error(`Employee "${name}" already exists ❌`);
+        } else {
+          toast.error("Employee already exists ❌");
+        }
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Something went wrong ❌");
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -136,8 +186,22 @@ const Employees = () => {
       setDeleteOpen(false);
       setDeleteId(null);
     },
-    onError: () => {
-      toast.error("Failed to delete employee ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (error?.response?.status === 409) {
+        toast.error(
+          messageFromServer ||
+            "Cannot delete employee because they are linked with other records ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Failed to delete employee ❌");
+      }
       setDeleteOpen(false);
       setDeleteId(null);
     },
@@ -167,14 +231,77 @@ const Employees = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
+
+    const trimmedName = formData.name.trim();
+    const trimmedEmail = formData.email.trim();
+    const trimmedPhone = formData.phone.trim();
+
+    if (!trimmedName) {
       toast.error("Employee name is required ❌");
       return;
     }
+
+    if (trimmedName.length < 2) {
+      toast.error("Employee name must be at least 2 characters long ❌");
+      return;
+    }
+
+    if (trimmedEmail) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(trimmedEmail)) {
+        toast.error("Please enter a valid email address ❌");
+        return;
+      }
+    }
+
+    const salaryNumber = Number(formData.salary ?? 0);
+    if (Number.isNaN(salaryNumber) || salaryNumber < 0) {
+      toast.error("Salary must be 0 or greater ❌");
+      return;
+    }
+
+    const duplicateByEmail = trimmedEmail
+      ? employees.find(
+          (emp) =>
+            emp._id !== editingId &&
+            (emp.email || "").toLowerCase() === trimmedEmail.toLowerCase(),
+        )
+      : null;
+    if (duplicateByEmail) {
+      toast.error(
+        `Employee with email "${trimmedEmail}" already exists ❌`,
+      );
+      return;
+    }
+
+    const duplicateByNamePhone =
+      trimmedPhone &&
+      employees.find(
+        (emp) =>
+          emp._id !== editingId &&
+          (emp.name || "").trim().toLowerCase() ===
+            trimmedName.toLowerCase() &&
+          (emp.phone || "").trim() === trimmedPhone,
+      );
+    if (duplicateByNamePhone) {
+      toast.error(
+        `Employee "${trimmedName}" with phone "${trimmedPhone}" already exists ❌`,
+      );
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      name: trimmedName,
+      email: trimmedEmail,
+      phone: trimmedPhone,
+      salary: salaryNumber,
+    };
+
     if (editingId) {
-      updateMutation.mutate({ id: editingId, data: formData });
+      updateMutation.mutate({ id: editingId, data: payload });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload);
     }
   };
 
@@ -261,7 +388,15 @@ const Employees = () => {
       toast.success("File loaded. Review and import ✅");
     } catch (err) {
       console.error("Import parse error:", err);
-      toast.error("Unable to read file ❌");
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Unable to read file: ${messageFromServer} ❌`
+          : "Unable to read file ❌",
+      );
     }
   };
 
@@ -303,7 +438,15 @@ const Employees = () => {
       setImportColumns([]);
       setImportStats({ total: 0, valid: 0, errors: 0 });
     } catch (err) {
-      toast.error("Import failed ❌");
+      const messageFromServer =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message;
+      toast.error(
+        messageFromServer
+          ? `Import failed: ${messageFromServer} ❌`
+          : "Import failed ❌",
+      );
     } finally {
       setImportLoading(false);
     }
@@ -364,6 +507,7 @@ const Employees = () => {
           </span>
         ),
         accessorKey: "name",
+        meta: { label: "Name" },
         cell: ({ row }) => (
           <span className="font-medium text-gray-800">{row.original.name}</span>
         ),
@@ -376,6 +520,7 @@ const Employees = () => {
           </span>
         ),
         accessorKey: "phone",
+        meta: { label: "Phone" },
         cell: ({ row }) => (
           <span className="text-sm text-gray-500">{row.original.phone || "-"}</span>
         ),
@@ -388,6 +533,7 @@ const Employees = () => {
           </span>
         ),
         accessorKey: "email",
+        meta: { label: "Email" },
         cell: ({ row }) => (
           <span className="text-sm text-gray-500">{row.original.email || "-"}</span>
         ),
@@ -400,6 +546,7 @@ const Employees = () => {
           </span>
         ),
         accessorKey: "role",
+        meta: { label: "Role" },
         cell: ({ row }) => {
           const role = row.original.role;
           return (
@@ -417,6 +564,7 @@ const Employees = () => {
           </span>
         ),
         accessorKey: "salary",
+        meta: { label: "Salary" },
         cell: ({ row }) => (
           <span className="text-sm text-gray-900">
             {row.original.salary != null ? `$${Number(row.original.salary).toLocaleString()}` : "-"}
@@ -427,6 +575,7 @@ const Employees = () => {
         id: "status",
         header: "Status",
         accessorKey: "status",
+        meta: { label: "Status" },
         cell: ({ row }) => {
           const status = row.original.status;
           return (
@@ -444,6 +593,7 @@ const Employees = () => {
           </span>
         ),
         accessorKey: "joinedAt",
+        meta: { label: "Joined Date" },
         cell: ({ row }) => (
           <span className="text-sm text-gray-500">
             {row.original.joinedAt ? new Date(row.original.joinedAt).toLocaleDateString() : "-"}
