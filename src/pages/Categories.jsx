@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from "react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
-import { MoreVertical } from "lucide-react";
+import { Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +10,7 @@ import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
+import { DeleteModel } from "@/components/DeleteModel";
 import {
   Drawer,
   DrawerClose,
@@ -26,6 +27,7 @@ import {
   SelectGroup,
   SelectItem,
   SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
@@ -39,14 +41,6 @@ import {
 } from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/UI/dropdown-menu";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -58,6 +52,7 @@ import {
 } from "@/components/UI/alert-dialog";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { useImageModal } from "@/context/ImageModalContext";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -92,9 +87,20 @@ const Categories = () => {
     total: 0,
     valid: 0,
     errors: 0,
+    duplicates: 0,
   });
   const [importLoading, setImportLoading] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [customItemsPerPage, setCustomItemsPerPage] = useState("");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
+  const [tableRowSelection, setTableRowSelection] = useState({});
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const effectiveItemsPerPage = useMemo(() => {
+    const custom = parseInt(customItemsPerPage, 10);
+    if (!isNaN(custom) && custom >= 1 && custom <= 500) return custom;
+    return itemsPerPage;
+  }, [itemsPerPage, customItemsPerPage]);
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ["categories"],
@@ -211,7 +217,7 @@ const Categories = () => {
       if (error?.response?.status === 409) {
         toast.error(
           messageFromServer ||
-            "Cannot delete category because it is linked with other records ❌",
+          "Cannot delete category because it is linked with other records ❌",
         );
       } else if (messageFromServer) {
         toast.error(messageFromServer);
@@ -318,6 +324,27 @@ const Categories = () => {
     deleteMutation.mutate(deleteId);
   };
 
+  const handleBulkDeleteConfirmed = async () => {
+    if (!selectedCategoryIds.length) {
+      setBulkDeleteOpen(false);
+      return;
+    }
+    setBulkDeleteOpen(false);
+    for (const id of selectedCategoryIds) {
+      try {
+        await api.delete(`/categories/delete/${id}`);
+      } catch (err) {
+        const msg = err?.response?.data?.message || err?.message;
+        toast.error(`Failed to delete one category: ${msg}`);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["categories"] });
+    const count = selectedCategoryIds.length;
+    setSelectedCategoryIds([]);
+    setTableRowSelection({});
+    toast.success(`Deleted ${count} categories`);
+  };
+
   const handleDropFile = (file) => {
     if (!file) return;
 
@@ -355,37 +382,86 @@ const Categories = () => {
     setPreview(URL.createObjectURL(file));
   };
 
-  const filteredCategories = (categories || []).filter((c) =>
-    (c.name || "").toLowerCase().includes(search.toLowerCase())
+  const filteredCategories = useMemo(
+    () =>
+      (categories || []).filter((c) =>
+        (c.name || "").toLowerCase().includes(search.toLowerCase())
+      ),
+    [categories, search]
   );
 
   const normalizeKey = (key) =>
     key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
   const validateImportedRows = (rows) => {
-    let valid = 0;
-    let errors = 0;
+    if (!rows.length) {
+      setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+      return [];
+    }
+    const nameKeyRef = Object.keys(rows[0] || {}).find((k) =>
+      ["name"].includes(normalizeKey(k))
+    );
+    const seenInFile = new Set();
     const validated = rows.map((row) => {
       const nameKey =
-        Object.keys(row).find((k) => ["name"].includes(normalizeKey(k))) ?? null;
+        Object.keys(row).find((k) => ["name"].includes(normalizeKey(k))) ?? nameKeyRef ?? null;
       const name = nameKey ? String(row[nameKey] ?? "").trim() : "";
       const fieldErrors = {};
+      let statusMessage = "";
       if (!name) {
         fieldErrors[nameKey || "Name"] = "Required";
-        errors += 1;
+        statusMessage = "Name required";
       } else {
-        valid += 1;
+        const norm = normalizeCategoryName(name);
+        if (seenInFile.has(norm)) {
+          fieldErrors[nameKey || "Name"] = "Duplicate in file";
+          statusMessage = "Duplicate in file";
+        } else {
+          seenInFile.add(norm);
+        }
+        const existsInDb = categories.some(
+          (c) => normalizeCategoryName(c.name) === norm
+        );
+        if (existsInDb && !fieldErrors[nameKey || "Name"]) {
+          fieldErrors[nameKey || "Name"] = "Already exists in DB";
+          statusMessage = "Already in database";
+        }
       }
       const hasErrors = Object.keys(fieldErrors).length > 0;
+      const firstError = fieldErrors[Object.keys(fieldErrors)[0]] || "";
       return {
         ...row,
         __name: name,
         __errors: fieldErrors,
         __status: hasErrors ? "error" : "valid",
+        __statusMessage: statusMessage || (hasErrors ? firstError : "OK"),
       };
     });
-    setImportStats({ total: rows.length, valid, errors });
+    const valid = validated.filter((r) => r.__status === "valid").length;
+    const errors = validated.filter((r) => r.__status === "error").length;
+    const duplicates = validated.filter(
+      (r) =>
+        r.__status === "error" &&
+        (r.__statusMessage === "Duplicate in file" || r.__statusMessage === "Already in database")
+    ).length;
+    setImportStats({ total: rows.length, valid, errors, duplicates });
     return validated;
+  };
+
+  const handleImportCellChange = (rowIndex, columnKey, value) => {
+    setImportRows((prev) => {
+      const next = prev.map((r, i) =>
+        i === rowIndex ? { ...r, [columnKey]: value } : r
+      );
+      return validateImportedRows(next);
+    });
+  };
+
+  const handleClearImportData = () => {
+    setImportRows([]);
+    setImportColumns([]);
+    setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+    toast.info("Import data cleared");
   };
 
   const handleImportFileSelected = async (fileOrFiles) => {
@@ -400,7 +476,7 @@ const Categories = () => {
         toast.error("File is empty ❌");
         setImportRows([]);
         setImportColumns([]);
-        setImportStats({ total: 0, valid: 0, errors: 0 });
+        setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
         return;
       }
       const validatedRows = validateImportedRows(rows);
@@ -440,7 +516,7 @@ const Categories = () => {
       setImportDrawerOpen(false);
       setImportRows([]);
       setImportColumns([]);
-      setImportStats({ total: 0, valid: 0, errors: 0 });
+      setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
     } catch (err) {
       const messageFromServer =
         err?.response?.data?.message ||
@@ -459,8 +535,8 @@ const Categories = () => {
 
   const handleViewTemplate = () => {
     setImportColumns(TEMPLATE_COLUMNS);
-    setImportRows([Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))]);
-    setImportStats({ total: 1, valid: 0, errors: 0 });
+    const templateRow = [Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))];
+    setImportRows(validateImportedRows(templateRow));
   };
 
   const handleDownloadTemplate = () => {
@@ -490,6 +566,7 @@ const Categories = () => {
         id: "index",
         header: "#",
         cell: ({ row }) => row.index + 1,
+        className: "text-center",
       },
       {
         id: "image",
@@ -501,12 +578,14 @@ const Categories = () => {
             return <span className="text-gray-400 italic">No Image</span>;
           }
           return (
-            <img
-              src={resolveImageUrl(cat.image)}
-              alt={cat.name}
-              onClick={() => openImageModal(resolveImageUrl(cat.image))}
-              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
-            />
+            <div className="flex items-center justify-center">
+              <img
+                src={resolveImageUrl(cat.image)}
+                alt={cat.name}
+                onClick={() => openImageModal(resolveImageUrl(cat.image))}
+                className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+              />
+            </div>
           );
         },
       },
@@ -525,13 +604,15 @@ const Categories = () => {
         cell: ({ row }) => {
           const cat = row.original;
           return (
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => handleClick(cat._id)}
-              className="text-center font-medium text-blue-600 hover:underline"
+              onKeyDown={(e) => e.key === "Enter" && handleClick(cat._id)}
+              className="w-full h-full min-h-[40px] flex items-center justify-center font-medium text-blue-600 hover:underline cursor-pointer"
             >
               {cat.productCount ?? 0}
-            </button>
+            </div>
           );
         },
       },
@@ -565,30 +646,28 @@ const Categories = () => {
         cell: ({ row }) => {
           const cat = row.original;
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-40"
-                onCloseAutoFocus={(e) => e.preventDefault()}
+            <div className="flex items-center justify-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handleEdit(cat)}
+                aria-label="Edit category"
               >
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleEdit(cat)}>
-                  Edit category
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => confirmDelete(cat._id)}
-                >
-                  Delete category
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => confirmDelete(cat._id)}
+                aria-label="Delete category"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           );
         },
       },
@@ -607,198 +686,274 @@ const Categories = () => {
             onOpenChange={setCategoryDrawerOpen}
           >
             <div className="flex justify-between items-center">
-              <h2 className="flex-4 text-2xl font-semibold text-gray-700">
+              <h2 className="flex-2 text-2xl font-semibold text-gray-700">
                 Categories List ({filteredCategories.length})
               </h2>
-              <div className="flex gap-4 items-center">
-                <Drawer
-                  open={importDrawerOpen}
-                  onOpenChange={setImportDrawerOpen}
-                >
-                  <DrawerTrigger asChild>
-                    <Label
-                      variant="light"
-                      className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer"
+              <div className="flex flex-1 w-full gap-4 items-center">
+                {selectedCategoryIds.length > 0 && (
+                  <div className="flex-1">
+                    <UiSelect
+                      value=""
+                      onValueChange={(value) => {
+                        if (value === "bulk-delete") setBulkDeleteOpen(true);
+                      }}
+
                     >
-                      Import Excel
-                    </Label>
-                  </DrawerTrigger>
-                  <DrawerContent className="max-h-[90vh]">
-                    <DrawerHeader className="border-b">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <DrawerTitle>Bulk Category Import</DrawerTitle>
-                          <DrawerDescription>
-                            Upload CSV or Excel file to create multiple categories.
-                          </DrawerDescription>
-                        </div>
-                        <DrawerClose asChild>
-                          <Button variant="outline" size="icon">
-                            ✕
-                          </Button>
-                        </DrawerClose>
-                      </div>
-                    </DrawerHeader>
-                    <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleViewTemplate}
-                        >
-                          View Template
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleDownloadTemplate}
-                        >
-                          Download Template
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Supported formats: <span className="font-medium">.csv, .xlsx</span>
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Upload file</p>
-                        <ImageUploadDropzone
-                          accept=".csv,.xlsx"
-                          type="excel"
-                          label="Drag & Drop Excel or CSV File"
-                          description="Upload bulk category file"
-                          maxSize={10 * 1024 * 1024}
-                          onFileSelect={handleImportFileSelected}
-                        />
-                      </div>
-                      {importRows.length > 0 && (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">
-                              Preview ({importStats.total} rows)
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Valid: {importStats.valid} | Errors: {importStats.errors}
-                            </p>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Bulk actions" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Select action</SelectLabel>
+                          <SelectItem value="bulk-delete">Bulk delete</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </UiSelect>
+                  </div>
+                )}
+                <div className="flex-1 flex items-center gap-2 shrink-0">
+                  <Drawer
+                    open={importDrawerOpen}
+                    onOpenChange={setImportDrawerOpen}
+                  >
+                    <DrawerTrigger asChild>
+                      <Label
+                        variant="light"
+                        className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap"
+                      >
+                        Import Excel
+                      </Label>
+                    </DrawerTrigger>
+                    <DrawerContent className="max-h-[90vh]">
+                      <DrawerHeader className="border-b">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <DrawerTitle>Bulk Category Import</DrawerTitle>
+                            <DrawerDescription>
+                              Upload CSV or Excel file to create multiple categories.
+                            </DrawerDescription>
                           </div>
-                          <div className="border w-full rounded-md max-h-80 overflow-auto">
-                            <div className="min-w-max">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>#</TableHead>
-                                    <TableHead>Name</TableHead>
-                                    {importColumns.map((col) => (
-                                      <TableHead
-                                        className="whitespace-nowrap w-auto"
-                                        key={col}
-                                      >
-                                        {col}
-                                      </TableHead>
-                                    ))}
-                                    <TableHead>Status</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {importRows.map((row, rowIndex) => (
-                                    <TableRow key={rowIndex}>
-                                      <TableCell className="text-xs text-muted-foreground">
-                                        {rowIndex + 1}
-                                      </TableCell>
-                                      <TableCell className="text-xs">
-                                        {row.__name ?? row.Name ?? row.name ?? "—"}
-                                      </TableCell>
-                                      {importColumns.map((col) => (
-                                        <TableCell key={col} className="text-xs">
-                                          {String(row[col] ?? "")}
-                                        </TableCell>
-                                      ))}
-                                      <TableCell>
-                                        <span
-                                          className={
-                                            row.__status === "valid"
-                                              ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
-                                              : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
-                                          }
-                                        >
-                                          {row.__status === "valid" ? "Valid" : "Error"}
-                                        </span>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <DrawerFooter className="border-t">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span className="text-muted-foreground">
-                            ✔ Valid:{" "}
-                            <span className="font-semibold text-emerald-700">
-                              {importStats.valid}
-                            </span>
-                          </span>
-                          <span className="text-muted-foreground">
-                            ⚠ Errors:{" "}
-                            <span className="font-semibold text-red-700">
-                              {importStats.errors}
-                            </span>
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                          <Button
-                            type="button"
-                            variant="default"
-                            onClick={handleImportValidSubmit}
-                            disabled={!importStats.valid || importLoading}
-                          >
-                            {importLoading ? "Importing..." : "Import Valid Only"}
-                          </Button>
                           <DrawerClose asChild>
-                            <Button type="button" variant="ghost">
-                              Cancel
+                            <Button variant="outline" size="icon">
+                              ✕
                             </Button>
                           </DrawerClose>
                         </div>
+                      </DrawerHeader>
+                      <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleViewTemplate}
+                            >
+                              View Template
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleDownloadTemplate}
+                            >
+                              Download Template
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                            </p>
+                          </div>
+                          {importRows.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={handleClearImportData}
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Upload file</p>
+                          <ImageUploadDropzone
+                            accept=".csv,.xlsx"
+                            type="excel"
+                            label="Drag & Drop Excel or CSV File"
+                            description="Upload bulk category file"
+                            maxSize={10 * 1024 * 1024}
+                            onFileSelect={handleImportFileSelected}
+                          />
+                        </div>
+                        {importRows.length > 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium">
+                                Preview ({importStats.total} rows)
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Valid: {importStats.valid} | Errors: {importStats.errors}
+                                {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
+                              </p>
+                            </div>
+                            <div className="border w-full rounded-md max-h-80 overflow-auto">
+                              <div className="min-w-max">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>#</TableHead>
+                                      {/* <TableHead>Name</TableHead> */}
+                                      {importColumns.map((col) => (
+                                        <TableHead
+                                          className="whitespace-nowrap w-auto"
+                                          key={col}
+                                        >
+                                          {col}
+                                        </TableHead>
+                                      ))}
+                                      <TableHead>Status</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {importRows.map((row, rowIndex) => (
+                                      <TableRow key={rowIndex}>
+                                        <TableCell className="text-xs text-muted-foreground">
+                                          {rowIndex + 1}
+                                        </TableCell>
+                                        {/* <TableCell className="text-xs">
+                                        {row.__name ?? row.Name ?? row.name ?? "—"}
+                                      </TableCell> */}
+                                        {importColumns.map((col) => {
+                                          const isNameCol = normalizeKey(col) === "name";
+                                          return (
+                                            <TableCell key={col} className="text-xs">
+                                              {isNameCol ? (
+                                                <Input
+                                                  value={row[col] ?? ""}
+                                                  onChange={(e) =>
+                                                    handleImportCellChange(rowIndex, col, e.target.value)
+                                                  }
+                                                  className="h-8 text-xs min-w-[120px]"
+                                                  placeholder="Category name"
+                                                />
+                                              ) : (
+                                                String(row[col] ?? "")
+                                              )}
+                                            </TableCell>
+                                          );
+                                        })}
+                                        <TableCell>
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span
+                                                  className={
+                                                    row.__status === "valid"
+                                                      ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
+                                                      : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
+                                                  }
+                                                >
+                                                  {row.__status === "valid" ? "Valid" : "Error"}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="max-w-[200px]">
+                                                {row.__status === "valid"
+                                                  ? "Ready to import"
+                                                  : (row.__statusMessage || "Validation error")}
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </DrawerFooter>
-                  </DrawerContent>
-                </Drawer>
-
+                      <DrawerFooter className="border-t">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-3 text-xs">
+                            <span className="text-muted-foreground">
+                              ✔ Valid:{" "}
+                              <span className="font-semibold text-emerald-700">
+                                {importStats.valid}
+                              </span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              ⚠ Errors:{" "}
+                              <span className="font-semibold text-red-700">
+                                {importStats.errors}
+                              </span>
+                            </span>
+                            {importStats.duplicates > 0 && (
+                              <span className="text-muted-foreground">
+                                ✖ Duplicates:{" "}
+                                <span className="font-semibold text-orange-700">
+                                  {importStats.duplicates}
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                            <Button
+                              type="button"
+                              variant="default"
+                              onClick={handleImportValidSubmit}
+                              disabled={!importStats.valid || importLoading}
+                            >
+                              {importLoading ? "Importing..." : "Import Valid Only"}
+                            </Button>
+                            <DrawerClose asChild>
+                              <Button type="button" variant="ghost">
+                                Cancel
+                              </Button>
+                            </DrawerClose>
+                          </div>
+                        </div>
+                      </DrawerFooter>
+                    </DrawerContent>
+                  </Drawer>
+                </div>
                 <Label
                   variant="success"
                   onClick={handleExport}
-                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md cursor-pointer"
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md cursor-pointer whitespace-nowrap "
                 >
                   Export Excel
                 </Label>
-                <DrawerTrigger asChild>
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      if (!editingId) handleClearForm();
-                    }}
-                  >
-                    {editingId ? "Edit Category" : "Add New Category"}
-                  </Button>
-                </DrawerTrigger>
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    handleClearForm();
+                    setCategoryDrawerOpen(true);
+                  }}
+                >
+                  Add New Category
+                </Button>
               </div>
             </div>
 
             {/* Right-side drawer: Add/Edit Category form */}
             <DrawerContent className="ml-auto h-full max-w-3xl">
               <DrawerHeader>
-                <DrawerTitle>
-                  {editingId ? "Edit Category" : "Add New Category"}
-                </DrawerTitle>
-                <DrawerDescription>
-                  {editingId
-                    ? "Update the category details."
-                    : "Fill in the details below to add a new category."}
-                </DrawerDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <DrawerTitle>
+                      {editingId ? "Edit Category" : "Add New Category"}
+                    </DrawerTitle>
+                    <DrawerDescription>
+                      {editingId
+                        ? "Update the category details."
+                        : "Fill in the details below to add a new category."}
+                    </DrawerDescription>
+                  </div>
+                  <DrawerClose asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Close">
+                      ✕
+                    </Button>
+                  </DrawerClose>
+                </div>
               </DrawerHeader>
               <div className="no-scrollbar overflow-y-auto px-6 pb-8">
                 <form
@@ -877,21 +1032,44 @@ const Categories = () => {
                   className="w-full"
                 />
               </div>
-              <div className="flex-1 w-full md:w-auto">
+              <div className="flex-1">
                 <UiSelect
-                  value={String(itemsPerPage)}
-                  onValueChange={(value) => setItemsPerPage(Number(value))}
+                  value={effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom"}
+                  onValueChange={(value) => {
+                    if (value === "custom") return;
+                    setItemsPerPage(Number(value));
+                    setCustomItemsPerPage("");
+                  }}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-[140px]">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
-                  <SelectContent position="item-aligned">
+                  <SelectContent position="item-aligned" className="min-w-[var(--radix-select-trigger-width)]">
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
+                      <SelectItem value="50">50 per page</SelectItem>
+                      <SelectItem value="100">100 per page</SelectItem>
+                      <SelectItem value="custom" disabled>
+                        Custom{customItemsPerPage ? ` (${effectiveItemsPerPage})` : ""}
+                      </SelectItem>
                     </SelectGroup>
+                    <SelectSeparator />
+                    <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                      <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={500}
+                        placeholder="e.g. 25"
+                        className="h-8 w-full text-sm"
+                        value={customItemsPerPage}
+                        onChange={(e) => setCustomItemsPerPage(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
                   </SelectContent>
                 </UiSelect>
               </div>
@@ -907,33 +1085,19 @@ const Categories = () => {
               <DataTable
                 columns={categoryColumns}
                 data={filteredCategories}
-                pageSize={itemsPerPage}
+                pageSize={effectiveItemsPerPage}
+                rowSelection={tableRowSelection}
+                onRowSelectionChange={setTableRowSelection}
+                onSelectionChange={(rows) => setSelectedCategoryIds(rows.map((r) => r._id))}
               />
             </div>
           )}
         </div>
       </div>
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete category?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the
-              selected category.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirmed}
-              disabled={loading}
-            >
-              {loading ? "Deleting..." : "Yes, delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteModel title="Delete category?" description="This action cannot be undone. This will permanently delete the selected category." onDelete={handleDeleteConfirmed} open={deleteOpen} onOpenChange={setDeleteOpen} loading={loading} />
+
+      <DeleteModel title="Delete categories?" description="This action cannot be undone. This will permanently delete the selected categories." onDelete={handleBulkDeleteConfirmed} open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen} loading={loading} />
     </div>
   );
 };

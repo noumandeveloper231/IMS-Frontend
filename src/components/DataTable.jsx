@@ -50,6 +50,9 @@ export function DataTable({
   data: dataProp,
   renderRowActions,
   pageSize: pageSizeProp,
+  onSelectionChange,
+  rowSelection: rowSelectionProp,
+  onRowSelectionChange,
   // TanStack Query: when provided, table uses useQuery instead of data prop
   queryKey,
   queryFn,
@@ -65,7 +68,13 @@ export function DataTable({
   });
 
   const data = hasQuery ? (queryData ?? []) : (dataProp ?? []);
-  const [rowSelection, setRowSelection] = React.useState({});
+  const onSelectionChangeRef = React.useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
+
+  const [internalRowSelection, setInternalRowSelection] = React.useState({});
+  const isControlled = rowSelectionProp !== undefined;
+  const rowSelection = isControlled ? rowSelectionProp ?? {} : internalRowSelection;
+  const setRowSelection = isControlled ? (v) => onRowSelectionChange?.(v) : setInternalRowSelection;
   const [sorting, setSorting] = React.useState([]);
   const [columnVisibility, setColumnVisibility] = React.useState({});
 
@@ -96,14 +105,17 @@ export function DataTable({
             table.toggleAllPageRowsSelected(!!value)
           }
           aria-label="Select all"
+          className="mx-auto"
         />
       ),
       cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-        />
+        <span onClick={(e) => e.stopPropagation()} className="inline-block">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        </span>
       ),
       enableSorting: false,
       enableHiding: false,
@@ -156,6 +168,7 @@ export function DataTable({
   const table = useReactTable({
     data,
     columns: allColumns,
+    getRowId: (row) => (row && (row.id ?? row._id ?? undefined)) || String(Math.random()),
     state: {
       sorting,
       columnVisibility,
@@ -170,6 +183,15 @@ export function DataTable({
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
+
+  React.useEffect(() => {
+    const cb = onSelectionChangeRef.current;
+    if (cb) {
+      const selected = table.getSelectedRowModel().rows.map((r) => r.original);
+      cb(selected);
+    }
+    // Only depend on rowSelection so we don't re-run when parent passes new array reference
+  }, [rowSelection]);
 
   const hideableColumns = table
     .getAllLeafColumns()
@@ -238,12 +260,14 @@ export function DataTable({
                       header.column.id;
 
                     const headerInner = isSelection ? (
-                      rawLabel
+                      <div className="text-center">{rawLabel}</div>
                     ) : (
-                      <DefaultHeader
-                        column={header.column}
-                        title={String(title)}
-                      />
+                      <div className="text-center">
+                        <DefaultHeader
+                          column={header.column}
+                          title={String(title)}
+                        />
+                      </div>
                     );
 
                     return (
@@ -252,8 +276,8 @@ export function DataTable({
                           <TableHead
                             className={
                               header.index === 0
-                                ? "sticky top-0 left-0 z-20 bg-background px-4 py-3 text-sm text-black border-b border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
-                                : "sticky top-0 z-20 bg-background px-4 py-3 text-sm text-black border-b border-gray-200"
+                                ? "sticky top-0 left-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                                : "sticky top-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200"
                             }
                           >
                             {headerInner}
@@ -315,7 +339,16 @@ export function DataTable({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="px-4 py-3 text-sm text-black"
+                        className={
+                          cell.column.id === "__select"
+                            ? "text-center px-4 py-3 text-sm text-black cursor-pointer"
+                            : "text-center px-4 py-3 text-sm text-black"
+                        }
+                        onClick={
+                          cell.column.id === "__select"
+                            ? () => row.toggleSelected(!row.getIsSelected())
+                            : undefined
+                        }
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

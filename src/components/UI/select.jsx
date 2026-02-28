@@ -4,7 +4,56 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Select = SelectPrimitive.Root
+const SelectCloseOnScrollContext = React.createContext(null)
+
+const Select = ({ open: openProp, onOpenChange: onOpenChangeProp, ...props }) => {
+  const [openInternal, setOpenInternal] = React.useState(false)
+  const isControlled = openProp !== undefined
+  const open = isControlled ? openProp : openInternal
+  const onOpenChange = React.useCallback(
+    (value) => {
+      if (!isControlled) setOpenInternal(value)
+      onOpenChangeProp?.(value)
+    },
+    [isControlled, onOpenChangeProp]
+  )
+
+  const onOpenChangeRef = React.useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
+
+  const closeRef = React.useRef(() => onOpenChangeRef.current(false))
+  closeRef.current = () => onOpenChangeRef.current(false)
+
+  React.useEffect(() => {
+    if (!open) return
+
+    const close = () => onOpenChangeRef.current(false)
+    const scheduleClose = () => requestAnimationFrame(close)
+
+    // scroll: when any element scrolls (capture catches scrollable divs)
+    document.addEventListener("scroll", scheduleClose, true)
+    window.addEventListener("scroll", scheduleClose, true)
+
+    // wheel: mouse/trackpad scroll - fires with capture before the scroll happens
+    document.addEventListener("wheel", scheduleClose, true)
+
+    // touchmove: touch scroll
+    document.addEventListener("touchmove", scheduleClose, true)
+
+    return () => {
+      document.removeEventListener("scroll", scheduleClose, true)
+      window.removeEventListener("scroll", scheduleClose, true)
+      document.removeEventListener("wheel", scheduleClose, true)
+      document.removeEventListener("touchmove", scheduleClose, true)
+    }
+  }, [open])
+
+  return (
+    <SelectCloseOnScrollContext.Provider value={closeRef}>
+      <SelectPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />
+    </SelectCloseOnScrollContext.Provider>
+  )
+}
 
 const SelectGroup = SelectPrimitive.Group
 
@@ -47,28 +96,36 @@ const SelectScrollDownButton = React.forwardRef(({ className, ...props }, ref) =
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName
 
-const SelectContent = React.forwardRef(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      className={cn(
-        "relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-select-content-transform-origin]",
-        position === "popper" &&
+const SelectContent = React.forwardRef(({ className, children, position = "popper", ...props }, ref) => {
+  const closeRef = React.useContext(SelectCloseOnScrollContext)
+  const handleScroll = React.useCallback(() => {
+    requestAnimationFrame(() => closeRef?.current?.())
+  }, [closeRef])
+
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        ref={ref}
+        onScroll={handleScroll}
+        className={cn(
+          "relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-select-content-transform-origin]",
+          position === "popper" &&
           "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-        className
-      )}
-      position={position}
-      {...props}>
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport
-        className={cn("p-1", position === "popper" &&
-          "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]")}>
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-))
+          className
+        )}
+        position={position}
+        {...props}>
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport
+          className={cn("p-1", position === "popper" &&
+            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]")}>
+          {children}
+        </SelectPrimitive.Viewport>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  )
+})
 SelectContent.displayName = SelectPrimitive.Content.displayName
 
 const SelectLabel = React.forwardRef(({ className, ...props }, ref) => (
