@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import api from "../utils/api";
-import { toast } from "sonner";
 import { Eye } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
@@ -21,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/UI/table";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -70,13 +70,13 @@ const PurchaseOrderList = () => {
   const grandTotal = items.reduce((acc, i) => acc + (Number(i.total) || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 md:p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6 border-b pb-4">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full">
+      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 border-b pb-4">
           All Purchase Orders
         </h1>
 
-        <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-end gap-4">
           <Field>
             <FieldLabel>Search</FieldLabel>
             <Input
@@ -178,14 +178,21 @@ const PurchaseOrderList = () => {
                       Rs {Number(order.totalAmount || 0).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openDetail(order)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openDetail(order)}
+                              className="text-blue-600 hover:text-blue-800 h-8 w-8 p-0"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>View order details</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </TableCell>
                   </TableRow>
                 ))}

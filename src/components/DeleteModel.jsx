@@ -7,9 +7,11 @@ import {
     AlertDialogDescription,
     AlertDialogCancel,
     AlertDialogAction,
-} from "@/components/ui/alert-dialog"
+} from "@/components/UI/alert-dialog"
 
+import { Checkbox } from "@/components/UI/checkbox"
 import { Loader2, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react"
 
 export function DeleteModel({
     title,
@@ -18,7 +20,17 @@ export function DeleteModel({
     onOpenChange,
     onDelete,
     loading,
+    requireAcceptCheckbox = false,
+    acceptLabel = "I understand and accept this action",
+    confirmLabel = "Delete",
 }) {
+    const [acceptChecked, setAcceptChecked] = useState(false)
+
+    useEffect(() => {
+        if (!open) setAcceptChecked(false)
+    }, [open])
+
+    const canConfirm = !requireAcceptCheckbox || acceptChecked
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
             <AlertDialogContent
@@ -47,6 +59,23 @@ export function DeleteModel({
                             {description}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+
+                    {requireAcceptCheckbox && (
+                        <div className="flex items-start gap-3 mt-4 text-left">
+                            <Checkbox
+                                id="delete-accept"
+                                checked={acceptChecked}
+                                onCheckedChange={(v) => setAcceptChecked(!!v)}
+                                className="mt-0.5"
+                            />
+                            <label
+                                htmlFor="delete-accept"
+                                className="text-sm text-gray-600 leading-relaxed cursor-pointer"
+                            >
+                                {acceptLabel}
+                            </label>
+                        </div>
+                    )}
                 </div>
 
                 {/* Divider */}
@@ -80,9 +109,9 @@ export function DeleteModel({
                                     hover:bg-red-200
                                     shadow-none
                                 "
-                        disabled={loading}
+                        disabled={loading || !canConfirm}
                     >
-                        {loading ? "Deleting..." : "Delete"}
+                        {loading ? "Deleting..." : confirmLabel}
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     </AlertDialogAction>
                 </AlertDialogFooter>

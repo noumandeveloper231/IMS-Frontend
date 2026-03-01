@@ -91,9 +91,9 @@ function SalesProductCombobox({ products = [], value, onChange, placeholder = "S
                     )}
                     <div className="flex flex-col">
                       <span className="font-medium">{p.title}</span>
-                      {(p.categories?.length > 0) && (
+                      {(p.category) && (
                         <span className="text-xs text-muted-foreground">
-                          {(p.categories || []).map((c) => c.name).join(", ")}
+                          {typeof p.category === "object" ? p.category.name : p.category}
                         </span>
                       )}
                     </div>

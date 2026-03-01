@@ -53,6 +53,12 @@ export function DataTable({
   onSelectionChange,
   rowSelection: rowSelectionProp,
   onRowSelectionChange,
+  addPagination = true,
+  enableSelection = true,
+  getRowId: getRowIdProp,
+  containerClassName,
+  /** When false, header cells are not wrapped in context menu (e.g. for import/input tables). Default true. */
+  enableHeaderContextMenu = true,
   // TanStack Query: when provided, table uses useQuery instead of data prop
   queryKey,
   queryFn,
@@ -78,19 +84,29 @@ export function DataTable({
   const [sorting, setSorting] = React.useState([]);
   const [columnVisibility, setColumnVisibility] = React.useState({});
 
-  const effectivePageSize = pageSizeProp || 10;
+  const effectivePageSize = addPagination
+    ? (pageSizeProp || 10)
+    : (data?.length ?? 0) || 10;
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: effectivePageSize,
   });
 
   React.useEffect(() => {
-    setPagination((prev) => ({
-      ...prev,
-      pageIndex: 0,
-      pageSize: effectivePageSize,
-    }));
-  }, [effectivePageSize]);
+    if (!addPagination && data?.length != null) {
+      setPagination((prev) => ({
+        ...prev,
+        pageIndex: 0,
+        pageSize: Math.max(1, data.length),
+      }));
+    } else if (addPagination) {
+      setPagination((prev) => ({
+        ...prev,
+        pageIndex: 0,
+        pageSize: pageSizeProp || 10,
+      }));
+    }
+  }, [addPagination, data?.length, pageSizeProp]);
 
   const selectionColumn = React.useMemo(
     () => ({
@@ -159,16 +175,26 @@ export function DataTable({
 
   const allColumns = React.useMemo(
     () =>
-      actionsColumn
-        ? [selectionColumn, ...columns, actionsColumn]
-        : [selectionColumn, ...columns],
-    [selectionColumn, columns, actionsColumn]
+      enableSelection
+        ? (actionsColumn
+          ? [selectionColumn, ...columns, actionsColumn]
+          : [selectionColumn, ...columns])
+        : (actionsColumn ? [...columns, actionsColumn] : columns),
+    [selectionColumn, columns, actionsColumn, enableSelection]
+  );
+
+  const getRowId = React.useCallback(
+    (row, index) => {
+      if (getRowIdProp) return getRowIdProp(row, index);
+      return row._rowId ?? row.id ?? row._id ?? String(index);
+    },
+    [getRowIdProp]
   );
 
   const table = useReactTable({
     data,
     columns: allColumns,
-    getRowId: (row) => (row && (row.id ?? row._id ?? undefined)) || String(Math.random()),
+    getRowId,
     state: {
       sorting,
       columnVisibility,
@@ -186,12 +212,12 @@ export function DataTable({
 
   React.useEffect(() => {
     const cb = onSelectionChangeRef.current;
-    if (cb) {
+    if (cb && enableSelection) {
       const selected = table.getSelectedRowModel().rows.map((r) => r.original);
       cb(selected);
     }
     // Only depend on rowSelection so we don't re-run when parent passes new array reference
-  }, [rowSelection]);
+  }, [rowSelection, enableSelection]);
 
   const hideableColumns = table
     .getAllLeafColumns()
@@ -237,7 +263,13 @@ export function DataTable({
 
   return (
     <div className="space-y-3 w-full flex flex-col">
-      <div className="flex h-[500px] flex-col overflow-hidden rounded-md border border-gray-200 bg-background">
+      <div
+        className={
+          containerClassName !== undefined
+            ? containerClassName
+            : "flex h-[500px] flex-col overflow-hidden rounded-md border border-gray-200 bg-background"
+        }
+      >
         <div className="flex-1 overflow-auto">
           <Table className="relative min-w-full text-black" stickyHeader>
             <TableHeader className="text-black shadow-sm">
@@ -270,18 +302,22 @@ export function DataTable({
                       </div>
                     );
 
-                    return (
+                    const headerCell = (
+                      <TableHead
+                        className={
+                          header.index === 0
+                            ? "sticky top-0 left-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                            : "sticky top-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200"
+                        }
+                      >
+                        {headerInner}
+                      </TableHead>
+                    );
+
+                    return enableHeaderContextMenu ? (
                       <ContextMenu key={header.id}>
                         <ContextMenuTrigger asChild>
-                          <TableHead
-                            className={
-                              header.index === 0
-                                ? "sticky top-0 left-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
-                                : "sticky top-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200"
-                            }
-                          >
-                            {headerInner}
-                          </TableHead>
+                          {headerCell}
                         </ContextMenuTrigger>
                         <ContextMenuContent align="start">
                           {hideableColumns.map((column) => (
@@ -302,6 +338,8 @@ export function DataTable({
                           ))}
                         </ContextMenuContent>
                       </ContextMenu>
+                    ) : (
+                      <React.Fragment key={header.id}>{headerCell}</React.Fragment>
                     );
                   })}
                 </TableRow>
@@ -375,13 +413,15 @@ export function DataTable({
 
       <div className="mt-4 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-        <span className="flex-1 text-xs text-muted-foreground">
-          {table.getSelectedRowModel().rows.length} of{" "}
-          {table.getRowModel().rows.length} row(s) selected.
-        </span>
+        {enableSelection && (
+          <span className="flex-1 text-xs text-muted-foreground">
+            {table.getSelectedRowModel().rows.length} of{" "}
+            {table.getRowModel().rows.length} row(s) selected.
+          </span>
+        )}
 
         <div className="sm:ml-auto flex justify-end flex-1">
-          {pageCount > 1 && (
+          {addPagination && pageCount > 1 && (
             <Pagination className="sm:ml-auto flex justify-end flex-1">
               <PaginationContent>
                 {/* Previous */}

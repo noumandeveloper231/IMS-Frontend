@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Eye, Trash2, MoreVertical, CalendarIcon } from "lucide-react";
+import { Eye, Trash2, CalendarIcon, FileText } from "lucide-react";
 import api from "../utils/api";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -39,24 +39,8 @@ import {
   TableRow,
 } from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/UI/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/UI/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
+import { DeleteModel } from "@/components/DeleteModel";
 import {
   Dialog,
   DialogContent,
@@ -92,6 +76,15 @@ const Orders = () => {
       });
       return res.data;
     },
+  });
+
+  const { data: viewOrderDetail, isLoading: viewOrderLoading } = useQuery({
+    queryKey: ["order", selectedOrder?._id],
+    queryFn: async () => {
+      const res = await api.get(`/sales/getone/${selectedOrder._id}`);
+      return res.data;
+    },
+    enabled: !!viewOpen && !!selectedOrder?._id,
   });
 
   const orders = (() => {
@@ -255,35 +248,48 @@ const Orders = () => {
           const order = row.original;
           const invoiceUrl = `${import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") || ""}/api/sales/${order._id}/invoice`;
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-44"
-                onCloseAutoFocus={(e) => e.preventDefault()}
-              >
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleViewOrder(order)}>
-                  View
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href={invoiceUrl} target="_blank" rel="noopener noreferrer">
-                    Invoice
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => confirmDelete(order._id)}
-                >
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center justify-center gap-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleViewOrder(order)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View order</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button asChild type="button" variant="ghost" size="icon" className="h-8 w-8">
+                      <a href={invoiceUrl} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Invoice</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => confirmDelete(order._id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete order</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           );
         },
       },
@@ -292,8 +298,8 @@ const Orders = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full">
+      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
         <div className="w-full flex justify-between items-center">
           <h2 className="text-2xl font-semibold text-gray-700">
             Orders List ({filteredOrders.length})
@@ -439,68 +445,80 @@ const Orders = () => {
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold mb-2">Order Info</h3>
-                  <p className="text-sm">Payment: {selectedOrder.paymentMethod}</p>
-                  <p className="text-sm">Sell at: {selectedOrder.sellAt ?? selectedOrder.sellat ?? "—"}</p>
-                  <p className="text-sm">Discount: AED {Number(selectedOrder.discount || 0).toFixed(2)}</p>
-                  <p className="text-sm">Grand Total: AED {Number(selectedOrder.grandTotal).toFixed(2)}</p>
-                  <p className="text-sm text-gray-500">
-                    {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString() : ""}
-                  </p>
+              {viewOrderLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="w-10 h-10 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
                 </div>
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold mb-2">Customer</h3>
-                  <p className="text-sm">Name: {selectedOrder.customer?.name ?? "—"}</p>
-                  <p className="text-sm">Phone: {selectedOrder.customer?.phone ?? "—"}</p>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead>#</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(selectedOrder.items || []).map((it, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{idx + 1}</TableCell>
-                        <TableCell>{it.product?.title ?? "N/A"}</TableCell>
-                        <TableCell>{it.quantity}</TableCell>
-                        <TableCell>AED {Number(it.price).toFixed(2)}</TableCell>
-                        <TableCell>AED {Number(it.total).toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-2">Order Info</h3>
+                      <p className="text-sm">Payment: {viewOrderDetail?.paymentMethod ?? selectedOrder.paymentMethod ?? "—"}</p>
+                      <p className="text-sm">Sell at: {viewOrderDetail?.sellat ?? viewOrderDetail?.sellAt ?? selectedOrder.sellAt ?? selectedOrder.sellat ?? "—"}</p>
+                      <p className="text-sm">Status: {viewOrderDetail?.status ?? selectedOrder.status ?? "—"}</p>
+                      <p className="text-sm">Sub Total: AED {Number(viewOrderDetail?.subTotal ?? selectedOrder.subTotal ?? 0).toFixed(2)}</p>
+                      <p className="text-sm">VAT: AED {Number(viewOrderDetail?.vat ?? selectedOrder.vat ?? 0).toFixed(2)}</p>
+                      <p className="text-sm">Shipping: AED {Number(viewOrderDetail?.shipping ?? selectedOrder.shipping ?? 0).toFixed(2)}</p>
+                      <p className="text-sm">Discount: AED {Number(viewOrderDetail?.discount ?? selectedOrder.discount ?? 0).toFixed(2)}</p>
+                      <p className="text-sm font-medium">Grand Total: AED {Number(viewOrderDetail?.grandTotal ?? selectedOrder.grandTotal).toFixed(2)}</p>
+                      {viewOrderDetail?.employee && (
+                        <p className="text-sm text-gray-600">Sold by: {viewOrderDetail.employee?.name ?? "—"}</p>
+                      )}
+                      {viewOrderDetail?.salesnote && (
+                        <p className="text-sm text-gray-600">Note: {viewOrderDetail.salesnote}</p>
+                      )}
+                      <p className="text-sm text-gray-500 mt-2">
+                        {viewOrderDetail?.createdAt ?? selectedOrder.createdAt
+                          ? new Date(viewOrderDetail?.createdAt ?? selectedOrder.createdAt).toLocaleString()
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-2">Customer</h3>
+                      <p className="text-sm">Name: {(viewOrderDetail?.customer ?? selectedOrder.customer)?.name ?? "—"}</p>
+                      <p className="text-sm">Phone: {(viewOrderDetail?.customer ?? selectedOrder.customer)?.phone ?? "—"}</p>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead>#</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Qty</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead>Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {((viewOrderDetail?.items ?? selectedOrder.items) || []).map((it, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{idx + 1}</TableCell>
+                            <TableCell>{it.product?.title ?? "Deleted product"}</TableCell>
+                            <TableCell>{it.quantity}</TableCell>
+                            <TableCell>AED {Number(it.price).toFixed(2)}</TableCell>
+                            <TableCell>AED {Number(it.total).toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete order?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the selected order.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirmed} disabled={loading}>
-              {loading ? "Deleting..." : "Yes, delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteModel
+        title="Delete order?"
+        description="This action cannot be undone. This will permanently delete the selected order."
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDelete={handleDeleteConfirmed}
+        loading={loading}
+      />
     </div>
   );
 };

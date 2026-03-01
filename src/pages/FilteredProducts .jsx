@@ -44,9 +44,10 @@ const FilteredProducts = () => {
           // Backend currently returns category-level results, so filter by subcategory on the client
           const res = await api.get("/products/getall");
           const allProducts = res.data?.products ?? res.data ?? [];
-          const filteredBySub = allProducts.filter((p) =>
-            (p.subcategories || []).some((s) => (s?._id ?? s) === id)
-          );
+          const filteredBySub = allProducts.filter((p) => {
+            const subId = p.subcategory?._id ?? p.subcategory;
+            return subId != null && String(subId) === id;
+          });
           setProducts(filteredBySub);
         } else if (type && id) {
           const res = await api.get(`/products/filter/${type}/${id}`);
@@ -65,14 +66,16 @@ const FilteredProducts = () => {
 
   const filteredProducts = products.filter((item) => {
     const term = searchTerm.toLowerCase();
-
+    const brandName = item.brand && (typeof item.brand === "object" ? item.brand.name : item.brand);
+    const categoryName = item.category && (typeof item.category === "object" ? item.category.name : item.category);
+    const subName = item.subcategory && (typeof item.subcategory === "object" ? item.subcategory.name : item.subcategory);
     return (
       item.title?.toLowerCase().includes(term) ||
       item.sku?.toLowerCase().includes(term) ||
       item.modelno?.toLowerCase().includes(term) ||
-      item.brands?.some((b) => b.name?.toLowerCase().includes(term)) ||
-      item.categories?.some((c) => c.name?.toLowerCase().includes(term)) ||
-      item.subcategories?.some((s) => s.name?.toLowerCase().includes(term))
+      (brandName && brandName.toLowerCase().includes(term)) ||
+      (categoryName && categoryName.toLowerCase().includes(term)) ||
+      (subName && subName.toLowerCase().includes(term))
     );
   });
 
@@ -187,15 +190,15 @@ const FilteredProducts = () => {
                       </p>
                       <p>
                         <span className="font-medium text-gray-700">Brand:</span>{" "}
-                        {item.brands?.map((b) => b.name).join(", ") || "-"}
+                        {item.brand ? (typeof item.brand === "object" ? item.brand.name : item.brand) : "-"}
                       </p>
                       <p>
                         <span className="font-medium text-gray-700">Category:</span>{" "}
-                        {item.categories?.map((c) => c.name).join(", ") || "-"}
+                        {item.category ? (typeof item.category === "object" ? item.category.name : item.category) : "-"}
                       </p>
                       <p>
                         <span className="font-medium text-gray-700">Condition:</span>{" "}
-                        {item.conditions?.map((c) => c.name).join(", ") || "-"}
+                        {item.condition ? (typeof item.condition === "object" ? item.condition.name : item.condition) : "-"}
                       </p>
                     </div>
                   </div>

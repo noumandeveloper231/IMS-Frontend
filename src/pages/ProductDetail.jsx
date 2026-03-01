@@ -200,9 +200,9 @@ const ProductDetail = () => {
                       Categories
                     </TableCell>
                     <TableCell className="text-sm text-gray-800">
-                      {(product.categories || [])
-                        .map((c) => c.name)
-                        .join(", ") || "—"}
+                      {product.category
+                        ? (typeof product.category === "object" ? product.category.name : product.category)
+                        : "—"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -210,9 +210,9 @@ const ProductDetail = () => {
                       Subcategories
                     </TableCell>
                     <TableCell className="text-sm text-gray-800">
-                      {(product.subcategories || [])
-                        .map((s) => s.name)
-                        .join(", ") || "—"}
+                      {product.subcategory
+                        ? (typeof product.subcategory === "object" ? product.subcategory.name : product.subcategory)
+                        : "—"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -220,8 +220,9 @@ const ProductDetail = () => {
                       Brands
                     </TableCell>
                     <TableCell className="text-sm text-gray-800">
-                      {(product.brands || []).map((b) => b.name).join(", ") ||
-                        "—"}
+                      {product.brand
+                        ? (typeof product.brand === "object" ? product.brand.name : product.brand)
+                        : "—"}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -229,9 +230,9 @@ const ProductDetail = () => {
                       Conditions
                     </TableCell>
                     <TableCell className="text-sm text-gray-800">
-                      {(product.conditions || [])
-                        .map((c) => c.name)
-                        .join(", ") || "—"}
+                      {product.condition
+                        ? (typeof product.condition === "object" ? product.condition.name : product.condition)
+                        : "—"}
                     </TableCell>
                   </TableRow>
                 </TableBody>

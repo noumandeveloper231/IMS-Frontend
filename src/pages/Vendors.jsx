@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useCallback } from "react";
 import api from "../utils/api";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -7,6 +7,7 @@ import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
+import { DeleteModel } from "@/components/DeleteModel";
 import {
   Drawer,
   DrawerClose,
@@ -35,28 +36,14 @@ import {
   TableRow,
 } from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/UI/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/UI/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-import { MoreVertical } from "lucide-react";
+import { Trash2, Pencil, Check, X } from "lucide-react";
 
 const TEMPLATE_COLUMNS = ["Name", "Company Name", "Email", "Phone", "Address", "City", "Country", "Opening Balance", "Notes", "Status"];
+
+/** Stable empty array for query data default (avoids remount/focus issues). */
+const EMPTY_ARRAY = [];
 
 const Vendors = () => {
   const queryClient = useQueryClient();
@@ -82,9 +69,14 @@ const Vendors = () => {
   const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [importRows, setImportRows] = useState([]);
   const [importColumns, setImportColumns] = useState([]);
-  const [importStats, setImportStats] = useState({ total: 0, valid: 0, errors: 0 });
+  const [importStats, setImportStats] = useState({ total: 0, valid: 0, errors: 0, duplicates: 0 });
   const [importLoading, setImportLoading] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedVendorIds, setSelectedVendorIds] = useState([]);
+  const [tableRowSelection, setTableRowSelection] = useState({});
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const vendorsRef = useRef(EMPTY_ARRAY);
 
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery({
     queryKey: ["vendors"],
@@ -93,7 +85,8 @@ const Vendors = () => {
       return res.data ?? [];
     },
   });
-  const vendors = Array.isArray(vendorsData) ? vendorsData : [];
+  const vendors = Array.isArray(vendorsData) ? vendorsData : EMPTY_ARRAY;
+  vendorsRef.current = vendors;
 
   const createMutation = useMutation({
     mutationFn: async (payload) => {
@@ -324,6 +317,26 @@ const Vendors = () => {
     deleteMutation.mutate(deleteId);
   };
 
+  const handleBulkDeleteConfirmed = async () => {
+    if (!selectedVendorIds.length) return;
+    setBulkDeleteLoading(true);
+    try {
+      for (const id of selectedVendorIds) {
+        await api.delete(`/vendors/delete/${id}`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      toast.success(`Deleted ${selectedVendorIds.length} vendor(s) ✅`);
+      setBulkDeleteOpen(false);
+      setSelectedVendorIds([]);
+      setTableRowSelection({});
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message;
+      toast.error(msg || "Bulk delete failed ❌");
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
+
   const filteredVendors = vendors.filter((v) =>
     (v.name || "").toLowerCase().includes(search.toLowerCase())
   );
@@ -332,29 +345,119 @@ const Vendors = () => {
     key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
   const validateImportedRows = (rows) => {
-    let valid = 0;
-    let errors = 0;
+    if (!rows.length) {
+      setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+      return [];
+    }
+    const seenInFile = new Set();
+    const seenEmailsInFile = new Set();
     const validated = rows.map((row) => {
       const nameKey = Object.keys(row).find((k) => normalizeKey(k) === "name") ?? null;
       const phoneKey = Object.keys(row).find((k) => normalizeKey(k) === "phone") ?? null;
+      const emailKey = Object.keys(row).find((k) => normalizeKey(k) === "email") ?? null;
       const nameVal = nameKey ? String(row[nameKey] ?? "").trim() : "";
       const phoneVal = phoneKey ? String(row[phoneKey] ?? "").trim() : "";
+      const emailVal = emailKey ? String(row[emailKey] ?? "").trim() : "";
       const fieldErrors = {};
-      if (!nameVal) fieldErrors[nameKey || "Name"] = "Required";
-      if (!phoneVal) fieldErrors[phoneKey || "Phone"] = "Required";
-      const isError = Object.keys(fieldErrors).length > 0;
-      if (isError) errors += 1; else valid += 1;
+      let statusMessage = "";
+      if (!nameVal) {
+        fieldErrors[nameKey || "Name"] = "Required";
+        statusMessage = "Name required";
+      }
+      if (!phoneVal) {
+        fieldErrors[phoneKey || "Phone"] = "Required";
+        statusMessage = statusMessage || "Phone required";
+      }
+      if (emailVal) {
+        const emailLower = emailVal.toLowerCase();
+        if (seenEmailsInFile.has(emailLower)) {
+          fieldErrors[emailKey || "Email"] = "Duplicate email in file";
+          statusMessage = statusMessage || "Duplicate email in file";
+        } else {
+          seenEmailsInFile.add(emailLower);
+        }
+        const existsInDbByEmail = (vendorsRef.current || []).some(
+          (v) => (v.email || "").trim().toLowerCase() === emailLower
+        );
+        if (existsInDbByEmail && !fieldErrors[emailKey || "Email"]) {
+          fieldErrors[emailKey || "Email"] = "Email already in DB";
+          statusMessage = statusMessage || "Email already in database";
+        }
+      }
+      if (nameVal && phoneVal) {
+        const key = `${nameVal.toLowerCase()}|${phoneVal}`;
+        if (seenInFile.has(key)) {
+          fieldErrors[nameKey || "Name"] = "Duplicate in file";
+          statusMessage = statusMessage || "Duplicate in file";
+        } else {
+          seenInFile.add(key);
+        }
+        const existsInDb = (vendorsRef.current || []).some(
+          (v) =>
+            (v.name || "").trim().toLowerCase() === nameVal.toLowerCase() &&
+            (v.phone || "").trim() === phoneVal
+        );
+        if (existsInDb && !fieldErrors[nameKey || "Name"]) {
+          fieldErrors[nameKey || "Name"] = "Already exists in DB";
+          statusMessage = statusMessage || "Already in database";
+        }
+      }
+      const hasErrors = Object.keys(fieldErrors).length > 0;
+      const firstError = fieldErrors[Object.keys(fieldErrors)[0]] || "";
       return {
         ...row,
         __name: nameVal,
         __phone: phoneVal,
         __errors: fieldErrors,
-        __status: isError ? "error" : "valid",
+        __status: hasErrors ? "error" : "valid",
+        __statusMessage: statusMessage || (hasErrors ? firstError : "OK"),
       };
     });
-    setImportStats({ total: rows.length, valid, errors });
+    const valid = validated.filter((r) => r.__status === "valid").length;
+    const errors = validated.filter((r) => r.__status === "error").length;
+    const duplicates = validated.filter(
+      (r) =>
+        r.__status === "error" &&
+        (r.__statusMessage === "Duplicate in file" ||
+          r.__statusMessage === "Already in database" ||
+          r.__statusMessage === "Duplicate email in file" ||
+          r.__statusMessage === "Email already in database")
+    ).length;
+    setImportStats({ total: rows.length, valid, errors, duplicates });
     return validated;
   };
+
+  const handleClearImportData = () => {
+    setImportRows([]);
+    setImportColumns([]);
+    setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+    toast.info("Import data cleared");
+  };
+
+  const handleAddImportRow = () => {
+    const newRow = Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]));
+    setImportRows((prev) => validateImportedRows([...prev, newRow]));
+  };
+
+  const handleImportCellChange = useCallback((rowIndex, columnKey, value) => {
+    setImportRows((prev) => {
+      const next = prev.map((r, i) =>
+        i === rowIndex ? { ...r, [columnKey]: value } : r
+      );
+      return validateImportedRows(next);
+    });
+  }, []);
+
+  const handleRemoveImportRow = useCallback((rowIndex) => {
+    setImportRows((prev) => {
+      const next = prev.filter((_, i) => i !== rowIndex);
+      if (!next.length) {
+        setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+        return [];
+      }
+      return validateImportedRows(next);
+    });
+  }, []);
 
   const handleImportFileSelected = async (fileOrFiles) => {
     const file = Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles;
@@ -368,7 +471,7 @@ const Vendors = () => {
         toast.error("File is empty ❌");
         setImportRows([]);
         setImportColumns([]);
-        setImportStats({ total: 0, valid: 0, errors: 0 });
+        setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
         return;
       }
       const validatedRows = validateImportedRows(rows);
@@ -396,35 +499,40 @@ const Vendors = () => {
       return;
     }
     setImportLoading(true);
-    let successCount = 0;
-    let errorCount = 0;
     try {
-      for (const row of validRows) {
-        try {
-          const payload = {
-            name: row.__name ?? row.Name ?? row.name ?? "",
-            companyName: row["Company Name"] ?? row.companyName ?? "",
-            email: row.Email ?? row.email ?? "",
-            phone: row.__phone ?? row.Phone ?? row.phone ?? "",
-            address: row.Address ?? row.address ?? "",
-            city: row.City ?? row.city ?? "",
-            country: row.Country ?? row.country ?? "",
-            openingBalance: Number(row["Opening Balance"] ?? row.openingBalance ?? 0) || 0,
-            notes: row.Notes ?? row.notes ?? "",
-            status: row.Status ?? row.status ?? "active",
-          };
-          await api.post("/vendors/create", payload);
-          successCount++;
-        } catch {
-          errorCount++;
-        }
-      }
+      const payload = validRows.map((row) => ({
+        name: row.__name ?? row.Name ?? row.name ?? "",
+        companyName: row["Company Name"] ?? row.companyName ?? "",
+        email: row.Email ?? row.email ?? "",
+        phone: row.__phone ?? row.Phone ?? row.phone ?? "",
+        address: row.Address ?? row.address ?? "",
+        city: row.City ?? row.city ?? "",
+        country: row.Country ?? row.country ?? "",
+        openingBalance: Number(row["Opening Balance"] ?? row.openingBalance ?? 0) || 0,
+        notes: row.Notes ?? row.notes ?? "",
+        status: row.Status ?? row.status ?? "active",
+      }));
+      const res = await api.post("/vendors/createbulk", payload);
+      const successCount = res.data?.createdCount ?? 0;
+      const errorCount = res.data?.errorCount ?? 0;
+      const errorDetails = res.data?.errors ?? [];
       queryClient.invalidateQueries({ queryKey: ["vendors"] });
-      toast.success(`Imported ${successCount} vendors, ${errorCount} errors ✅`);
+      if (successCount === 0) {
+        toast.error(
+          errorCount > 0
+            ? `Import failed: 0 vendors imported, ${errorCount} errors ❌`
+            : "Import failed ❌",
+        );
+      } else if (errorCount > 0) {
+        const detail = errorDetails.length ? ` (${errorDetails.map((e) => `row ${e.index}: ${e.message}`).join("; ")})` : "";
+        toast.warning(`Imported ${successCount} vendors, ${errorCount} errors${detail}`);
+      } else {
+        toast.success(`Imported ${successCount} vendors ✅`);
+      }
       setImportDrawerOpen(false);
       setImportRows([]);
       setImportColumns([]);
-      setImportStats({ total: 0, valid: 0, errors: 0 });
+      setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
     } catch (err) {
       const messageFromServer =
         err?.response?.data?.message ||
@@ -442,8 +550,8 @@ const Vendors = () => {
 
   const handleViewTemplate = () => {
     setImportColumns(TEMPLATE_COLUMNS);
-    setImportRows([Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))]);
-    setImportStats({ total: 1, valid: 0, errors: 0 });
+    const templateRow = [Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))];
+    setImportRows(validateImportedRows(templateRow));
   };
 
   const handleDownloadTemplate = () => {
@@ -452,6 +560,231 @@ const Vendors = () => {
     XLSX.utils.book_append_sheet(wb, ws, "Template");
     XLSX.writeFile(wb, "vendors-import-template.xlsx");
   };
+
+  const importTableColumns = useMemo(() => {
+    const indexCol = {
+      id: "__index",
+      header: "#",
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">{Number(row.id) + 1}</span>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    };
+    const dynamicCols = (importColumns || []).map((col) => {
+      const isNameCol = normalizeKey(col) === "name";
+      const isPhoneCol = normalizeKey(col) === "phone";
+      const isEmailCol = normalizeKey(col) === "email";
+      return {
+        id: col,
+        header: col,
+        enableSorting: false,
+        enableHiding: false,
+        cell: ({ row }) => {
+          const rowIndex = Number(row.id);
+          const rowData = row.original;
+          if (isNameCol) {
+            const nameVal = (rowData[col] ?? "").toString().trim();
+            const nameErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "name");
+            const nameError = Boolean(nameErrorKey);
+            const nameFulfilled = nameVal.length > 0 && !nameError;
+            const nameErrorMsg = nameErrorKey
+              ? (rowData.__errors[nameErrorKey] === "Already exists in DB"
+                ? "Name already exists"
+                : rowData.__errors[nameErrorKey] === "Duplicate in file"
+                  ? "Duplicate in file"
+                  : rowData.__errors[nameErrorKey] === "Required"
+                    ? "Field is required"
+                    : rowData.__errors[nameErrorKey])
+              : "Field is required";
+            return (
+              <div
+                className="flex items-center gap-1.5 min-w-[120px]"
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                        aria-hidden
+                      >
+                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      {nameFulfilled ? "Field fulfilled" : nameErrorMsg}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Input
+                  value={rowData[col] ?? ""}
+                  onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyUp={(e) => e.stopPropagation()}
+                  className="h-8 text-xs flex-1 min-w-0"
+                  placeholder="Vendor name"
+                />
+              </div>
+            );
+          }
+          if (isPhoneCol) {
+            const phoneVal = (rowData[col] ?? "").toString().trim();
+            const phoneErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "phone");
+            const phoneError = Boolean(phoneErrorKey);
+            const phoneFulfilled = phoneVal.length > 0 && !phoneError;
+            const phoneErrorMsg = phoneErrorKey
+              ? (rowData.__errors[phoneErrorKey] === "Required" ? "Field is required" : rowData.__errors[phoneErrorKey])
+              : "Field is required";
+            return (
+              <div
+                className="flex items-center gap-1.5 min-w-[100px]"
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${phoneFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                        aria-hidden
+                      >
+                        {phoneFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      {phoneFulfilled ? "Field fulfilled" : phoneErrorMsg}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Input
+                  value={rowData[col] ?? ""}
+                  onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyUp={(e) => e.stopPropagation()}
+                  className="h-8 text-xs flex-1 min-w-0"
+                  placeholder="Phone"
+                />
+              </div>
+            );
+          }
+          if (isEmailCol) {
+            const emailVal = (rowData[col] ?? "").toString().trim();
+            const emailErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "email");
+            const emailError = Boolean(emailErrorKey);
+            const emailFulfilled = !emailError;
+            const emailErrorMsg = emailErrorKey
+              ? (rowData.__errors[emailErrorKey] === "Duplicate email in file"
+                ? "Duplicate email in file"
+                : rowData.__errors[emailErrorKey] === "Email already in DB"
+                  ? "Email already in database"
+                  : rowData.__errors[emailErrorKey])
+              : "";
+            return (
+              <div
+                className="flex items-center gap-1.5 min-w-[100px]"
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
+                {emailError ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
+                          aria-hidden
+                        >
+                          <X className="h-3 w-3" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[200px]">
+                        {emailErrorMsg}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : emailVal ? (
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600" aria-hidden>
+                    <Check className="h-3 w-3" />
+                  </span>
+                ) : null}
+                <Input
+                  type="email"
+                  value={rowData[col] ?? ""}
+                  onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyUp={(e) => e.stopPropagation()}
+                  className="h-8 text-xs flex-1 min-w-0"
+                  placeholder="Email"
+                />
+              </div>
+            );
+          }
+          return (
+            <Input
+              value={rowData[col] ?? ""}
+              onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              onKeyUp={(e) => e.stopPropagation()}
+              className="h-8 text-xs w-full min-w-0 max-w-[180px]"
+              placeholder={col}
+            />
+          );
+        },
+      };
+    });
+    const statusCol = {
+      id: "__status",
+      header: "Status",
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => {
+        const r = row.original;
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={
+                    r.__status === "valid"
+                      ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
+                      : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
+                  }
+                >
+                  {r.__status === "valid" ? "Valid" : "Error"}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[200px]">
+                {r.__status === "valid"
+                  ? "Ready to import"
+                  : (r.__statusMessage || "Validation error")}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      },
+    };
+    const actionsCol = {
+      id: "__actions",
+      header: "Actions",
+      className: "w-[80px]",
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={() => handleRemoveImportRow(Number(row.id))}
+          aria-label="Remove row"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+    };
+    return [indexCol, ...dynamicCols, statusCol, actionsCol];
+  }, [importColumns, handleImportCellChange, handleRemoveImportRow]);
 
   const handleExport = () => {
     const worksheet = XLSX.utils.json_to_sheet(filteredVendors);
@@ -533,30 +866,40 @@ const Vendors = () => {
         cell: ({ row }) => {
           const v = row.original;
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-40"
-                onCloseAutoFocus={(e) => e.preventDefault()}
-              >
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleEdit(v)}>
-                  Edit vendor
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => confirmDelete(v._id)}
-                >
-                  Delete vendor
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center justify-center gap-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleEdit(v)}
+                      aria-label="Edit vendor"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit vendor</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => confirmDelete(v._id)}
+                      aria-label="Delete vendor"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete vendor</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           );
         },
       },
@@ -565,29 +908,57 @@ const Vendors = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
-        <div className="">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full overflow-x-hidden">
+      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+        <div className="min-w-0">
           <Drawer
             direction="right"
             open={vendorDrawerOpen}
             onOpenChange={setVendorDrawerOpen}
           >
-            <div className="flex justify-between items-center">
-              <h2 className="flex-4 text-2xl font-semibold text-gray-700">
+            <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center">
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-700 truncate min-w-0">
                 Vendors List ({filteredVendors.length})
               </h2>
-              <div className="flex gap-4 items-center">
+              <div className="flex flex-wrap gap-2 sm:gap-4 items-center w-full lg:w-auto lg:flex-1 lg:justify-end">
+                {selectedVendorIds.length > 0 && (
+                  <div className="w-full sm:w-auto min-w-0">
+                    <UiSelect
+                      value=""
+                      onValueChange={(value) => {
+                        if (value === "bulk-delete") {
+                          if (selectedVendorIds.length === 1) {
+                            confirmDelete(selectedVendorIds[0]);
+                          } else {
+                            setBulkDeleteOpen(true);
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full sm:w-[140px]">
+                        <SelectValue placeholder="Bulk actions" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Bulk actions</SelectLabel>
+                          <SelectItem value="bulk-delete">Bulk delete</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </UiSelect>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 sm:gap-4 items-center shrink-0">
                 <Drawer open={importDrawerOpen} onOpenChange={setImportDrawerOpen}>
                   <DrawerTrigger asChild>
                     <Label
-                      className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 cursor-pointer"
+                      variant="light"
+                      className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
                     >
                       Import Excel
                     </Label>
                   </DrawerTrigger>
-                  <DrawerContent className="max-h-[90vh]">
-                    <DrawerHeader className="border-b">
+                  <DrawerContent className="max-h-[90vh] w-full max-w-[100vw]">
+                    <DrawerHeader className="border-b px-4 sm:px-6">
                       <div className="flex items-center justify-between">
                         <div>
                           <DrawerTitle>Bulk Vendor Import</DrawerTitle>
@@ -596,21 +967,43 @@ const Vendors = () => {
                           </DrawerDescription>
                         </div>
                         <DrawerClose asChild>
-                          <Button variant="outline" size="icon">✕</Button>
+                          <Button variant="outline" size="icon">
+                            ✕
+                          </Button>
                         </DrawerClose>
                       </div>
                     </DrawerHeader>
-                    <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Button type="button" variant="outline" onClick={handleViewTemplate}>
-                          View Template
-                        </Button>
-                        <Button type="button" variant="outline" onClick={handleDownloadTemplate}>
-                          Download Template
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Supported formats: <span className="font-medium">.csv, .xlsx</span>
-                        </p>
+                    <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleViewTemplate}
+                          >
+                            View Template
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleDownloadTemplate}
+                          >
+                            Download Template
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                          </p>
+                        </div>
+                        {importRows.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={handleClearImportData}
+                          >
+                            Clear
+                          </Button>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Upload file</p>
@@ -626,92 +1019,119 @@ const Vendors = () => {
                       {importRows.length > 0 && (
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">Preview ({importStats.total} rows)</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">
+                                Preview ({importStats.total} rows)
+                              </p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleAddImportRow}
+                              >
+                                Add row
+                              </Button>
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               Valid: {importStats.valid} | Errors: {importStats.errors}
+                              {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
                             </p>
                           </div>
                           <div className="border w-full rounded-md max-h-80 overflow-auto">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>#</TableHead>
-                                  <TableHead>Name</TableHead>
-                                  <TableHead>Phone</TableHead>
-                                  {importColumns.filter((c) => c !== "Name" && c !== "Phone").slice(0, 4).map((col) => (
-                                    <TableHead className="whitespace-nowrap w-auto" key={col}>{col}</TableHead>
-                                  ))}
-                                  <TableHead>Status</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {importRows.map((row, rowIndex) => (
-                                  <TableRow key={rowIndex}>
-                                    <TableCell className="text-xs text-muted-foreground">{rowIndex + 1}</TableCell>
-                                    <TableCell className="text-xs">{row.__name ?? row.Name ?? row.name ?? "—"}</TableCell>
-                                    <TableCell className="text-xs">{row.__phone ?? row.Phone ?? row.phone ?? "—"}</TableCell>
-                                    {importColumns.filter((c) => c !== "Name" && c !== "Phone").slice(0, 4).map((col) => (
-                                      <TableCell key={col} className="text-xs">{String(row[col] ?? "")}</TableCell>
-                                    ))}
-                                    <TableCell>
-                                      <span
-                                        className={
-                                          row.__status === "valid"
-                                            ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
-                                            : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
-                                        }
-                                      >
-                                        {row.__status === "valid" ? "Valid" : "Error"}
-                                      </span>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                            <DataTable
+                              columns={importTableColumns}
+                              data={importRows}
+                              enableSelection={false}
+                              addPagination={false}
+                              pageSize={5}
+                              getRowId={(row, index) => String(index)}
+                              containerClassName="flex flex-col overflow-hidden rounded-none border-0 bg-background min-h-[200px] max-h-[320px]"
+                              enableHeaderContextMenu={false}
+                            />
                           </div>
                         </div>
                       )}
                     </div>
-                    <DrawerFooter className="border-t">
+                    <DrawerFooter className="border-t px-4 sm:px-6 py-3 sm:py-4">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span className="text-muted-foreground">✔ Valid: <span className="font-semibold text-emerald-700">{importStats.valid}</span></span>
-                          <span className="text-muted-foreground">⚠ Errors: <span className="font-semibold text-red-700">{importStats.errors}</span></span>
+                          <span className="text-muted-foreground">
+                            ✔ Valid:{" "}
+                            <span className="font-semibold text-emerald-700">
+                              {importStats.valid}
+                            </span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            ⚠ Errors:{" "}
+                            <span className="font-semibold text-red-700">
+                              {importStats.errors}
+                            </span>
+                          </span>
+                          {importStats.duplicates > 0 && (
+                            <span className="text-muted-foreground">
+                              ✖ Duplicates:{" "}
+                              <span className="font-semibold text-orange-700">
+                                {importStats.duplicates}
+                              </span>
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                          <Button type="button" variant="default" onClick={handleImportValidSubmit} disabled={!importStats.valid || importLoading}>
+                          <Button
+                            type="button"
+                            variant="default"
+                            onClick={handleImportValidSubmit}
+                            disabled={!importStats.valid || importLoading}
+                          >
                             {importLoading ? "Importing..." : "Import Valid Only"}
                           </Button>
                           <DrawerClose asChild>
-                            <Button type="button" variant="ghost">Cancel</Button>
+                            <Button type="button" variant="ghost">
+                              Cancel
+                            </Button>
                           </DrawerClose>
                         </div>
                       </div>
                     </DrawerFooter>
                   </DrawerContent>
                 </Drawer>
-                <Button
+                <Label
                   variant="success"
                   onClick={handleExport}
-                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-4 py-3 rounded-md"
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Export Excel
-                </Button>
-                <DrawerTrigger asChild>
-                  <Button variant="default" onClick={() => { if (!editingId) resetForm(); }}>
-                    {editingId ? "Edit Vendor" : "Add New Vendor"}
-                  </Button>
-                </DrawerTrigger>
+                </Label>
+                <Label
+                  type="button"
+                  onClick={() => {
+                    if (!editingId) resetForm();
+                    setVendorDrawerOpen(true);
+                  }}
+                  className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                >
+                  Add New Vendor
+                </Label>
               </div>
             </div>
-            <DrawerContent className="ml-auto h-full max-w-3xl">
-              <DrawerHeader>
-                <DrawerTitle>{editingId ? "Edit Vendor" : "Add Vendor"}</DrawerTitle>
-                <DrawerDescription>
-                  {editingId ? "Update the vendor details." : "Fill in the details below to add a new vendor."}
-                </DrawerDescription>
+            </div>
+            <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
+              <DrawerHeader className="px-4 sm:px-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <DrawerTitle>{editingId ? "Edit Vendor" : "Add Vendor"}</DrawerTitle>
+                    <DrawerDescription>
+                      {editingId ? "Update the vendor details." : "Fill in the details below to add a new vendor."}
+                    </DrawerDescription>
+                  </div>
+                  <DrawerClose asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Close">
+                      ✕
+                    </Button>
+                  </DrawerClose>
+                </div>
               </DrawerHeader>
-              <div className="no-scrollbar overflow-y-auto px-6 pb-8">
+              <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 pb-6 sm:pb-8">
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel>Vendor Name</FieldLabel>
@@ -824,15 +1244,20 @@ const Vendors = () => {
                       onChange={handleChange}
                     />
                   </Field>
-                  <div className="flex gap-4 mt-4 md:col-span-2">
-                    <Button type="submit" disabled={loading}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap md:col-span-2">
+                    <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
                       {loading ? "Please wait..." : editingId ? "Update Vendor" : "Add Vendor"}
                     </Button>
-                    <Button type="button" variant="danger" onClick={resetForm} className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md">
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={resetForm}
+                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md w-full sm:w-auto"
+                    >
                       Clear
                     </Button>
                     <DrawerClose asChild>
-                      <Button type="button" variant="outline" className="ml-auto">Cancel</Button>
+                      <Button type="button" variant="outline" className="w-full sm:w-auto sm:ml-auto">Cancel</Button>
                     </DrawerClose>
                   </div>
                 </form>
@@ -840,15 +1265,21 @@ const Vendors = () => {
             </DrawerContent>
           </Drawer>
         </div>
-        <div className="">
-          <div className="flex justify-between items-center mb-4 gap-4">
-            <div className="w-full flex flex-col md:flex-row gap-4 items-center">
-              <div className="flex-3 w-full">
-                <Input type="text" placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full" />
+        <div className="min-w-0">
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
+              <div className="w-full min-w-0 flex-1">
+                <Input
+                  type="text"
+                  placeholder="Search vendors..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full"
+                />
               </div>
-              <div className="flex-1 w-full md:w-auto">
+              <div className="w-full sm:w-auto min-w-0 sm:min-w-[140px]">
                 <UiSelect value={String(itemsPerPage)} onValueChange={(value) => setItemsPerPage(Number(value))}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full sm:w-[140px]">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent position="item-aligned">
@@ -863,33 +1294,42 @@ const Vendors = () => {
               </div>
             </div>
           </div>
+
           {vendorsLoading ? (
             <div className="flex justify-center items-center py-10">
               <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <DataTable columns={vendorColumns} data={filteredVendors} pageSize={itemsPerPage} />
+              <DataTable
+                columns={vendorColumns}
+                data={filteredVendors}
+                pageSize={itemsPerPage}
+                getRowId={(row) => row._id}
+                rowSelection={tableRowSelection}
+                onRowSelectionChange={setTableRowSelection}
+                onSelectionChange={(rows) => setSelectedVendorIds(rows.map((r) => r._id))}
+              />
             </div>
           )}
         </div>
       </div>
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete vendor?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This vendor will be deleted permanently. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirmed} disabled={loading}>
-              {loading ? "Deleting..." : "Yes, delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteModel
+        title="Delete vendor?"
+        description="This vendor will be deleted permanently. This action cannot be undone."
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDelete={handleDeleteConfirmed}
+        loading={loading}
+      />
+      <DeleteModel
+        title="Delete selected vendors?"
+        description={`This will permanently delete ${selectedVendorIds.length} vendor(s). This action cannot be undone.`}
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        onDelete={handleBulkDeleteConfirmed}
+        loading={bulkDeleteLoading}
+      />
     </div>
   );
 };

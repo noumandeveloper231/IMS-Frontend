@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from "react";
 import api from "../utils/api";
-import { User, Phone, Mail, DollarSign, Shield, Calendar, MoreVertical } from "lucide-react";
+import { User, Phone, Mail, DollarSign, Shield, Calendar, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
+import { DeleteModel } from "@/components/DeleteModel";
 import {
   Drawer,
   DrawerClose,
@@ -36,27 +37,13 @@ import {
   TableRow,
 } from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/UI/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/UI/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 
 const TEMPLATE_COLUMNS = ["Name", "Phone", "Email", "Role", "Salary", "Status"];
+
+/** Stable empty array for query data default (avoids remount/focus issues). */
+const EMPTY_ARRAY = [];
 
 const ROLES = ["salesman", "cashier", "manager", "admin"];
 const STATUSES = ["active", "inactive"];
@@ -73,8 +60,13 @@ const Employees = () => {
   const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [importRows, setImportRows] = useState([]);
   const [importColumns, setImportColumns] = useState([]);
-  const [importStats, setImportStats] = useState({ total: 0, valid: 0, errors: 0 });
+  const [importStats, setImportStats] = useState({ total: 0, valid: 0, errors: 0, duplicates: 0 });
   const [importLoading, setImportLoading] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+  const [tableRowSelection, setTableRowSelection] = useState({});
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const employeesRef = useRef(EMPTY_ARRAY);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -93,7 +85,8 @@ const Employees = () => {
       return Array.isArray(res.data) ? res.data : res.data?.employees ?? [];
     },
   });
-  const employees = employeesData ?? [];
+  const employees = employeesData ?? EMPTY_ARRAY;
+  employeesRef.current = employees;
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
@@ -330,6 +323,26 @@ const Employees = () => {
     deleteMutation.mutate(deleteId);
   };
 
+  const handleBulkDeleteConfirmed = async () => {
+    if (!selectedEmployeeIds.length) return;
+    setBulkDeleteLoading(true);
+    try {
+      for (const id of selectedEmployeeIds) {
+        await api.delete(`/employees/${id}`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      toast.success(`Deleted ${selectedEmployeeIds.length} employee(s) ✅`);
+      setBulkDeleteOpen(false);
+      setSelectedEmployeeIds([]);
+      setTableRowSelection({});
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message;
+      toast.error(msg || "Bulk delete failed ❌");
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
+
   const filteredEmployees = (employees || []).filter(
     (emp) =>
       (emp.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -342,29 +355,62 @@ const Employees = () => {
     key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
   const validateImportedRows = (rows) => {
-    let valid = 0;
-    let errors = 0;
-    const nameKeys = ["name"];
+    if (!rows.length) {
+      setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+      return [];
+    }
+    const seenInFile = new Set();
     const validated = rows.map((row) => {
       const nameKey =
-        Object.keys(row).find((k) => nameKeys.includes(normalizeKey(k))) ?? null;
+        Object.keys(row).find((k) => normalizeKey(k) === "name") ?? null;
       const nameVal = nameKey ? String(row[nameKey] ?? "").trim() : "";
       const fieldErrors = {};
+      let statusMessage = "";
       if (!nameVal) {
         fieldErrors[nameKey || "Name"] = "Required";
-        errors += 1;
+        statusMessage = "Name required";
       } else {
-        valid += 1;
+        const key = nameVal.toLowerCase();
+        if (seenInFile.has(key)) {
+          fieldErrors[nameKey || "Name"] = "Duplicate in file";
+          statusMessage = "Duplicate in file";
+        } else {
+          seenInFile.add(key);
+        }
+        const existsInDb = (employeesRef.current || []).some(
+          (e) => (e.name || "").trim().toLowerCase() === key
+        );
+        if (existsInDb && !fieldErrors[nameKey || "Name"]) {
+          fieldErrors[nameKey || "Name"] = "Already exists in DB";
+          statusMessage = "Already in database";
+        }
       }
+      const hasErrors = Object.keys(fieldErrors).length > 0;
+      const firstError = fieldErrors[Object.keys(fieldErrors)[0]] || "";
       return {
         ...row,
         __name: nameVal,
         __errors: fieldErrors,
-        __status: Object.keys(fieldErrors).length > 0 ? "error" : "valid",
+        __status: hasErrors ? "error" : "valid",
+        __statusMessage: statusMessage || (hasErrors ? firstError : "OK"),
       };
     });
-    setImportStats({ total: rows.length, valid, errors });
+    const valid = validated.filter((r) => r.__status === "valid").length;
+    const errors = validated.filter((r) => r.__status === "error").length;
+    const duplicates = validated.filter(
+      (r) =>
+        r.__status === "error" &&
+        (r.__statusMessage === "Duplicate in file" || r.__statusMessage === "Already in database")
+    ).length;
+    setImportStats({ total: rows.length, valid, errors, duplicates });
     return validated;
+  };
+
+  const handleClearImportData = () => {
+    setImportRows([]);
+    setImportColumns([]);
+    setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+    toast.info("Import data cleared");
   };
 
   const handleImportFileSelected = async (fileOrFiles) => {
@@ -379,7 +425,7 @@ const Employees = () => {
         toast.error("File is empty ❌");
         setImportRows([]);
         setImportColumns([]);
-        setImportStats({ total: 0, valid: 0, errors: 0 });
+        setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
         return;
       }
       const validatedRows = validateImportedRows(rows);
@@ -407,36 +453,42 @@ const Employees = () => {
       return;
     }
     setImportLoading(true);
-    let successCount = 0;
-    let errorCount = 0;
     try {
-      for (const row of validRows) {
-        try {
-          const nameVal = row.__name ?? row.Name ?? row.name ?? "";
-          const phoneVal = row.Phone ?? row.phone ?? "";
-          const emailVal = row.Email ?? row.email ?? "";
-          const roleVal = row.Role ?? row.role ?? "salesman";
-          const salaryVal = Number(row.Salary ?? row.salary ?? 0) || 0;
-          const statusVal = row.Status ?? row.status ?? "active";
-          await api.post("/employees", {
-            name: nameVal,
-            phone: String(phoneVal),
-            email: String(emailVal),
-            role: ROLES.includes(roleVal) ? roleVal : "salesman",
-            salary: salaryVal,
-            status: STATUSES.includes(statusVal) ? statusVal : "active",
-          });
-          successCount++;
-        } catch {
-          errorCount++;
-        }
-      }
+      const payload = validRows.map((row) => {
+        const nameVal = row.__name ?? row.Name ?? row.name ?? "";
+        const phoneVal = row.Phone ?? row.phone ?? "";
+        const emailVal = row.Email ?? row.email ?? "";
+        const roleVal = row.Role ?? row.role ?? "salesman";
+        const salaryVal = Number(row.Salary ?? row.salary ?? 0) || 0;
+        const statusVal = row.Status ?? row.status ?? "active";
+        return {
+          name: nameVal,
+          phone: String(phoneVal),
+          email: String(emailVal),
+          role: ROLES.includes(roleVal) ? roleVal : "salesman",
+          salary: salaryVal,
+          status: STATUSES.includes(statusVal) ? statusVal : "active",
+        };
+      });
+      const res = await api.post("/employees/createbulk", payload);
+      const successCount = res.data?.createdCount ?? 0;
+      const errorCount = res.data?.errorCount ?? 0;
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast.success(`Import complete! ${successCount} employees imported, ${errorCount} errors ✅`);
+      if (successCount === 0) {
+        toast.error(
+          errorCount > 0
+            ? `Import failed: 0 employees imported, ${errorCount} errors ❌`
+            : "Import failed ❌",
+        );
+      } else if (errorCount > 0) {
+        toast.warning(`Imported ${successCount} employees, ${errorCount} errors`);
+      } else {
+        toast.success(`Imported ${successCount} employees ✅`);
+      }
       setImportDrawerOpen(false);
       setImportRows([]);
       setImportColumns([]);
-      setImportStats({ total: 0, valid: 0, errors: 0 });
+      setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
     } catch (err) {
       const messageFromServer =
         err?.response?.data?.message ||
@@ -455,7 +507,7 @@ const Employees = () => {
   const handleViewTemplate = () => {
     setImportColumns(TEMPLATE_COLUMNS);
     setImportRows([Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))]);
-    setImportStats({ total: 1, valid: 0, errors: 0 });
+    setImportStats({ total: 1, valid: 0, errors: 0, duplicates: 0 });
   };
 
   const handleDownloadTemplate = () => {
@@ -606,30 +658,38 @@ const Employees = () => {
         cell: ({ row }) => {
           const emp = row.original;
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-40"
-                onCloseAutoFocus={(e) => e.preventDefault()}
-              >
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleEdit(emp)}>
-                  Edit employee
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => confirmDelete(emp._id)}
-                >
-                  Delete employee
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center justify-center gap-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleEdit(emp)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit employee</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => confirmDelete(emp._id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete employee</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           );
         },
       },
@@ -638,29 +698,57 @@ const Employees = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto flex flex-col gap-6 bg-white rounded-xl shadow-md p-8">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full">
+      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
         <div className="">
           <Drawer
             direction="right"
             open={employeeDrawerOpen}
             onOpenChange={setEmployeeDrawerOpen}
           >
-            <div className="flex justify-between items-center">
-              <h2 className="flex-4 text-2xl font-semibold text-gray-700">
+            <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center">
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-700 truncate min-w-0">
                 Employees List ({filteredEmployees.length})
               </h2>
-              <div className="flex gap-4 items-center">
+              <div className="flex flex-wrap gap-2 sm:gap-4 items-center w-full lg:w-auto lg:flex-1 lg:justify-end">
+                {selectedEmployeeIds.length > 0 && (
+                  <div className="w-full sm:w-auto min-w-0">
+                    <UiSelect
+                      value=""
+                      onValueChange={(value) => {
+                        if (value === "bulk-delete") {
+                          if (selectedEmployeeIds.length === 1) {
+                            confirmDelete(selectedEmployeeIds[0]);
+                          } else {
+                            setBulkDeleteOpen(true);
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full sm:w-[140px]">
+                        <SelectValue placeholder="Bulk actions" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Bulk actions</SelectLabel>
+                          <SelectItem value="bulk-delete">Bulk delete</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </UiSelect>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 sm:gap-4 items-center shrink-0">
                 <Drawer open={importDrawerOpen} onOpenChange={setImportDrawerOpen}>
                   <DrawerTrigger asChild>
                     <Label
-                      className="px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 cursor-pointer"
+                      variant="light"
+                      className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
                     >
                       Import Excel
                     </Label>
                   </DrawerTrigger>
-                  <DrawerContent className="max-h-[90vh]">
-                    <DrawerHeader className="border-b">
+                  <DrawerContent className="max-h-[90vh] w-full max-w-[100vw]">
+                    <DrawerHeader className="border-b px-4 sm:px-6">
                       <div className="flex items-center justify-between">
                         <div>
                           <DrawerTitle>Bulk Employee Import</DrawerTitle>
@@ -669,21 +757,43 @@ const Employees = () => {
                           </DrawerDescription>
                         </div>
                         <DrawerClose asChild>
-                          <Button variant="outline" size="icon">✕</Button>
+                          <Button variant="outline" size="icon">
+                            ✕
+                          </Button>
                         </DrawerClose>
                       </div>
                     </DrawerHeader>
-                    <div className="no-scrollbar overflow-y-auto px-6 py-4 space-y-6">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Button type="button" variant="outline" onClick={handleViewTemplate}>
-                          View Template
-                        </Button>
-                        <Button type="button" variant="outline" onClick={handleDownloadTemplate}>
-                          Download Template
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Supported formats: <span className="font-medium">.csv, .xlsx</span>
-                        </p>
+                    <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleViewTemplate}
+                          >
+                            View Template
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleDownloadTemplate}
+                          >
+                            Download Template
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                          </p>
+                        </div>
+                        {importRows.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={handleClearImportData}
+                          >
+                            Clear
+                          </Button>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Upload file</p>
@@ -699,9 +809,14 @@ const Employees = () => {
                       {importRows.length > 0 && (
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">Preview ({importStats.total} rows)</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">
+                                Preview ({importStats.total} rows)
+                              </p>
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               Valid: {importStats.valid} | Errors: {importStats.errors}
+                              {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
                             </p>
                           </div>
                           <div className="border w-full rounded-md max-h-80 overflow-auto">
@@ -725,15 +840,26 @@ const Employees = () => {
                                       <TableCell key={col} className="text-xs">{String(row[col] ?? "")}</TableCell>
                                     ))}
                                     <TableCell>
-                                      <span
-                                        className={
-                                          row.__status === "valid"
-                                            ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
-                                            : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
-                                        }
-                                      >
-                                        {row.__status === "valid" ? "Valid" : "Error"}
-                                      </span>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span
+                                              className={
+                                                row.__status === "valid"
+                                                  ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
+                                                  : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
+                                              }
+                                            >
+                                              {row.__status === "valid" ? "Valid" : "Error"}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="max-w-[200px]">
+                                            {row.__status === "valid"
+                                              ? "Ready to import"
+                                              : (row.__statusMessage || "Validation error")}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
                                     </TableCell>
                                   </TableRow>
                                 ))}
@@ -743,18 +869,43 @@ const Employees = () => {
                         </div>
                       )}
                     </div>
-                    <DrawerFooter className="border-t">
+                    <DrawerFooter className="border-t px-4 sm:px-6 py-3 sm:py-4">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span className="text-muted-foreground">✔ Valid: <span className="font-semibold text-emerald-700">{importStats.valid}</span></span>
-                          <span className="text-muted-foreground">⚠ Errors: <span className="font-semibold text-red-700">{importStats.errors}</span></span>
+                          <span className="text-muted-foreground">
+                            ✔ Valid:{" "}
+                            <span className="font-semibold text-emerald-700">
+                              {importStats.valid}
+                            </span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            ⚠ Errors:{" "}
+                            <span className="font-semibold text-red-700">
+                              {importStats.errors}
+                            </span>
+                          </span>
+                          {importStats.duplicates > 0 && (
+                            <span className="text-muted-foreground">
+                              ✖ Duplicates:{" "}
+                              <span className="font-semibold text-orange-700">
+                                {importStats.duplicates}
+                              </span>
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                          <Button type="button" variant="default" onClick={handleImportValidSubmit} disabled={!importStats.valid || importLoading}>
+                          <Button
+                            type="button"
+                            variant="default"
+                            onClick={handleImportValidSubmit}
+                            disabled={!importStats.valid || importLoading}
+                          >
                             {importLoading ? "Importing..." : "Import Valid Only"}
                           </Button>
                           <DrawerClose asChild>
-                            <Button type="button" variant="ghost">Cancel</Button>
+                            <Button type="button" variant="ghost">
+                              Cancel
+                            </Button>
                           </DrawerClose>
                         </div>
                       </div>
@@ -775,7 +926,8 @@ const Employees = () => {
                 </DrawerTrigger>
               </div>
             </div>
-            <DrawerContent className="ml-auto h-full max-w-3xl">
+            </div>
+            <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
               <DrawerHeader>
                 <DrawerTitle>{editingId ? "Edit Employee" : "Add New Employee"}</DrawerTitle>
                 <DrawerDescription>
@@ -911,27 +1063,35 @@ const Employees = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <DataTable columns={employeeColumns} data={filteredEmployees} pageSize={itemsPerPage} />
+              <DataTable
+                columns={employeeColumns}
+                data={filteredEmployees}
+                pageSize={itemsPerPage}
+                getRowId={(row) => row._id}
+                rowSelection={tableRowSelection}
+                onRowSelectionChange={setTableRowSelection}
+                onSelectionChange={(rows) => setSelectedEmployeeIds(rows.map((r) => r._id))}
+              />
             </div>
           )}
         </div>
       </div>
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete employee?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the selected employee.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirmed} disabled={loading}>
-              {loading ? "Deleting..." : "Yes, delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteModel
+        title="Delete employee?"
+        description="This action cannot be undone. This will permanently delete the selected employee."
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDelete={handleDeleteConfirmed}
+        loading={loading}
+      />
+      <DeleteModel
+        title="Delete selected employees?"
+        description={`This will permanently delete ${selectedEmployeeIds.length} employee(s). This action cannot be undone.`}
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        onDelete={handleBulkDeleteConfirmed}
+        loading={bulkDeleteLoading}
+      />
     </div>
   );
 };
