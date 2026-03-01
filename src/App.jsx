@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import { AuthProvider } from "./context/AuthContext";
+import { ScannerProvider } from "./context/ScannerContext";
 import { ImageModalProvider } from "./context/ImageModalContext";
 import { ImageModal } from "./components/UI/ImageModal";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -29,6 +30,8 @@ import Employees from "./pages/Employees";
 import ExpenseCategories from "./pages/ExpenseCategories";
 import Customers from "./pages/Customers";
 import Reports from "./pages/Reports";
+import ConnectedDevices from "./pages/ConnectedDevices";
+import Connect from "./pages/Connect";
 import Login from "./pages/Login";
 import ScrollArea from "./components/UI/scroll-area";
 
@@ -37,11 +40,13 @@ function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/connect/:sessionId" element={<Connect />} />
         <Route
           path="/*"
           element={
             <ProtectedRoute>
               <ImageModalProvider>
+                <ScannerProvider>
                 <div className="bg-[#f5f7fb]">
                   <div className="flex w-full h-screen">
                     <div className="shrink-0">
@@ -72,6 +77,7 @@ function App() {
                         <Route path="/employees" element={<Employees />} />
                         <Route path="/customers" element={<Customers />} />
                         <Route path="/reports" element={<Reports />} />
+                        <Route path="/connected-devices" element={<ConnectedDevices />} />
                         <Route path="/products/filter/:type/:id" element={<FilteredProducts />} />
                         <Route path="/products/stock/:status" element={<FilteredProducts />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
@@ -79,6 +85,7 @@ function App() {
                     </ScrollArea>
                   </div>
                 </div>
+              </ScannerProvider>
               </ImageModalProvider>
             </ProtectedRoute>
           }

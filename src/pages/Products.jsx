@@ -18,6 +18,9 @@ import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
+import { ProductDependencyDialog } from "@/components/ProductDependencyDialog";
+import { ProductBulkDependencyModal } from "@/components/ProductBulkDependencyModal";
+import { useProductBulkDependencyManager } from "@/hooks/useProductBulkDependencyManager";
 import {
   Drawer,
   DrawerClose,
@@ -119,7 +122,6 @@ const TEMPLATE_COLUMNS = [
   "Images",
 ];
 
-/** Stable empty array so import table doesn't get new ref when data is empty (avoids column remount / focus loss). */
 const EMPTY_ARRAY = [];
 
 function RichTextEditor({ value, onChange, placeholder }) {
@@ -296,7 +298,11 @@ const Products = () => {
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkManagerOpen, setBulkManagerOpen] = useState(false);
+  const [deleteWithDepsOpen, setDeleteWithDepsOpen] = useState(false);
+  const [deleteWithDepsData, setDeleteWithDepsData] = useState(null);
+  const [cascadeConfirmOpen, setCascadeConfirmOpen] = useState(false);
+  const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -326,7 +332,7 @@ const Products = () => {
       return res.data?.products ?? res.data ?? [];
     },
   });
-  const products = productsData ?? [];
+  const products = productsData ?? EMPTY_ARRAY;
 
   const { data: categoriesData } = useQuery({
     queryKey: ["categories-list"],
@@ -458,20 +464,54 @@ const Products = () => {
     },
     onSuccess: (data) => {
       if (data?.success) {
-        toast.success("Product deleted ✅");
+        toast.success("Product has been deleted successfully ✅");
         queryClient.invalidateQueries({ queryKey: ["products"] });
       } else {
-        toast.error("Failed to delete ❌");
+        toast.error("Failed to delete product ❌");
       }
       setDeleteOpen(false);
       setDeleteId(null);
     },
-    onError: () => {
-      toast.error("Something went wrong ❌");
+    onError: (error) => {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message;
+
+      if (error?.response?.status === 409) {
+        toast.error(
+          messageFromServer ||
+            "Cannot delete product because it is linked with other records ❌",
+        );
+      } else if (messageFromServer) {
+        toast.error(messageFromServer);
+      } else {
+        toast.error("Unable to delete product. Please try again ❌");
+      }
       setDeleteOpen(false);
       setDeleteId(null);
     },
   });
+
+  const productBulkManager = useProductBulkDependencyManager({
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setSelectedProductIds([]);
+      setTableRowSelection({});
+      const count = data?.deleted?.length ?? data?.deletedCount ?? 0;
+      toast.success(`Deleted ${count} product(s) successfully`);
+    },
+    onError: (message) => {
+      toast.error(message || "Bulk delete failed");
+    },
+  });
+
+  useEffect(() => {
+    if (bulkManagerOpen && selectedProductIds.length > 0 && productBulkManager.status === "idle") {
+      productBulkManager.startAnalysis(selectedProductIds);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
+  }, [bulkManagerOpen]);
 
   const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
@@ -569,9 +609,60 @@ const Products = () => {
     return matchesSearch && matchesStock;
   });
 
-  const confirmDelete = (id) => {
-    setDeleteId(id);
-    setDeleteOpen(true);
+  const confirmDelete = async (id) => {
+    try {
+      const res = await api.get(`/products/dependencies/${id}`);
+      const data = res.data;
+      const hasDependencies = data?.hasDependencies === true;
+      const product = (products || []).find((p) => p._id === id);
+      const name = product?.title || product?.sku || "Product";
+      if (hasDependencies) {
+        setDeleteWithDepsData({
+          id,
+          name,
+          ordersCount: data.ordersCount ?? 0,
+          orders: data.orders ?? [],
+        });
+        setDeleteWithDepsOpen(true);
+      } else {
+        setDeleteId(id);
+        setDeleteOpen(true);
+      }
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        toast.error("Product not found");
+        return;
+      }
+      toast.error(err?.response?.data?.message || "Could not check product dependencies");
+    }
+  };
+
+  const handleDeleteConfirmed = () => {
+    if (!deleteId) return;
+    deleteMutation.mutate(deleteId);
+  };
+
+  const handleCascadeDeleteConfirmed = async () => {
+    if (!deleteId) return;
+    setCascadeDeleteLoading(true);
+    try {
+      const res = await api.delete(`/products/delete/${deleteId}?cascade=true`);
+      if (res.data?.success) {
+        toast.success("Product removed from orders and deleted successfully ✅");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["orders", "sales"] });
+      } else {
+        toast.error("Failed to delete product ❌");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to delete product ❌");
+    } finally {
+      setCascadeDeleteLoading(false);
+      setCascadeConfirmOpen(false);
+      setDeleteId(null);
+      setDeleteWithDepsOpen(false);
+      setDeleteWithDepsData(null);
+    }
   };
 
 
@@ -1437,32 +1528,6 @@ const Products = () => {
     setImagePreviews([]);
   };
 
-  const handleDeleteConfirmed = () => {
-    if (!deleteId) return;
-    deleteMutation.mutate(deleteId);
-  };
-
-  const handleBulkDeleteConfirmed = async () => {
-    if (!selectedProductIds.length) {
-      setBulkDeleteOpen(false);
-      return;
-    }
-    setBulkDeleteOpen(false);
-    for (const id of selectedProductIds) {
-      try {
-        await api.delete(`/products/delete/${id}`);
-      } catch (err) {
-        const msg = err?.response?.data?.message || err?.message;
-        toast.error(`Failed to delete one product: ${msg}`);
-      }
-    }
-    queryClient.invalidateQueries({ queryKey: ["products"] });
-    const count = selectedProductIds.length;
-    setSelectedProductIds([]);
-    setTableRowSelection({});
-    toast.success(`Deleted ${count} products`);
-  };
-
   const handleClear = () => {
     setForm({
       title: "",
@@ -1512,7 +1577,7 @@ const Products = () => {
                           if (selectedProductIds.length === 1) {
                             confirmDelete(selectedProductIds[0]);
                           } else {
-                            setBulkDeleteOpen(true);
+                            setBulkManagerOpen(true);
                           }
                         }
                       }}
@@ -2177,13 +2242,39 @@ const Products = () => {
         loading={loading}
       />
 
+      <ProductDependencyDialog
+        open={deleteWithDepsOpen}
+        onOpenChange={setDeleteWithDepsOpen}
+        title="Product has order dependencies"
+        dependencyData={deleteWithDepsData}
+        onChooseCascade={() => {
+          setDeleteId(deleteWithDepsData?.id ?? null);
+          setCascadeConfirmOpen(true);
+        }}
+      />
+
       <DeleteModel
-        title="Delete products?"
-        description="This action cannot be undone. This will permanently delete the selected products."
-        onDelete={handleBulkDeleteConfirmed}
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        loading={loading}
+        title="Cascade delete product?"
+        description="This will remove this product from all orders and then delete it. This action cannot be undone."
+        requireAcceptCheckbox
+        acceptLabel="I understand that this product will be removed from all orders and permanently deleted."
+        confirmLabel="Delete and remove from orders"
+        open={cascadeConfirmOpen}
+        onOpenChange={(open) => {
+          setCascadeConfirmOpen(open);
+          if (!open) setDeleteId(null);
+        }}
+        onDelete={handleCascadeDeleteConfirmed}
+        loading={cascadeDeleteLoading}
+      />
+
+      <ProductBulkDependencyModal
+        open={bulkManagerOpen}
+        onOpenChange={setBulkManagerOpen}
+        manager={productBulkManager}
+        onComplete={() => {
+          setBulkManagerOpen(false);
+        }}
       />
     </div>
   );

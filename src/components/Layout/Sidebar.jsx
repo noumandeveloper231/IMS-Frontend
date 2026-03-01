@@ -19,6 +19,7 @@ import {
   CreditCard,
   Bell,
   Sparkles,
+  Smartphone,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/UI/scroll-area";
@@ -564,6 +565,19 @@ const Sidebar = () => {
               >
                 <Users className="h-4 w-4 shrink-0" />
                 {!isCollapsed && <span>Employees</span>}
+              </Button>
+            </Link>
+
+            {/* 6. Hardware */}
+            <SectionLabel collapsed={isCollapsed}>Hardware</SectionLabel>
+            <Link to="/connected-devices">
+              <Button
+                variant={isActive("/connected-devices") ? "default" : "ghost"}
+                className={navItemClasses(isActive("/connected-devices"), isCollapsed)}
+                title={isCollapsed ? "Connected Devices" : undefined}
+              >
+                <Smartphone className="h-4 w-4 shrink-0" />
+                {!isCollapsed && <span>Connected Devices</span>}
               </Button>
             </Link>
           </div>

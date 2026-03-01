@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check, Trash2 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
@@ -44,6 +44,7 @@ import {
   TableRow,
 } from "@/components/UI/table";
 import { cn } from "@/lib/utils";
+import { useScanner } from "@/context/ScannerContext";
 
 function SalesProductCombobox({ products = [], value, onChange, placeholder = "Search product..." }) {
   const [open, setOpen] = useState(false);
@@ -173,6 +174,7 @@ function SalesEmployeeCombobox({
 
 const Sales = () => {
   const queryClient = useQueryClient();
+  const { registerAddToCartBySku } = useScanner();
 
   const [saleNote, setSaleNote] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("paid");
@@ -252,6 +254,43 @@ const Sales = () => {
     updated.splice(index, 1);
     setItems(updated);
   };
+
+  // Barcode scans add product to cart by SKU (mobile scanner or USB keyboard wedge)
+  const productsRef = useRef(products);
+  productsRef.current = products;
+  useEffect(() => {
+    return registerAddToCartBySku((sku) => {
+      const trimmed = String(sku).trim();
+      const product = (productsRef.current || []).find((p) => (p.sku || "").toString().trim() === trimmed);
+      if (!product) {
+        toast.error(`No product found for SKU: ${trimmed}`);
+        return;
+      }
+      setItems((prev) => {
+        const existingIndex = prev.findIndex((i) => i.productId === product._id);
+        if (existingIndex >= 0) {
+          const next = [...prev];
+          const item = next[existingIndex];
+          const qty = Math.min((item.quantity || 0) + 1, item.stock ?? 9999);
+          next[existingIndex] = { ...item, quantity: qty, total: (item.price || 0) * qty };
+          return next;
+        }
+        return [
+          ...prev,
+          {
+            productId: product._id,
+            productName: product.title,
+            salesnote: product.salesnote || "",
+            stock: product.quantity ?? 0,
+            price: product.salePrice ?? 0,
+            quantity: 1,
+            total: (product.salePrice ?? 0) * 1,
+          },
+        ];
+      });
+      toast.success(`Added ${product.title}`);
+    });
+  }, [registerAddToCartBySku]);
 
   const subTotal = items.reduce((acc, item) => acc + item.total, 0);
   const vat = subTotal * 0.05;

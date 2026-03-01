@@ -439,74 +439,153 @@ const Orders = () => {
       </div>
 
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl! max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Order — {selectedOrder?.invoiceNo}</DialogTitle>
           </DialogHeader>
           {selectedOrder && (
-            <div className="space-y-4">
-              {viewOrderLoading ? (
-                <div className="flex justify-center items-center py-8">
-                  <div className="w-10 h-10 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold mb-2">Order Info</h3>
-                      <p className="text-sm">Payment: {viewOrderDetail?.paymentMethod ?? selectedOrder.paymentMethod ?? "—"}</p>
-                      <p className="text-sm">Sell at: {viewOrderDetail?.sellat ?? viewOrderDetail?.sellAt ?? selectedOrder.sellAt ?? selectedOrder.sellat ?? "—"}</p>
-                      <p className="text-sm">Status: {viewOrderDetail?.status ?? selectedOrder.status ?? "—"}</p>
-                      <p className="text-sm">Sub Total: AED {Number(viewOrderDetail?.subTotal ?? selectedOrder.subTotal ?? 0).toFixed(2)}</p>
-                      <p className="text-sm">VAT: AED {Number(viewOrderDetail?.vat ?? selectedOrder.vat ?? 0).toFixed(2)}</p>
-                      <p className="text-sm">Shipping: AED {Number(viewOrderDetail?.shipping ?? selectedOrder.shipping ?? 0).toFixed(2)}</p>
-                      <p className="text-sm">Discount: AED {Number(viewOrderDetail?.discount ?? selectedOrder.discount ?? 0).toFixed(2)}</p>
-                      <p className="text-sm font-medium">Grand Total: AED {Number(viewOrderDetail?.grandTotal ?? selectedOrder.grandTotal).toFixed(2)}</p>
-                      {viewOrderDetail?.employee && (
-                        <p className="text-sm text-gray-600">Sold by: {viewOrderDetail.employee?.name ?? "—"}</p>
-                      )}
-                      {viewOrderDetail?.salesnote && (
-                        <p className="text-sm text-gray-600">Note: {viewOrderDetail.salesnote}</p>
-                      )}
-                      <p className="text-sm text-gray-500 mt-2">
+            <div className="space-y-6">
+            {viewOrderLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="w-10 h-10 border-4 border-blue-500 border-dashed rounded-full animate-spin rounded-full" />
+              </div>
+            ) : (
+              <>
+                {/* Top Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Order Info */}
+                  <div className="lg:col-span-2 bg-white border border-gray-300 rounded-xl p-6 space-y-4 shadow-sm">
+                    <h3 className="text-lg font-semibold border-b border-gray-300 pb-2">Order Details</h3>
+          
+                    <div className="grid grid-cols-2 gap-y-3 text-sm">
+                      <p className="text-gray-500">Invoice</p>
+                      <p className="font-medium">{selectedOrder?.invoiceNo}</p>
+          
+                      <p className="text-gray-500">Payment Method</p>
+                      <p>{viewOrderDetail?.paymentMethod ?? selectedOrder.paymentMethod ?? "—"}</p>
+          
+                      <p className="text-gray-500">Sell At</p>
+                      <p>{viewOrderDetail?.sellat ?? viewOrderDetail?.sellAt ?? selectedOrder.sellAt ?? selectedOrder.sellat ?? "—"}</p>
+          
+                      <p className="text-gray-500">Status</p>
+                      <p className="capitalize">{viewOrderDetail?.status ?? selectedOrder.status ?? "—"}</p>
+          
+                      <p className="text-gray-500">Date</p>
+                      <p>
                         {viewOrderDetail?.createdAt ?? selectedOrder.createdAt
                           ? new Date(viewOrderDetail?.createdAt ?? selectedOrder.createdAt).toLocaleString()
-                          : ""}
+                          : "—"}
                       </p>
+          
+                      {viewOrderDetail?.employee && (
+                        <>
+                          <p className="text-gray-500">Sold By</p>
+                          <p>{viewOrderDetail.employee?.name ?? "—"}</p>
+                        </>
+                      )}
                     </div>
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold mb-2">Customer</h3>
-                      <p className="text-sm">Name: {(viewOrderDetail?.customer ?? selectedOrder.customer)?.name ?? "—"}</p>
-                      <p className="text-sm">Phone: {(viewOrderDetail?.customer ?? selectedOrder.customer)?.phone ?? "—"}</p>
+          
+                    {viewOrderDetail?.salesnote && (
+                      <div className="pt-3 border-t border-gray-300">
+                        <p className="text-gray-500 text-sm mb-1">Sales Note</p>
+                        <p className="text-sm">{viewOrderDetail.salesnote}</p>
+                      </div>
+                    )}
+                  </div>
+          
+                  {/* Customer Info */}
+                  <div className="bg-white border border-gray-300 rounded-xl p-6 space-y-4 shadow-sm">
+                    <h3 className="text-lg font-semibold border-b border-gray-300 pb-2">Customer</h3>
+          
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Name</p>
+                        <p className="font-medium">
+                          {(viewOrderDetail?.customer ?? selectedOrder.customer)?.name ?? "—"}
+                        </p>
+                      </div>
+          
+                      <div>
+                        <p className="text-gray-500">Phone</p>
+                        <p>
+                          {(viewOrderDetail?.customer ?? selectedOrder.customer)?.phone ?? "—"}
+                        </p>
+                      </div>
                     </div>
                   </div>
+                </div>
+          
+                {/* Items Table */}
+                <div className="bg-white border rounded-md border-gray-300">
+                  <div className="p-4 border-b border-gray-300">
+                    <h3 className="text-lg font-semibold">Order Items</h3>
+                  </div>
+          
                   <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-gray-50">
+                    <Table className="px-8">
+                      <TableHeader className="sticky top-0 z-10">
+                        <TableRow className="bg-gray-50 px-4!">
                           <TableHead>#</TableHead>
                           <TableHead>Product</TableHead>
-                          <TableHead>Qty</TableHead>
-                          <TableHead>Price</TableHead>
-                          <TableHead>Total</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-right">Price</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
                         </TableRow>
                       </TableHeader>
-                      <TableBody>
+                      <TableBody className="px-4!">
                         {((viewOrderDetail?.items ?? selectedOrder.items) || []).map((it, idx) => (
                           <TableRow key={idx}>
                             <TableCell>{idx + 1}</TableCell>
                             <TableCell>{it.product?.title ?? "Deleted product"}</TableCell>
-                            <TableCell>{it.quantity}</TableCell>
-                            <TableCell>AED {Number(it.price).toFixed(2)}</TableCell>
-                            <TableCell>AED {Number(it.total).toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{it.quantity}</TableCell>
+                            <TableCell className="text-right">
+                              AED {Number(it.price).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              AED {Number(it.total).toFixed(2)}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
-                </>
-              )}
-            </div>
+                </div>
+          
+                {/* Totals Section */}
+                <div className="bg-white border border-gray-300 rounded-xl p-6 shadow-sm">
+                  <div className="max-w-sm ml-auto space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Sub Total</span>
+                      <span>AED {Number(viewOrderDetail?.subTotal ?? selectedOrder.subTotal ?? 0).toFixed(2)}</span>
+                    </div>
+          
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">VAT</span>
+                      <span>AED {Number(viewOrderDetail?.vat ?? selectedOrder.vat ?? 0).toFixed(2)}</span>
+                    </div>
+          
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Shipping</span>
+                      <span>AED {Number(viewOrderDetail?.shipping ?? selectedOrder.shipping ?? 0).toFixed(2)}</span>
+                    </div>
+          
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Discount</span>
+                      <span>AED {Number(viewOrderDetail?.discount ?? selectedOrder.discount ?? 0).toFixed(2)}</span>
+                    </div>
+          
+                    <div className="flex justify-between border-t border-gray-300 pt-3 text-base font-semibold">
+                      <span>Grand Total</span>
+                      <span>
+                        AED {Number(viewOrderDetail?.grandTotal ?? selectedOrder.grandTotal ?? 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           )}
         </DialogContent>
       </Dialog>

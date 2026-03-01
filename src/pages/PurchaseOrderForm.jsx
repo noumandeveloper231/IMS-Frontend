@@ -39,6 +39,70 @@ import {
 } from "@/components/UI/command";
 import { cn } from "@/lib/utils";
 
+function ProductCombobox({
+  products = [],
+  value,
+  onChange,
+  onSelectProduct,
+  placeholder = "Enter Product Title",
+  className,
+}) {
+  const [open, setOpen] = useState(false);
+
+  const handleSelect = (product) => {
+    onChange(product.title || "");
+    onSelectProduct?.(product);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div className="relative min-w-[200px]">
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setOpen(true)}
+            className={cn("min-w-[200px]", className)}
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0 max-h-60"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <Command>
+          <CommandInput placeholder="Search products..." />
+          <CommandList>
+            <CommandEmpty>No products found.</CommandEmpty>
+            <CommandGroup>
+              {products.map((p) => (
+                <CommandItem
+                  key={p._id}
+                  value={[p.title, p.sku, p.asin].filter(Boolean).join(" ")}
+                  onSelect={() => handleSelect(p)}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{p.title || p.sku || "—"}</span>
+                    {(p.sku || p.asin) && (
+                      <span className="text-xs text-muted-foreground">
+                        {[p.sku, p.asin].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function VendorCombobox({
   vendors = [],
   value,
@@ -118,6 +182,17 @@ const PurchaseOrderForm = () => {
     },
   });
 
+  const { data: productsData } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const res = await api.get("/products/getall");
+      const data = res.data;
+      return data?.products ?? data ?? [];
+    },
+  });
+
+  const products = Array.isArray(productsData) ? productsData : [];
+
   useEffect(() => {
     setVendorsState(Array.isArray(vendorsData) ? vendorsData : []);
   }, [vendorsData]);
@@ -185,6 +260,20 @@ const PurchaseOrderForm = () => {
         (Number(updated[index].orderedQty) || 0) *
         (Number(updated[index].purchasePrice) || 0);
     }
+    setItems(updated);
+  };
+
+  const setItemFromProduct = (index, product) => {
+    const updated = [...items];
+    updated[index] = {
+      ...updated[index],
+      title: product.title || product.sku || "",
+      asin: product.asin ?? updated[index].asin,
+      purchasePrice: Number(product.purchasePrice) || updated[index].purchasePrice || 0,
+    };
+    updated[index].total =
+      (Number(updated[index].orderedQty) || 0) *
+      (Number(updated[index].purchasePrice) || 0);
     setItems(updated);
   };
 
@@ -295,13 +384,12 @@ const PurchaseOrderForm = () => {
                 {items.map((item, index) => (
                   <TableRow key={index}>
                     <TableCell>
-                      <Input
-                        type="text"
-                        placeholder="Enter Product Title"
+                      <ProductCombobox
+                        products={products}
                         value={item.title || ""}
-                        onChange={(e) =>
-                          updateItem(index, "title", e.target.value)
-                        }
+                        onChange={(value) => updateItem(index, "title", value)}
+                        onSelectProduct={(product) => setItemFromProduct(index, product)}
+                        placeholder="Enter Product Title"
                         className="min-w-[200px]"
                       />
                     </TableCell>
