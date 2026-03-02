@@ -1,21 +1,15 @@
+"use client"
+
 import React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
+  PopoverAnchor,
+} from "@/components/UI/popover"
+import { Input } from "./input"
 
 export function Combobox({
   options = [],
@@ -26,84 +20,94 @@ export function Combobox({
   className = "",
 }) {
   const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
+  const wrapperRef = React.useRef(null)
 
   const selected = options.find((o) => o.value === value)
-  // const selectImg = options.find((o) => o.value === value)?.img;
+
+  React.useEffect(() => {
+    if (selected) {
+      setSearch(selected.label)
+    }
+  }, [value])
+
+  const filtered = options.filter((option) =>
+    option.label.toLowerCase().includes(search.toLowerCase())
+  )
+
+  // Close when clicking outside
+  React.useEffect(() => {
+    function handleClickOutside(e) {
+      if (!wrapperRef.current?.contains(e.target)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () =>
+      document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            "w-full justify-between font-normal",
-            className
-          )}
-        >
-          <div className="flex items-center gap-2">
-            {selected?.qrcode && (
-              <img
-                src={selected.qrcode}
-                alt={selected.label}
-                className="h-5 w-5 rounded object-cover"
-              />
-            )}
-            {selected ? selected.label : placeholder}
+    <div ref={wrapperRef} className="relative w-full">
+      <Popover open={open}>
+        {/* Anchor instead of Trigger */}
+        <PopoverAnchor asChild>
+          <div className="relative w-full">
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setOpen(true)
+              }}
+              onFocus={() => setOpen(true)}
+              placeholder={placeholder}
+              disabled={disabled}
+            />
+
+            <ChevronDown
+              onClick={() => setOpen((prev) => !prev)}
+              className={cn(
+                "absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 cursor-pointer transition-transform",
+                open && "rotate-180"
+              )}
+            />
           </div>
+        </PopoverAnchor>
 
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="w-full p-1 rounded-xl shadow-md z-50 w-[var(--radix-popover-trigger-width)]"
+          onWheel={(e) => e.stopPropagation()}
+        >
+          <div className="max-h-60 overflow-y-auto">
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">
+                No results found.
+              </div>
+            )}
 
-      <PopoverContent
-        align="start"
-        className="w-[var(--radix-popover-trigger-width)] p-0"
-        onWheel={(e) => e.stopPropagation()}
-      >
-        <Command>
-          <CommandInput placeholder="Search..." />
-          <CommandEmpty>No results found.</CommandEmpty>
-
-          <CommandList>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.label}
-                  onSelect={() => {
-                    onChange?.(option.value)
-                    setOpen(false)
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  {/* Check icon */}
-                  <Check
-                    className={cn(
-                      "h-4 w-4",
-                      value === option.value ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-
-                  {/* Optional Image */}
-                  {option.qrcode && (
-                    <img
-                      src={option.qrcode}
-                      alt={option.label}
-                      className="h-20 w-20 rounded object-cover"
-                    />
-                  )}
-
-                  {/* Label */}
-                  <span>{option.label}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+            {filtered.map((option) => (
+              <div
+                key={option.value}
+                onClick={() => {
+                  onChange?.(option.value)
+                  setSearch(option.label)
+                  setOpen(false)
+                }}
+                className="flex items-center justify-between px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-accent"
+              >
+                <span>{option.label}</span> 
+                {value === option.value && (
+                  <Check className="h-4 w-4" />
+                )}
+              </div>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   )
 }

@@ -271,7 +271,7 @@ export function DataTable({
             : "flex h-[500px] flex-col overflow-hidden rounded-md border border-gray-200 bg-background"
         }
       >
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-y-auto">
           <Table className="relative min-w-full text-black" stickyHeader>
             <TableHeader className="text-black shadow-sm">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -412,77 +412,81 @@ export function DataTable({
         </div>
       </div>
 
-      <div className="mt-4 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {
+        addPagination || enableSelection && <div className="mt-4 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-        {enableSelection && (
-          <span className="flex-1 text-xs text-muted-foreground">
-            {table.getSelectedRowModel().rows.length} of{" "}
-            {table.getRowModel().rows.length} row(s) selected.
-          </span>
-        )}
+          {enableSelection && (
+            <span className="flex-1 text-xs text-muted-foreground">
+              {table.getSelectedRowModel().rows.length} of{" "}
+              {table.getRowModel().rows.length} row(s) selected.
+            </span>
+          )}
 
-        <div className="sm:ml-auto flex justify-end flex-1">
           {addPagination && pageCount > 1 && (
-            <Pagination className="sm:ml-auto flex justify-end flex-1">
-              <PaginationContent>
-                {/* Previous */}
-                <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      table.previousPage();
-                    }}
-                    className={
-                      !table.getCanPreviousPage()
-                        ? "pointer-events-none opacity-50"
-                        : ""
-                    }
-                  />
-                </PaginationItem>
+            <div className="sm:ml-auto flex justify-end flex-1">
+              <Pagination className="sm:ml-auto flex justify-end flex-1">
+                <PaginationContent>
+                  {/* Previous */}
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        table.previousPage();
+                      }}
+                      className={
+                        !table.getCanPreviousPage()
+                          ? "pointer-events-none opacity-50"
+                          : ""
+                      }
+                    />
+                  </PaginationItem>
 
-                {/* Page Numbers */}
-                {getPaginationRange().map((item, index) =>
-                  item === "..." ? (
-                    <PaginationItem key={`...-${index}`}>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  ) : (
-                    <PaginationItem key={item}>
-                      <PaginationLink
-                        href="#"
-                        isActive={item === currentPage}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          table.setPageIndex(item);
-                        }}
-                      >
-                        {item + 1}
-                      </PaginationLink>
-                    </PaginationItem>
-                  )
-                )}
+                  {/* Page Numbers */}
+                  {getPaginationRange().map((item, index) =>
+                    item === "..." ? (
+                      <PaginationItem key={`...-${index}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={item}>
+                        <PaginationLink
+                          href="#"
+                          isActive={item === currentPage}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            table.setPageIndex(item);
+                          }}
+                        >
+                          {item + 1}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+                  )}
 
-                {/* Next */}
-                <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      table.nextPage();
-                    }}
-                    className={
-                      !table.getCanNextPage()
-                        ? "pointer-events-none opacity-50"
-                        : ""
-                    }
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+                  {/* Next */}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        table.nextPage();
+                      }}
+                      className={
+                        !table.getCanNextPage()
+                          ? "pointer-events-none opacity-50"
+                          : ""
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </div>
-      </div>
+      }
+
+
     </div>
   );
 }

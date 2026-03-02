@@ -71,7 +71,7 @@ const purchasePaths = [
 const isPurchaseActive = (pathname) =>
   purchasePaths.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
-const Sidebar = () => {
+const Sidebar = ({ onCollapseToggle }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -160,11 +160,35 @@ const Sidebar = () => {
     };
   }, [purchasesOpen]);
 
+  useEffect(() => {
+    if (!sidebarRef.current || typeof ResizeObserver === "undefined") return;
+
+    const el = sidebarRef.current;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const width = entry.contentRect.width;
+
+      setIsCollapsed((prev) => {
+        if (width <= 120 && !prev) {
+          return true;
+        }
+        if (width >= 180 && prev) {
+          return false;
+        }
+        return prev;
+      });
+    });
+
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <aside
       ref={sidebarRef}
-      className={`hidden sm:flex h-screen flex-col border-r border-gray-200 bg-white transition-[width] duration-200 ${isCollapsed ? "w-18" : "w-68"
-        }`}
+      className={`hidden sm:flex h-screen flex-col border-r border-gray-200 bg-white transition-[width] duration-200`}
     >
       {/* Header: logo + brand (or logo only when collapsed) */}
       <div
@@ -405,7 +429,7 @@ const Sidebar = () => {
                     left: purchasesAnchorRect.right + 2,
                   }}
                 >
-                  <div className="w-52 rounded-md border bg-white p-2 shadow-lg space-y-1">
+                  <div className="w-52 rounded-md border bg-white p-2 space-y-1">
                     <Link
                       to="/vendors"
                       onClick={() => {
@@ -591,7 +615,13 @@ const Sidebar = () => {
             variant="ghost"
             size="sm"
             className={`w-full py-2 ${isCollapsed ? "justify-center px-0" : "gap-2 justify-start"}`}
-            onClick={() => setIsCollapsed((c) => !c)}
+            onClick={() => {
+              if (onCollapseToggle) {
+                onCollapseToggle();
+              } else {
+                setIsCollapsed((c) => !c);
+              }
+            }}
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {isCollapsed ? (

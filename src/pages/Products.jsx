@@ -7,6 +7,7 @@ import {
   XCircle,
   Pencil,
   Trash2,
+  CloudUpload,
 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
@@ -73,6 +74,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { InfoIcon } from "lucide-react";
 import { useImageModal } from "@/context/ImageModalContext";
 import axios from "axios";
+import { Combobox } from "@/components/UI/combobox";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -125,6 +127,8 @@ const TEMPLATE_COLUMNS = [
 
 const EMPTY_ARRAY = [];
 
+// import { useEffect } from "react";
+
 function RichTextEditor({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
 
@@ -134,13 +138,21 @@ function RichTextEditor({ value, onChange, placeholder }) {
     document.execCommand(command, false, null);
   };
 
+  // Only update innerHTML when value changes externally
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value || "";
+    }
+  }, [value]);
+
   return (
-    <div className="border rounded-md overflow-hidden">
+    <div className="border border-gray-300 focus-within:border-gray-500 focus-within:ring-3 focus-within:ring-gray-300 transition-all duration-200 rounded-lg overflow-hidden">
       <div className="flex gap-1 border-b bg-muted px-2 py-1">
         <Button
           type="button"
           size="icon"
-          variant="ghost"
+          variant={document.queryCommandState("bold") ? "secondary" : "ghost"}
+          onMouseDown={e => e.preventDefault()}
           onClick={() => exec("bold")}
         >
           <span className="font-bold text-xs">B</span>
@@ -148,7 +160,8 @@ function RichTextEditor({ value, onChange, placeholder }) {
         <Button
           type="button"
           size="icon"
-          variant="ghost"
+          variant={document.queryCommandState("italic") ? "secondary" : "ghost"}
+          onMouseDown={e => e.preventDefault()}
           onClick={() => exec("italic")}
         >
           <span className="italic text-xs">I</span>
@@ -156,19 +169,20 @@ function RichTextEditor({ value, onChange, placeholder }) {
         <Button
           type="button"
           size="icon"
-          variant="ghost"
+          variant={document.queryCommandState("underline") ? "secondary" : "ghost"}
+          onMouseDown={e => e.preventDefault()}
           onClick={() => exec("underline")}
         >
           <span className="underline text-xs">U</span>
         </Button>
       </div>
+
       <div
         ref={editorRef}
         className="min-h-[160px] px-3 py-2 text-sm focus:outline-none"
         contentEditable
         suppressContentEditableWarning
-        placeholder={placeholder}
-        dangerouslySetInnerHTML={{ __html: value || "" }}
+        data-placeholder={placeholder}
         onInput={(e) => onChange(e.currentTarget.innerHTML)}
       />
     </div>
@@ -383,7 +397,14 @@ const Products = () => {
     const asin = form.asin?.trim();
     const selectedCondition = conditions.find((c) => c._id === form.condition);
     const conditionName = selectedCondition?.name;
-    const conditionCode = conditionName ? CONDITION_CODE_MAP[conditionName] || "" : "";
+    const conditionCode = conditionName
+      ? conditionName
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase())
+        .join("")
+      : "";
 
     if (!asin) {
       setForm((prev) => (prev.sku === "" ? prev : { ...prev, sku: "" }));
@@ -484,7 +505,7 @@ const Products = () => {
       if (error?.response?.status === 409) {
         toast.error(
           messageFromServer ||
-            "Cannot delete product because it is linked with other records ❌",
+          "Cannot delete product because it is linked with other records ❌",
         );
       } else if (messageFromServer) {
         toast.error(messageFromServer);
@@ -513,7 +534,7 @@ const Products = () => {
     if (bulkManagerOpen && selectedProductIds.length > 0 && productBulkManager.status === "idle") {
       productBulkManager.startAnalysis(selectedProductIds);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
   }, [bulkManagerOpen]);
 
   const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
@@ -1211,8 +1232,8 @@ const Products = () => {
           if (isTitle) {
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-[120px]" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+                <Input value={rowData[col] ?? ""} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === " " || e.key === "Tab") { e.preventDefault(); const input = e.target; const start = input.selectionStart ?? input.value.length; const end = input.selectionEnd ?? input.value.length; const v = (rowData[col] ?? "").toString(); handleImportCellChange(rowIndex, col, v.slice(0, start) + (e.key === "Tab" ? "\t" : " ") + v.slice(end)); requestAnimationFrame(() => { input.selectionStart = input.selectionEnd = start + 1; }); } }} onKeyUp={(e) => e.stopPropagation()} className="h-8 text-xs flex-1 min-w-[250px] w-full" placeholder="Title" />
                 {indicator}
-                <Input value={rowData[col] ?? ""} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === " " || e.key === "Tab") { e.preventDefault(); const input = e.target; const start = input.selectionStart ?? input.value.length; const end = input.selectionEnd ?? input.value.length; const v = (rowData[col] ?? "").toString(); handleImportCellChange(rowIndex, col, v.slice(0, start) + (e.key === "Tab" ? "\t" : " ") + v.slice(end)); requestAnimationFrame(() => { input.selectionStart = input.selectionEnd = start + 1; }); } }} onKeyUp={(e) => e.stopPropagation()} className="h-8 text-xs flex-1 min-w-0" placeholder="Title" />
               </div>
             );
           }
@@ -1221,8 +1242,8 @@ const Products = () => {
             const display = raw.length > 0 ? raw.slice(0, 40) + (raw.length > 40 ? "…" : "") : "Click to edit";
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-0">
-                {indicator}
                 <Button type="button" size="sm" variant="outline" className="h-9 text-xs flex-1 min-w-0 justify-start" onClick={() => handleOpenDescriptionModal(rowIndex, col)}>{display}</Button>
+                {indicator}
               </div>
             );
           }
@@ -1230,8 +1251,9 @@ const Products = () => {
             const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "").toString().trim();
             const imgFulfilled = imgVal.length > 0 && (!rowData.__errors || !Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "images" || normalizeKey(k) === "image"));
             return (
-              <div className="flex gap-2 py-1.5 min-w-[200px] items-center w-full">
+              <div className="flex gap-2 py-1.5 min-w-[500px] items-center w-full">
                 <div className="flex flex-1 items-center gap-2 min-w-0">
+                  <Input value={rowData.__imageUrl ?? rowData[col] ?? ""} onChange={(e) => handleImportImageUrlChange(rowIndex, col, e.target.value)} onBlur={(e) => handleImportImageUrlBlur(rowIndex, col, e.target.value)} onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()} className="h-8 text-xs flex-1 min-w-0 w-full" placeholder="Image URL" />
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1242,10 +1264,14 @@ const Products = () => {
                       <TooltipContent side="top" className="max-w-[200px]">{imgFulfilled ? "Field fulfilled" : (rowData.__errors && (rowData.__errors["Images"] || rowData.__errors["Image"])) || "Invalid URL or required"}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  <Input value={rowData.__imageUrl ?? rowData[col] ?? ""} onChange={(e) => handleImportImageUrlChange(rowIndex, col, e.target.value)} onBlur={(e) => handleImportImageUrlBlur(rowIndex, col, e.target.value)} onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()} className="h-8 text-xs flex-1 min-w-0" placeholder="Image URL" />
                 </div>
                 <input id={`import-image-product-${rowIndex}`} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportImageUpload(rowIndex, f, rowData.__imageUrl ?? rowData[col] ?? ""); e.target.value = ""; }} />
-                <Button type="button" variant="outline" className="h-7 text-xs" onClick={() => document.getElementById(`import-image-product-${rowIndex}`)?.click()}>Choose from device</Button>
+                <Button type="button" variant="outline" className="text-xs" onClick={() => document.getElementById(`import-image-product-${rowIndex}`)?.click()}>
+                  <CloudUpload
+                    className="w-4 h-4"
+                  />
+                  Choose from device
+                </Button>
               </div>
             );
           }
@@ -1253,9 +1279,9 @@ const Products = () => {
             const current = categoryOptions.find((o) => o.value === rowData[col]) || categoryOptions.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-0">
+              <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
+                <Combobox options={categoryOptions.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Category" clearable className="flex-1 min-w-0 w-full" />
                 {indicator}
-                <ProductCombobox options={categoryOptions} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Category" clearable className="flex-1 min-w-0" />
               </div>
             );
           }
@@ -1264,9 +1290,9 @@ const Products = () => {
             const current = subOpts.find((o) => o.value === rowData[col]) || subOpts.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-0">
+              <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
+                <Combobox options={subOpts.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Subcategory" clearable className="flex-1 min-w-0 w-full" />
                 {indicator}
-                <ProductCombobox options={subOpts} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Subcategory" clearable className="flex-1 min-w-0" />
               </div>
             );
           }
@@ -1274,9 +1300,9 @@ const Products = () => {
             const current = brandOptions.find((o) => o.value === rowData[col]) || brandOptions.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-0">
+              <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
+                <Combobox options={brandOptions.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Brand" clearable className="flex-1 min-w-0 w-full" />
                 {indicator}
-                <ProductCombobox options={brandOptions} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Brand" clearable className="flex-1 min-w-0" />
               </div>
             );
           }
@@ -1284,9 +1310,9 @@ const Products = () => {
             const current = conditionOptions.find((o) => o.value === rowData[col]) || conditionOptions.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-0">
+              <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
+                <Combobox options={conditionOptions.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Condition" clearable className="flex-1 min-w-0 w-full" />
                 {indicator}
-                <ProductCombobox options={conditionOptions} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Condition" clearable className="flex-1 min-w-0" />
               </div>
             );
           }
@@ -1294,9 +1320,9 @@ const Products = () => {
             const numVal = rowData[col];
             const displayVal = numVal === "" || numVal == null ? "" : String(numVal);
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-0" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 py-1.5 min-w-0 w-full" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+                <Input type="number" min={0} step={0.01} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")} placeholder={isPurchasePrice ? "0.00" : "0.00"} />  
                 {indicator}
-                <Input type="number" min={0} step={0.01} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-0", hasError && "border-red-500")} placeholder={isPurchasePrice ? "0.00" : "0.00"} />
               </div>
             );
           }
@@ -1306,14 +1332,49 @@ const Products = () => {
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-0" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
                 {indicator}
-                <Input type="number" min={0} step={1} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-0", hasError && "border-red-500")} placeholder="0" />
+                <Input type="number" min={0} step={1} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")} placeholder="0" />
               </div>
             );
           }
           return (
-            <div className="flex items-center gap-2 py-1.5 min-w-0" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+              <Input
+                value={rowData[col] ?? ""}
+                onChange={(e) =>
+                  handleImportCellChange(rowIndex, col, e.target.value)
+                }
+                placeholder={`Enter ${col}.`}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+
+                  if (e.key === " " || e.key === "Tab") {
+                    e.preventDefault();
+
+                    const input = e.target;
+                    const start = input.selectionStart ?? input.value.length;
+                    const end = input.selectionEnd ?? input.value.length;
+                    const v = (rowData[col] ?? "").toString();
+
+                    handleImportCellChange(
+                      rowIndex,
+                      col,
+                      v.slice(0, start) +
+                      (e.key === "Tab" ? "\t" : " ") +
+                      v.slice(end)
+                    );
+
+                    requestAnimationFrame(() => {
+                      input.selectionStart = input.selectionEnd = start + 1;
+                    });
+                  }
+                }}
+                onKeyUp={(e) => e.stopPropagation()}
+                className={cn(
+                  "text-xs min-w-0",
+                  hasError && "border-red-500"
+                )}
+              />
               {indicator}
-              <Input value={rowData[col] ?? ""} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === " " || e.key === "Tab") { e.preventDefault(); const input = e.target; const start = input.selectionStart ?? input.value.length; const end = input.selectionEnd ?? input.value.length; const v = (rowData[col] ?? "").toString(); handleImportCellChange(rowIndex, col, v.slice(0, start) + (e.key === "Tab" ? "\t" : " ") + v.slice(end)); requestAnimationFrame(() => { input.selectionStart = input.selectionEnd = start + 1; }); } }} onKeyUp={(e) => e.stopPropagation()} className={cn("h-8 text-xs flex-1 min-w-0", hasError && "border-red-500")} />
             </div>
           );
         },
@@ -1699,7 +1760,7 @@ const Products = () => {
                                 {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
                               </p>
                             </div>
-                            <div className="border w-full rounded-md max-h-80 overflow-auto">
+                            <div className="border w-full rounded-md max-h-80 overflow-y-hidden">
                               <DataTable
                                 columns={importTableColumns}
                                 data={importRows?.length ? importRows : EMPTY_ARRAY}
@@ -1707,7 +1768,7 @@ const Products = () => {
                                 addPagination={false}
                                 pageSize={5}
                                 getRowId={(row, index) => String(index)}
-                                containerClassName="flex flex-col overflow-hidden rounded-none border-0 bg-background min-h-[200px] max-h-[320px]"
+                                containerClassName="flex flex-col overflow-hidden rounded-none border-0 bg-background max-h-[320px]"
                                 enableHeaderContextMenu={false}
                               />
                             </div>
@@ -1830,10 +1891,14 @@ const Products = () => {
                       name="asin"
                       placeholder="ASIN"
                       value={form.asin}
-                      onChange={handleChange}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          asin: e.target.value.toUpperCase(),
+                        }))
+                      }
                       className="mt-1 w-full"
                       required
-
                     />
                   </div>
                   <div>
@@ -1919,12 +1984,15 @@ const Products = () => {
                     <Field>
                       <FieldLabel className={"mb-1"}>Category</FieldLabel>
                     </Field>
-                    <ProductCombobox
+                    <Combobox
                       options={categoryOptions}
                       value={form.category}
-                      onChange={(selected) => handleSingleSelect("category", selected)}
+                      onChange={(value) => {
+                        const selected =
+                          categoryOptions.find((o) => o.value === value) || null;
+                        handleSingleSelect("category", selected);
+                      }}
                       placeholder="Select Category..."
-                      clearable
                     />
                   </div>
                   <div>
@@ -1932,13 +2000,18 @@ const Products = () => {
                       <FieldLabel className={"mb-1"}>Subcategory</FieldLabel>
                     </Field>
                     <div className="flex items-center gap-3">
-                      <ProductCombobox
-                        options={subcategoryOptions.map((o) => ({ value: o.value, label: o.label }))}
+                      <Combobox
+                        options={subcategoryOptions}
                         value={form.subcategory}
-                        onChange={(selected) => handleSingleSelect("subcategory", selected)}
-                        placeholder={form.category ? "Select Subcategory..." : "Select category first"}
+                        onChange={(value) => {
+                          const selected =
+                            subcategoryOptions.find((o) => o.value === value) || null;
+                          handleSingleSelect("subcategory", selected);
+                        }}
+                        placeholder={
+                          form.category ? "Select Subcategory..." : "Select category first"
+                        }
                         disabled={!form.category}
-                        clearable
                       />
                       {!form?.category && (
                         <>
@@ -1947,7 +2020,7 @@ const Products = () => {
                               <TooltipTrigger asChild>
                                 <InfoIcon className="w-6 h-6" />
                               </TooltipTrigger>
-                              <TooltipContent className="bg-black text-black">
+                              <TooltipContent>
                                 Select a Category first to see the subcategories
                               </TooltipContent>
                             </Tooltip>
@@ -1960,24 +2033,30 @@ const Products = () => {
                     <Field>
                       <FieldLabel className={"mb-1"}>Brand</FieldLabel>
                     </Field>
-                    <ProductCombobox
+                    <Combobox
                       options={brandOptions}
                       value={form.brand}
-                      onChange={(selected) => handleSingleSelect("brand", selected)}
+                      onChange={(value) => {
+                        const selected =
+                          brandOptions.find((o) => o.value === value) || null;
+                        handleSingleSelect("brand", selected);
+                      }}
                       placeholder="Select Brand..."
-                      clearable
                     />
                   </div>
                   <div>
                     <Field>
                       <FieldLabel className={"mb-1"}>Condition</FieldLabel>
                     </Field>
-                    <ProductCombobox
+                    <Combobox
                       options={conditionOptions}
                       value={form.condition}
-                      onChange={(selected) => handleSingleSelect("condition", selected)}
+                      onChange={(value) => {
+                        const selected =
+                          conditionOptions.find((o) => o.value === value) || null;
+                        handleSingleSelect("condition", selected);
+                      }}
                       placeholder="Select Condition..."
-                      clearable
                     />
                   </div>
                   <div className="col-span-1 md:col-span-2">
@@ -2030,12 +2109,12 @@ const Products = () => {
                               <img
                                 src={src}
                                 alt={`Selected ${index + 1}`}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                               />
                               <button
                                 type="button"
                                 onClick={() => handleRemoveImageAtIndex(index)}
-                                className="absolute top-1 right-1 rounded-full bg-white/95 shadow-md text-red-500 hover:bg-red-50 p-0.5 z-10"
+                                className="absolute top-1 right-1 rounded-full bg-white text-red-500 hover:bg-red-50 p-0.5 z-10"
                                 aria-label="Remove image"
                               >
                                 <XCircle className="w-4 h-4" />

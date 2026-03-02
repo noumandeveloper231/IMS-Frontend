@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import { AuthProvider } from "./context/AuthContext";
@@ -34,8 +35,30 @@ import ConnectedDevices from "./pages/ConnectedDevices";
 import Connect from "./pages/Connect";
 import Login from "./pages/Login";
 import ScrollArea from "./components/UI/scroll-area";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "./components/UI/resizable";
 
 function App() {
+  const sidebarPanelRef = useRef(null);
+
+  const handleSidebarCollapseToggle = () => {
+    const panel = sidebarPanelRef.current;
+    if (!panel) return;
+
+    try {
+      if (panel.isCollapsed && panel.isCollapsed()) {
+        panel.expand && panel.expand();
+      } else {
+        panel.collapse && panel.collapse();
+      }
+    } catch {
+      // Ignore imperative API errors
+    }
+  };
+
   return (
     <AuthProvider>
       <Routes>
@@ -47,45 +70,59 @@ function App() {
             <ProtectedRoute>
               <ImageModalProvider>
                 <ScannerProvider>
-                <div className="bg-[#f5f7fb]">
-                  <div className="flex w-full h-screen">
-                    <div className="shrink-0">
-                      <Sidebar />
-                    </div>
-                    <ScrollArea className="flex-1 min-w-0 overflow-y-auto h-full lg:h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-white">
-                      <Navbar />
-                      <ImageModal />
-                      <Routes>
-                        <Route path="/" element={<Dashboard />} />
-                        <Route path="/ecom" element={<EcommerceStore />} />
-                        <Route path="/categories" element={<Categories />} />
-                        <Route path="/subcategories" element={<Subcategories />} />
-                        <Route path="/brands" element={<Brands />} />
-                        <Route path="/conditions" element={<Conditions />} />
-                        <Route path="/vendors" element={<Vendors />} />
-                        <Route path="/expenses" element={<Expenses />} />
-                        <Route path="/expensecategories" element={<ExpenseCategories />} />
-                        <Route path="/products" element={<Products />} />
-                        <Route path="/products/:id" element={<ProductDetail />} />
-                        <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
-                        <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
-                        <Route path="/purchasereceiveslist" element={<PurchaseReceiveList />} />
-                        <Route path="/purchase-receives" element={<PurchaseReceive />} />
-                        <Route path="/bills" element={<BillManagement />} />
-                        <Route path="/sales" element={<Sales />} />
-                        <Route path="/orders" element={<Orders />} />
-                        <Route path="/employees" element={<Employees />} />
-                        <Route path="/customers" element={<Customers />} />
-                        <Route path="/reports" element={<Reports />} />
-                        <Route path="/connected-devices" element={<ConnectedDevices />} />
-                        <Route path="/products/filter/:type/:id" element={<FilteredProducts />} />
-                        <Route path="/products/stock/:status" element={<FilteredProducts />} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                      </Routes>
-                    </ScrollArea>
+                  <div className="bg-[#f5f7fb]">
+                    <ResizablePanelGroup
+                      orientation="horizontal"
+                      className="flex w-full h-screen"
+                    >
+                      <ResizablePanel
+                        defaultSize={18}
+                        minSize={70}
+                        maxSize={300}
+                        collapsible
+                        collapsedSize={70}
+                        className="shrink-0"
+                        panelRef={sidebarPanelRef}
+                      >
+                        <Sidebar onCollapseToggle={handleSidebarCollapseToggle} />
+                      </ResizablePanel>
+                      <ResizableHandle withHandle />
+                      <ResizablePanel defaultSize={82} minSize={60}>
+                        <ScrollArea className="flex-1 min-w-0 overflow-y-auto h-full lg:h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-white">
+                          <Navbar />
+                          <ImageModal />
+                          <Routes>
+                            <Route path="/" element={<Dashboard />} />
+                            <Route path="/ecom" element={<EcommerceStore />} />
+                            <Route path="/categories" element={<Categories />} />
+                            <Route path="/subcategories" element={<Subcategories />} />
+                            <Route path="/brands" element={<Brands />} />
+                            <Route path="/conditions" element={<Conditions />} />
+                            <Route path="/vendors" element={<Vendors />} />
+                            <Route path="/expenses" element={<Expenses />} />
+                            <Route path="/expensecategories" element={<ExpenseCategories />} />
+                            <Route path="/products" element={<Products />} />
+                            <Route path="/products/:id" element={<ProductDetail />} />
+                            <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
+                            <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
+                            <Route path="/purchasereceiveslist" element={<PurchaseReceiveList />} />
+                            <Route path="/purchase-receives" element={<PurchaseReceive />} />
+                            <Route path="/bills" element={<BillManagement />} />
+                            <Route path="/sales" element={<Sales />} />
+                            <Route path="/orders" element={<Orders />} />
+                            <Route path="/employees" element={<Employees />} />
+                            <Route path="/customers" element={<Customers />} />
+                            <Route path="/reports" element={<Reports />} />
+                            <Route path="/connected-devices" element={<ConnectedDevices />} />
+                            <Route path="/products/filter/:type/:id" element={<FilteredProducts />} />
+                            <Route path="/products/stock/:status" element={<FilteredProducts />} />
+                            <Route path="*" element={<Navigate to="/" replace />} />
+                          </Routes>
+                        </ScrollArea>
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
                   </div>
-                </div>
-              </ScannerProvider>
+                </ScannerProvider>
               </ImageModalProvider>
             </ProtectedRoute>
           }
