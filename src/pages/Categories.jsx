@@ -1,13 +1,14 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
-import { Trash2, Pencil, Check, X } from "lucide-react";
+import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Field, FieldLabel } from "@/components/UI/field";
+import { Field, FieldGroup, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
+import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
@@ -17,13 +18,6 @@ import {
   ResolveDependenciesDialog,
   TransferDependenciesDialog,
 } from "@/components/ResolveDependenciesDialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/UI/dialog";
 import {
   Drawer,
   DrawerClose,
@@ -66,7 +60,8 @@ const resolveImageUrl = (src) => {
 };
 
 const TEMPLATE_COLUMNS = ["Name", "Image"];
-const REQUIRED_FILE_COLUMNS = ["Name", "Image"];
+/** Only Name is required in the file; Image column is optional. */
+const REQUIRED_FILE_COLUMNS = ["Name"];
 
 /** Stable empty array so categories don't get new ref when data is undefined (avoids column remount / focus loss). */
 const EMPTY_ARRAY = [];
@@ -288,7 +283,7 @@ const Categories = () => {
     if (bulkManagerOpen && selectedCategoryIds.length > 0 && bulkManager.status === "idle") {
       bulkManager.startAnalysis(selectedCategoryIds);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
   }, [bulkManagerOpen]);
 
   const handleClick = (id) => {
@@ -520,12 +515,8 @@ const Categories = () => {
     const keys = Object.keys(first || {});
     const normalized = keys.map((k) => normalizeKey(k));
     const hasName = normalized.includes("name");
-    const hasImage = normalized.includes("image");
     if (!hasName) {
       return { ok: false, message: "File does not contain the required column 'Name'. Please use the template." };
-    }
-    if (!hasImage) {
-      return { ok: false, message: "File does not contain the required column 'Image'. Please use the template." };
     }
     return { ok: true };
   };
@@ -563,12 +554,9 @@ const Categories = () => {
         fieldErrors[nameKey || "Name"] = "Required";
         statusMessage = "Name required";
       }
-      if (!image) {
-        fieldErrors[imageKey || "Image"] = "Required";
-        statusMessage = statusMessage || "Image required";
-      } else if (!isValidImageUrl(image)) {
+      if (image && !isValidImageUrl(image)) {
         fieldErrors[imageKey || "Image"] = "Invalid URL";
-        statusMessage = "Invalid URL";
+        statusMessage = statusMessage || "Invalid URL";
       }
       if (name && !fieldErrors[nameKey || "Name"]) {
         const norm = normalizeCategoryName(name);
@@ -741,25 +729,10 @@ const Categories = () => {
               : "Field is required";
             return (
               <div
-                className="flex items-center gap-1.5 min-w-[120px]"
+                className="flex items-center gap-2 min-w-0"
                 onKeyDown={(e) => e.stopPropagation()}
                 onKeyUp={(e) => e.stopPropagation()}
               >
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
-                        aria-hidden
-                      >
-                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[200px]">
-                      {nameFulfilled ? "Field fulfilled" : nameErrorMsg}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
                 <Input
                   value={rowData[col] ?? ""}
                   onChange={(e) =>
@@ -789,6 +762,21 @@ const Categories = () => {
                   className="h-8 text-xs flex-1 min-w-0"
                   placeholder="Category name"
                 />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                        aria-hidden
+                      >
+                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      {nameFulfilled ? "Field fulfilled" : nameErrorMsg}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             );
           }
@@ -796,7 +784,7 @@ const Categories = () => {
             const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "").toString().trim();
             const imgErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "image");
             const imgError = Boolean(imgErrorKey);
-            const imgFulfilled = imgVal.length > 0 && !imgError && isValidImageUrl(imgVal);
+            const imgFulfilled = !imgError;
             const imgErrorMsg = imgErrorKey
               ? (rowData.__errors[imgErrorKey] === "Invalid URL"
                 ? "Invalid URL"
@@ -807,21 +795,6 @@ const Categories = () => {
             return (
               <div className="flex gap-1.5 min-w-[200px] items-center justify-center w-full">
                 <div className="flex flex-1 items-center gap-1.5 min-w-0">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span
-                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${imgFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
-                          aria-hidden
-                        >
-                          {imgFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[200px]">
-                        {imgFulfilled ? "Field fulfilled" : imgErrorMsg}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                   <Input
                     value={rowData.__imageUrl ?? rowData[col] ?? ""}
                     onChange={(e) => {
@@ -842,6 +815,21 @@ const Categories = () => {
                     className="h-8 text-xs flex-1 min-w-0"
                     placeholder="Image URL"
                   />
+                  {/* <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${imgFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                          aria-hidden
+                        >
+                          {imgFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[200px]">
+                        {imgFulfilled ? "Field fulfilled" : imgErrorMsg}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider> */}
                 </div>
                 <div className="flex items-center gap-1.5 justify-center">
                   <input
@@ -859,11 +847,14 @@ const Categories = () => {
                     type="button"
                     variant="outline"
                     // size="sm"
-                    className="h-7 text-xs"
+                    className="text-xs"
                     onClick={() =>
                       document.getElementById(`import-image-${rowIndex}`)?.click()
                     }
                   >
+                    <CloudUpload 
+                      className="h-4 w-4"
+                    />
                     Choose from device
                   </Button>
                 </div>
@@ -1066,8 +1057,8 @@ const Categories = () => {
           if (!cat.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
-          return (
-            <div className="flex items-center justify-center">
+            return (
+              <div className="flex items-center">
               <img
                 src={resolveImageUrl(cat.image)}
                 alt={cat.name}
@@ -1086,6 +1077,7 @@ const Categories = () => {
           <span className="font-medium text-gray-800">{row.original.name}</span>
         ),
       },
+
       {
         id: "productCount",
         header: "Product Count",
@@ -1144,7 +1136,7 @@ const Categories = () => {
         cell: ({ row }) => {
           const cat = row.original;
           return (
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center gap-1">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1188,8 +1180,8 @@ const Categories = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full overflow-x-hidden">
-      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gray-100 max-w-full overflow-x-hidden">
+      <div className="mx-auto flex bg-white flex-col gap-4 sm:gap-6 p-6 sm:p-8 lg:p-10">
         {/* Header + Actions */}
         <div className="min-w-0">
           <Drawer
@@ -1198,7 +1190,7 @@ const Categories = () => {
             onOpenChange={setCategoryDrawerOpen}
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center">
-              <h2 className="text-xl sm:text-2xl font-semibold text-gray-700 truncate min-w-0">
+              <h2 className="text-xl sm:text-2xl font-semibold truncate min-w-0">
                 Categories List ({filteredCategories.length})
               </h2>
               <div className="flex flex-wrap gap-2 sm:gap-4 items-center w-full lg:w-auto lg:flex-1 lg:justify-end">
@@ -1236,7 +1228,7 @@ const Categories = () => {
                     <DrawerTrigger asChild>
                       <Label
                         variant="light"
-                        className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                        className="px-3 sm:px-4 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
                       >
                         Import Excel
                       </Label>
@@ -1338,7 +1330,7 @@ const Categories = () => {
                                 addPagination={false}
                                 pageSize={5}
                                 getRowId={(row, index) => String(index)}
-                                containerClassName="flex flex-col overflow-hidden rounded-none border-0 bg-background min-h-[200px] max-h-[320px]"
+                                containerClassName="flex flex-col overflow-hidden rounded-none border-none bg-background min-h-[200px] max-h-[320px]"
                                 enableHeaderContextMenu={false}
                               />
                             </div>
@@ -1392,12 +1384,13 @@ const Categories = () => {
                 <Label
                   variant="success"
                   onClick={handleExport}
-                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Export Excel
                 </Label>
-                <Label
+                <Button
                   type="button"
+                  variant="success"
                   onClick={() => {
                     handleClearForm();
                     setCategoryDrawerOpen(true);
@@ -1405,7 +1398,7 @@ const Categories = () => {
                   className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Add New Category
-                </Label>
+                </Button>
               </div>
             </div>
 
@@ -1498,7 +1491,7 @@ const Categories = () => {
         <div className="min-w-0">
           <div className="flex flex-col gap-4 mb-4">
             <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-              <div className="w-full min-w-0 flex-1">
+              <div className="w-full min-w-0 flex-5">
                 <Input
                   type="text"
                   placeholder="Search categories..."
@@ -1507,22 +1500,24 @@ const Categories = () => {
                   className="w-full"
                 />
               </div>
-              <div className="w-full sm:w-auto min-w-0 sm:min-w-[140px]">
+              <div className="w-full sm:w-auto min-w-0 flex-1">
                 <UiSelect
-                  value={effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom"}
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "10")}
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
                     setCustomItemsPerPage("");
                   }}
+                  className="w-full"
                 >
-                  <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
-                  <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
+                  <SelectContent
+                    className="min-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]"
+                  >
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
-                      <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                       <SelectItem value="50">50 per page</SelectItem>
@@ -1534,15 +1529,15 @@ const Categories = () => {
                     <SelectSeparator />
                     <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                       <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
-                      <Input
+                      <CustomRowsPerPageInput
                         type="number"
                         min={1}
                         max={500}
                         placeholder="e.g. 25"
                         className="h-8 w-full text-sm"
                         value={customItemsPerPage}
-                        onChange={(e) => setCustomItemsPerPage(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                        onKeyDown={(e) => e.stopPropagation()}
+                        onChange={setCustomItemsPerPage}
+                        autoFocus
                       />
                     </div>
                   </SelectContent>

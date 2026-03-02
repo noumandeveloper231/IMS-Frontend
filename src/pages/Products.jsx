@@ -15,6 +15,7 @@ import * as XLSX from "xlsx";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
+import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
@@ -372,6 +373,8 @@ const Products = () => {
 
   // Handle input change
   const handleChange = (e) => {
+    // e.stopPropagation();
+    // e.preventDefault();
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -786,7 +789,7 @@ const Products = () => {
         cell: ({ row }) => {
           const p = row.original;
           return (
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center gap-1">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1602,7 +1605,7 @@ const Products = () => {
                     <DrawerTrigger asChild>
                       <Label
                         variant="light"
-                        className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                        className="px-3 sm:px-4 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
                       >
                         Import Excel
                       </Label>
@@ -1758,20 +1761,21 @@ const Products = () => {
                   <Label
                     variant="success"
                     onClick={handleExport}
-                    className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                    className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                   >
                     Export Excel
                   </Label>
-                  <Label
+                  <Button
                     type="button"
+                    variant="success"
                     onClick={() => {
                       handleClear();
                       setProductDrawerOpen(true);
                     }}
-                    className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                    className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                   >
                     Add New Product
-                  </Label>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1799,7 +1803,7 @@ const Products = () => {
                   className="grid grid-cols-1 md:grid-cols-2 gap-6"
                 >
                   {/* Form Fields */}
-                  <div className="col-span-1 md:col-span-2">
+                  <div className="col-span-1 md:col-span-2 w-full">
                     <Field>
                       <FieldLabel htmlFor="product-title">Product Title</FieldLabel>
                     </Field>
@@ -1811,7 +1815,7 @@ const Products = () => {
                       ref={titleInputRef}
                       value={form.title}
                       onChange={handleChange}
-                      className="mt-1"
+                      className="mt-1 w-full"
                       required
                     />
                   </div>
@@ -1827,8 +1831,9 @@ const Products = () => {
                       placeholder="ASIN"
                       value={form.asin}
                       onChange={handleChange}
-                      className="mt-1"
+                      className="mt-1 w-full"
                       required
+
                     />
                   </div>
                   <div>
@@ -1841,7 +1846,7 @@ const Products = () => {
                       name="sku"
                       placeholder="SKU"
                       value={form.sku}
-                      className="mt-1"
+                      className="mt-1 w-full"
                       readOnly
                       disabled
                     />
@@ -1857,7 +1862,7 @@ const Products = () => {
                       placeholder="Model No."
                       value={form.modelno}
                       onChange={handleChange}
-                      className="mt-1"
+                      className="mt-1 w-full"
                       required
                     />
                   </div>
@@ -1873,7 +1878,7 @@ const Products = () => {
                       placeholder="Purchase Price"
                       value={form.purchasePrice}
                       onChange={handleChange}
-                      className="mt-1"
+                      className="mt-1 w-full"
                       required
                     />
                   </div>
@@ -1889,7 +1894,7 @@ const Products = () => {
                       placeholder="Sale Price"
                       value={form.salePrice}
                       onChange={handleChange}
-                      className="mt-1"
+                      className="mt-1 w-full"
                       required
                     />
                   </div>
@@ -1905,7 +1910,7 @@ const Products = () => {
                       placeholder="Quantity"
                       value={form.quantity}
                       onChange={handleChange}
-                      className="mt-1"
+                      className="mt-1 w-full"
                       required
                     />
                   </div>
@@ -2085,7 +2090,7 @@ const Products = () => {
         <div className="min-w-0">
           <div className="flex flex-col gap-4 mb-4">
             <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-              <div className="w-full min-w-0 flex-1">
+              <div className="w-full min-w-0 flex-5">
                 <Input
                   type="text"
                   placeholder="Search products..."
@@ -2094,14 +2099,14 @@ const Products = () => {
                   className="w-full"
                 />
               </div>
-              <div className="w-full sm:w-auto min-w-0 sm:min-w-[140px]">
+              <div className="w-full sm:w-auto min-w-0 flex-1">
                 <UiSelect
                   value={stockFilter}
                   onValueChange={(value) => {
                     setStockFilter(value);
                   }}
                 >
-                  <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Stock filter" />
                   </SelectTrigger>
                   <SelectContent position="item-aligned">
@@ -2114,16 +2119,16 @@ const Products = () => {
                   </SelectContent>
                 </UiSelect>
               </div>
-              <div className="w-full sm:w-auto min-w-0 sm:min-w-[140px]">
+              <div className="w-full sm:w-auto min-w-0 flex-1">
                 <UiSelect
-                  value={effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom"}
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
                     setCustomItemsPerPage("");
                   }}
                 >
-                  <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
@@ -2141,15 +2146,15 @@ const Products = () => {
                     <SelectSeparator />
                     <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                       <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
-                      <Input
+                      <CustomRowsPerPageInput
                         type="number"
                         min={1}
                         max={500}
                         placeholder="e.g. 25"
                         className="h-8 w-full text-sm"
                         value={customItemsPerPage}
-                        onChange={(e) => setCustomItemsPerPage(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                        onKeyDown={(e) => e.stopPropagation()}
+                        onChange={setCustomItemsPerPage}
+                        autoFocus
                       />
                     </div>
                   </SelectContent>

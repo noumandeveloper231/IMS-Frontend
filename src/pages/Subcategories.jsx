@@ -9,9 +9,11 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
+import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
+import { Combobox } from "@/components/UI/combobox";
 import {
   ResolveDependenciesDialog,
   TransferDependenciesDialog,
@@ -53,88 +55,6 @@ import { DataTable } from "@/components/UI/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { cn } from "@/lib/utils";
-
-function CategoryCombobox({
-  options = [],
-  value,
-  onChange,
-  placeholder = "Select...",
-  disabled = false,
-  clearable = true,
-  className = "",
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value) ?? null;
-  const displayLabel = selected ? selected.label : placeholder;
-
-  const handleSelect = (option) => {
-    onChange(option);
-    setOpen(false);
-  };
-
-  const handleClear = (e) => {
-    e.stopPropagation();
-    onChange(null);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen} className={className}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          disabled={disabled}
-          className={cn(
-            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
-            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-            !selected && "text-muted-foreground"
-          )}
-        >
-          <span className="truncate">{displayLabel}</span>
-          <div className="flex items-center gap-1">
-            {clearable && selected && (
-              <span
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && handleClear(e)}
-                onClick={handleClear}
-                className="rounded p-0.5 hover:bg-muted"
-                aria-label="Clear"
-              >
-                ×
-              </span>
-            )}
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-          </div>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search..." />
-          <CommandList className="h-50 overflow-y-auto">
-            <CommandEmpty>No results found.</CommandEmpty>
-            <CommandGroup>
-              {options.map((opt) => (
-                <CommandItem
-                  key={opt.value}
-                  value={opt.label}
-                  onSelect={() => handleSelect(opt)}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === opt.value ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {opt.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 const TEMPLATE_COLUMNS = ["Name", "Category"];
 const REQUIRED_FILE_COLUMNS = ["Name", "Category"];
@@ -811,25 +731,10 @@ const Subcategories = () => {
               : "Field is required";
             return (
               <div
-                className="flex items-center gap-1.5 min-w-[120px]"
+                className="flex items-center gap-2 min-w-0"
                 onKeyDown={(e) => e.stopPropagation()}
                 onKeyUp={(e) => e.stopPropagation()}
               >
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
-                        aria-hidden
-                      >
-                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[200px]">
-                      {nameFulfilled ? "Field fulfilled" : nameErrorMsg}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
                 <Input
                   value={rowData[col] ?? ""}
                   onChange={(e) =>
@@ -859,6 +764,21 @@ const Subcategories = () => {
                   className="h-8 text-xs flex-1 min-w-0"
                   placeholder="Subcategory name"
                 />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                        aria-hidden
+                      >
+                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      {nameFulfilled ? "Field fulfilled" : nameErrorMsg}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             );
           }
@@ -873,7 +793,17 @@ const Subcategories = () => {
                 : rowData.__errors[catErrorKey])
               : "Field is required";
             return (
-              <div className="flex items-center gap-1.5 min-w-[140px]">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex-1 min-w-0 max-w-full">
+                  <Combobox
+                    options={categoryOptions.map((c) => ({ value: c.value, label: c.label }))}
+                    value={rowData.__categoryId || ""}
+                    onChange={(val) => handleImportCellChange(rowIndex, col, val ?? "")}
+                    placeholder="Select Category"
+                    className="max-w-full"
+                  />
+                </div>
+
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -889,29 +819,9 @@ const Subcategories = () => {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <UiSelect
-                  value={rowData.__categoryId || ""}
-                  onValueChange={(value) =>
-                    handleImportCellChange(rowIndex, col, value)
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs flex-1 min-w-0">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categoryOptions.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </UiSelect>
               </div>
             );
           }
-          return (
-            <span className="text-xs">{String(rowData[col] ?? "")}</span>
-          );
         },
       };
     });
@@ -1067,7 +977,7 @@ const Subcategories = () => {
         cell: ({ row }) => {
           const sub = row.original;
           return (
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center gap-1">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1159,7 +1069,7 @@ const Subcategories = () => {
                     <DrawerTrigger asChild>
                       <Label
                         variant="light"
-                        className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                        className="px-3 sm:px-4 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
                       >
                         Import Excel
                       </Label>
@@ -1307,15 +1217,15 @@ const Subcategories = () => {
                   type="button"
                   variant="success"
                   onClick={handleExport}
-                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Export Excel
                 </Label>
                 <DrawerTrigger asChild>
-                  <Label
+                  <Button
                     type="button"
-                    variant="default"
-                    className="bg-black text-white shadow hover:bg-black px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                    variant="success"
+                    className="bg-black text-white shadow hover:bg-black px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
 
                     onClick={() => {
                       handleClearForm();
@@ -1323,7 +1233,7 @@ const Subcategories = () => {
                     }}
                   >
                     Add New Subcategory
-                  </Label>
+                  </Button>
                 </DrawerTrigger>
               </div>
             </div>
@@ -1365,12 +1275,11 @@ const Subcategories = () => {
                   </Field>
                   <Field>
                     <FieldLabel>Category</FieldLabel>
-                    <CategoryCombobox
-                      options={categoryOptions}
+                    <Combobox
+                      options={categoryOptions.map((c) => ({ value: c.value, label: c.label }))}
                       value={categoryId}
-                      onChange={(opt) => setCategoryId(opt?.value ?? "")}
+                      onChange={(val) => setCategoryId(val ?? "")}
                       placeholder="Select Category"
-                      clearable
                       className="mt-1"
                     />
                   </Field>
@@ -1406,7 +1315,7 @@ const Subcategories = () => {
         <div className="min-w-0">
           <div className="flex flex-col gap-4 mb-4">
             <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-              <div className="w-full min-w-0 flex-1">
+              <div className="w-full min-w-0 flex-5">
                 <Input
                   type="text"
                   placeholder="Search subcategories..."
@@ -1415,16 +1324,16 @@ const Subcategories = () => {
                   className="w-full"
                 />
               </div>
-              <div className="w-full sm:w-auto min-w-0 sm:min-w-[140px]">
+              <div className="w-full  min-w-0 flex-1">
                 <UiSelect
-                  value={effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom"}
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
                     setCustomItemsPerPage("");
                   }}
                 >
-                  <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
@@ -1442,15 +1351,15 @@ const Subcategories = () => {
                     <SelectSeparator />
                     <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                       <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
-                      <Input
+                      <CustomRowsPerPageInput
                         type="number"
                         min={1}
                         max={500}
                         placeholder="e.g. 25"
                         className="h-8 w-full text-sm"
                         value={customItemsPerPage}
-                        onChange={(e) => setCustomItemsPerPage(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                        onKeyDown={(e) => e.stopPropagation()}
+                        onChange={setCustomItemsPerPage}
+                        autoFocus
                       />
                     </div>
                   </SelectContent>

@@ -112,26 +112,27 @@ export function DataTable({
     () => ({
       id: "__select",
       header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
-          }
-          onCheckedChange={(value) =>
-            table.toggleAllPageRowsSelected(!!value)
-          }
-          aria-label="Select all"
-          className="mx-auto"
-        />
+        <div className="flex w-full justify-center">
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
+            aria-label="Select all"
+          />
+        </div>
       ),
       cell: ({ row }) => (
-        <span onClick={(e) => e.stopPropagation()} className="inline-block">
+        <div className="flex w-full justify-center" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
             aria-label="Select row"
           />
-        </span>
+        </div>
       ),
       enableSorting: false,
       enableHiding: false,
@@ -274,7 +275,7 @@ export function DataTable({
           <Table className="relative min-w-full text-black" stickyHeader>
             <TableHeader className="text-black shadow-sm">
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="border-gray-200 shadow-sm">
+                <TableRow key={headerGroup.id} className="">
                   {headerGroup.headers.map((header) => {
                     const isSelection = header.column.id === "__select";
 
@@ -292,9 +293,9 @@ export function DataTable({
                       header.column.id;
 
                     const headerInner = isSelection ? (
-                      <div className="text-center">{rawLabel}</div>
+                      <div className="flex justify-center">{rawLabel}</div>
                     ) : (
-                      <div className="text-center">
+                      <div className="">
                         <DefaultHeader
                           column={header.column}
                           title={String(title)}
@@ -306,8 +307,8 @@ export function DataTable({
                       <TableHead
                         className={
                           header.index === 0
-                            ? "sticky top-0 left-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
-                            : "sticky top-0 z-20 bg-background text-center px-4 py-3 text-sm text-black border-b border-gray-200"
+                            ? "sticky top-0 left-0 z-20 bg-background px-4 py-3 text-sm text-black border-b border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                            : "sticky top-0 z-20 bg-background px-4 py-3 text-sm text-black border-b border-gray-200"
                         }
                       >
                         {headerInner}
@@ -350,9 +351,9 @@ export function DataTable({
                 <TableRow>
                   <TableCell
                     colSpan={table.getVisibleLeafColumns().length}
-                    className="h-24 text-center text-sm text-muted-foreground"
+                    className="h-24 text-sm text-muted-foreground"
                   >
-                    <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="flex flex-col items-center gap-2">
                       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       <span>Loading...</span>
                     </div>
@@ -362,7 +363,7 @@ export function DataTable({
                 <TableRow>
                   <TableCell
                     colSpan={table.getVisibleLeafColumns().length}
-                    className="h-24 text-center text-sm text-destructive"
+                    className="h-24 text-sm text-destructive"
                   >
                     {error?.message ?? "Failed to load data."}
                   </TableCell>
@@ -372,7 +373,7 @@ export function DataTable({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className="border-gray-200"
+                    className="border-gray-200 px-4"
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
@@ -380,7 +381,7 @@ export function DataTable({
                         className={
                           cell.column.id === "__select"
                             ? "text-center px-4 py-3 text-sm text-black cursor-pointer"
-                            : "text-center px-4 py-3 text-sm text-black"
+                            : "px-4 py-3 text-sm text-black"
                         }
                         onClick={
                           cell.column.id === "__select"
@@ -400,7 +401,7 @@ export function DataTable({
                 <TableRow>
                   <TableCell
                     colSpan={table.getVisibleLeafColumns().length}
-                    className="h-24 text-center text-sm text-muted-foreground"
+                    className="h-24 text-sm text-muted-foreground"
                   >
                     No results.
                   </TableCell>

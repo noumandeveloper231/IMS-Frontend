@@ -1,13 +1,14 @@
 import React, { useState, useRef, useMemo, useCallback } from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
-import { Trash2, Pencil, Check, X } from "lucide-react";
+import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
+import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
@@ -243,7 +244,7 @@ const Brands = () => {
       if (error?.response?.status === 409) {
         toast.error(
           messageFromServer ||
-            "Cannot delete brand because it is linked with other records ❌",
+          "Cannot delete brand because it is linked with other records ❌",
         );
       } else if (messageFromServer) {
         toast.error(messageFromServer);
@@ -718,25 +719,10 @@ const Brands = () => {
               : "Field is required";
             return (
               <div
-                className="flex items-center gap-1.5 min-w-[120px]"
+                className="flex items-center gap-2 min-w-0"
                 onKeyDown={(e) => e.stopPropagation()}
                 onKeyUp={(e) => e.stopPropagation()}
               >
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
-                        aria-hidden
-                      >
-                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[200px]">
-                      {nameFulfilled ? "Field fulfilled" : nameErrorMsg}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
                 <Input
                   value={rowData[col] ?? ""}
                   onChange={(e) =>
@@ -766,6 +752,21 @@ const Brands = () => {
                   className="h-8 text-xs flex-1 min-w-0"
                   placeholder="Brand name"
                 />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                        aria-hidden
+                      >
+                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      {nameFulfilled ? "Field fulfilled" : nameErrorMsg}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             );
           }
@@ -782,23 +783,8 @@ const Brands = () => {
                   : rowData.__errors[imgErrorKey])
               : "Field is required";
             return (
-              <div className="flex gap-1.5 min-w-[200px] items-center justify-center w-full">
+              <div className="flex items-center gap-2 min-w-0">
                 <div className="flex flex-1 items-center gap-1.5 min-w-0">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span
-                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${imgFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
-                          aria-hidden
-                        >
-                          {imgFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[200px]">
-                        {imgFulfilled ? "Field fulfilled" : imgErrorMsg}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                   <Input
                     value={rowData.__imageUrl ?? rowData[col] ?? ""}
                     onChange={(e) => {
@@ -819,6 +805,21 @@ const Brands = () => {
                     className="h-8 text-xs flex-1 min-w-0"
                     placeholder="Image URL"
                   />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${imgFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                          aria-hidden
+                        >
+                          {imgFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[200px]">
+                        {imgFulfilled ? "Field fulfilled" : imgErrorMsg}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
                 <div className="flex items-center gap-1.5 justify-center">
                   <input
@@ -835,11 +836,14 @@ const Brands = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-7 text-xs"
+                    className="text-xs"
                     onClick={() =>
                       document.getElementById(`import-image-${rowIndex}`)?.click()
                     }
                   >
+                    <CloudUpload 
+                      className="h-4 w-4"
+                    />
                     Choose from device
                   </Button>
                 </div>
@@ -970,10 +974,10 @@ const Brands = () => {
     }
     setImportLoading(true);
     try {
-    const payload = validRows.map(({ __errors, __status, __name, __imageUrl, ...rest }) => ({
-      name: __name,
-      image: __imageUrl || rest.Image || "",
-    }));
+      const payload = validRows.map(({ __errors, __status, __name, __imageUrl, ...rest }) => ({
+        name: __name,
+        image: __imageUrl || rest.Image || "",
+      }));
       await api.post("/brands/createbulk", payload);
       queryClient.invalidateQueries({ queryKey: ["brands"] });
       toast.success(`Imported ${payload.length} brands ✅`);
@@ -1043,7 +1047,7 @@ const Brands = () => {
             return <span className="text-gray-400 italic">No Image</span>;
           }
           return (
-            <div className="flex items-center justify-center">
+            <div className="flex items-center">
               <img
                 src={resolveImageUrl(brand.image)}
                 alt={brand.name}
@@ -1120,7 +1124,7 @@ const Brands = () => {
         cell: ({ row }) => {
           const brand = row.original;
           return (
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center gap-1">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1211,7 +1215,7 @@ const Brands = () => {
                     <DrawerTrigger asChild>
                       <Label
                         variant="light"
-                        className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                        className="px-3 sm:px-4 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
                       >
                         Import Excel
                       </Label>
@@ -1367,20 +1371,21 @@ const Brands = () => {
                 <Label
                   variant="success"
                   onClick={handleExport}
-                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Export Excel
                 </Label>
-                <Label
+                <Button
                   type="button"
+                  variant="success"
                   onClick={() => {
                     handleClearForm();
                     setBrandDrawerOpen(true);
                   }}
-                  className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Add New Brand
-                </Label>
+                </Button>
               </div>
             </div>
 
@@ -1471,7 +1476,7 @@ const Brands = () => {
         <div className="min-w-0">
           <div className="flex flex-col gap-4 mb-4">
             <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-              <div className="w-full min-w-0 flex-1">
+              <div className="w-full min-w-0 flex-5">
                 <Input
                   type="text"
                   placeholder="Search brands..."
@@ -1480,16 +1485,16 @@ const Brands = () => {
                   className="w-full"
                 />
               </div>
-              <div className="w-full sm:w-auto min-w-0 sm:min-w-[140px]">
+              <div className="w-full sm:w-auto min-w-0 flex-1">
                 <UiSelect
-                  value={effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom"}
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
                     setCustomItemsPerPage("");
                   }}
                 >
-                  <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
@@ -1507,15 +1512,15 @@ const Brands = () => {
                     <SelectSeparator />
                     <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                       <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
-                      <Input
+                      <CustomRowsPerPageInput
                         type="number"
                         min={1}
                         max={500}
                         placeholder="e.g. 25"
                         className="h-8 w-full text-sm"
                         value={customItemsPerPage}
-                        onChange={(e) => setCustomItemsPerPage(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                        onKeyDown={(e) => e.stopPropagation()}
+                        onChange={setCustomItemsPerPage}
+                        autoFocus
                       />
                     </div>
                   </SelectContent>
