@@ -412,8 +412,8 @@ export function DataTable({
         </div>
       </div>
 
-      {
-        addPagination || enableSelection && <div className="mt-4 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {(addPagination || enableSelection) && (
+        <div className="mt-4 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
           {enableSelection && (
             <span className="flex-1 text-xs text-muted-foreground">
@@ -484,8 +484,7 @@ export function DataTable({
             </div>
           )}
         </div>
-      }
-
+      )}
 
     </div>
   );
