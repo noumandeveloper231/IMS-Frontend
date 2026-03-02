@@ -18,7 +18,7 @@ const ExpenseCategories = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Fetch categories
   const fetchCategories = async () => {
@@ -280,7 +280,6 @@ const ExpenseCategories = () => {
                 }}
                 className="p-2 border border-gray-300 rounded-xl bg-white text-gray-700"
               >
-                <option value={5}>5 per page</option>
                 <option value={10}>10 per page</option>
                 <option value={20}>20 per page</option>
               </select>

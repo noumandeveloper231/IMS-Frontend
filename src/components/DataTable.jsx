@@ -401,7 +401,7 @@ export function DataTable({
                 <TableRow>
                   <TableCell
                     colSpan={table.getVisibleLeafColumns().length}
-                    className="h-24 text-sm text-muted-foreground"
+                    className="h-24 text-sm text-center text-muted-foreground"
                   >
                     No results.
                   </TableCell>
@@ -485,7 +485,6 @@ export function DataTable({
           )}
         </div>
       )}
-
     </div>
   );
 }

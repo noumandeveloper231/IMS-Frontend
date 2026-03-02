@@ -114,7 +114,7 @@ const Categories = () => {
     duplicates: 0,
   });
   const [importLoading, setImportLoading] = useState(false);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});

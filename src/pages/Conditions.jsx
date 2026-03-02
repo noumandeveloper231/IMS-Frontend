@@ -104,7 +104,7 @@ const Conditions = () => {
     duplicates: 0,
   });
   const [importLoading, setImportLoading] = useState(false);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedConditionIds, setSelectedConditionIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});
@@ -1485,7 +1485,7 @@ const Conditions = () => {
               </div>
               <div className="w-full sm:w-auto min-w-0 flex-1">
                 <UiSelect
-                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
@@ -1498,7 +1498,6 @@ const Conditions = () => {
                   <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
-                      <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                       <SelectItem value="50">50 per page</SelectItem>

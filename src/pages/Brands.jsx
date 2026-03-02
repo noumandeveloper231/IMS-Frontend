@@ -50,7 +50,8 @@ const resolveImageUrl = (src) => {
 };
 
 const TEMPLATE_COLUMNS = ["Name", "Image"];
-const REQUIRED_FILE_COLUMNS = ["Name", "Image"];
+/** Only Name is required in the file; Image column is optional. */
+const REQUIRED_FILE_COLUMNS = ["Name"];
 
 /** Stable empty array so brands don't get new ref when data is undefined (avoids column remount / focus loss). */
 const EMPTY_ARRAY = [];
@@ -106,7 +107,7 @@ const Brands = () => {
     duplicates: 0,
   });
   const [importLoading, setImportLoading] = useState(false);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedBrandIds, setSelectedBrandIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});
@@ -498,12 +499,8 @@ const Brands = () => {
     const keys = Object.keys(first || {});
     const normalized = keys.map((k) => normalizeKey(k));
     const hasName = normalized.includes("name");
-    const hasImage = normalized.includes("image");
     if (!hasName) {
       return { ok: false, message: "File does not contain the required column 'Name'. Please use the template." };
-    }
-    if (!hasImage) {
-      return { ok: false, message: "File does not contain the required column 'Image'. Please use the template." };
     }
     return { ok: true };
   };
@@ -541,12 +538,9 @@ const Brands = () => {
         fieldErrors[nameKey || "Name"] = "Required";
         statusMessage = "Name required";
       }
-      if (!image) {
-        fieldErrors[imageKey || "Image"] = "Required";
-        statusMessage = statusMessage || "Image required";
-      } else if (!isValidImageUrl(image)) {
+      if (image && !isValidImageUrl(image)) {
         fieldErrors[imageKey || "Image"] = "Invalid URL";
-        statusMessage = "Invalid URL";
+        statusMessage = statusMessage || "Invalid URL";
       }
       if (name && !fieldErrors[nameKey || "Name"]) {
         const norm = normalizeBrandName(name);
@@ -774,7 +768,7 @@ const Brands = () => {
             const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "").toString().trim();
             const imgErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "image");
             const imgError = Boolean(imgErrorKey);
-            const imgFulfilled = imgVal.length > 0 && !imgError && isValidImageUrl(imgVal);
+            const imgFulfilled = !imgError;
             const imgErrorMsg = imgErrorKey
               ? (rowData.__errors[imgErrorKey] === "Invalid URL"
                 ? "Invalid URL"
@@ -783,7 +777,7 @@ const Brands = () => {
                   : rowData.__errors[imgErrorKey])
               : "Field is required";
             return (
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex gap-1.5 min-w-[200px] items-center justify-center w-full">
                 <div className="flex flex-1 items-center gap-1.5 min-w-0">
                   <Input
                     value={rowData.__imageUrl ?? rowData[col] ?? ""}
@@ -805,7 +799,7 @@ const Brands = () => {
                     className="h-8 text-xs flex-1 min-w-0"
                     placeholder="Image URL"
                   />
-                  <TooltipProvider>
+                  {/* <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span
@@ -819,7 +813,7 @@ const Brands = () => {
                         {imgFulfilled ? "Field fulfilled" : imgErrorMsg}
                       </TooltipContent>
                     </Tooltip>
-                  </TooltipProvider>
+                  </TooltipProvider> */}
                 </div>
                 <div className="flex items-center gap-1.5 justify-center">
                   <input
@@ -1487,7 +1481,7 @@ const Brands = () => {
               </div>
               <div className="w-full sm:w-auto min-w-0 flex-1">
                 <UiSelect
-                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [5, 10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
@@ -1500,7 +1494,6 @@ const Brands = () => {
                   <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
-                      <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                       <SelectItem value="50">50 per page</SelectItem>

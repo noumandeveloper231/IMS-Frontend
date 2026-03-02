@@ -1285,7 +1285,6 @@ const Vendors = () => {
                   <SelectContent position="item-aligned">
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
-                      <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                     </SelectGroup>
