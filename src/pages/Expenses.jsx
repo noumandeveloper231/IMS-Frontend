@@ -167,14 +167,14 @@ const Expenses = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8 sm:p-12  ">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         {/* Form */}
         <div className="bg-white p-8 rounded-3xl shadow-xl mb-8">
-          <h2 className="text-2xl font-bold mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 border-b pb-4">
             {editingId ? "Edit Expense" : "Add Expense"}
           </h2>
-          <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
               placeholder="Expense Title"

@@ -1162,8 +1162,8 @@ const Brands = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full overflow-x-hidden">
-      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen max-w-full overflow-x-hidden">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <div className="min-w-0">
           <Drawer
             direction="right"
@@ -1434,7 +1434,7 @@ const Brands = () => {
                         <img
                           src={preview}
                           alt="Preview"
-                          className="w-24 h-24 object-cover rounded-lg border"
+                          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd]"
                         />
                       </div>
                     )}

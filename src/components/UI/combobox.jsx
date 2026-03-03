@@ -97,8 +97,11 @@ export function Combobox({
                   setSearch(option.label)
                   setOpen(false)
                 }}
-                className="flex items-center justify-between px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-accent"
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-accent"
               >
+                {
+                  option.qrcode && <img src={option.qrcode} alt={option.label} className="w-10 h-10" />
+                }
                 <span>{option.label}</span> 
                 {value === option.value && (
                   <Check className="h-4 w-4" />

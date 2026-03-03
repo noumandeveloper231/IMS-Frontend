@@ -8,101 +8,20 @@ import { Button } from "@/components/UI/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/UI/table";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/UI/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/UI/command";
-import { ChevronDown, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-function PurchaseOrderCombobox({
-  purchaseOrders = [],
-  value,
-  onChange,
-  placeholder = "-- Select PO --",
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = purchaseOrders.find((p) => p._id === value) ?? null;
-  const displayLabel = selected
-    ? `${selected.orderNo || selected.poNo || selected._id} - ${
-        selected.vendor?.name || ""
-      }`
-    : placeholder;
-
-  const handleSelect = (po) => {
-    onChange(po._id);
-    setOpen(false);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
-            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-            !selected && "text-muted-foreground"
-          )}
-        >
-          <span className="truncate">{displayLabel}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 max-h-80" align="start">
-        <Command>
-          <CommandInput placeholder="Search purchase order..." />
-          <CommandList>
-            <CommandEmpty>No purchase orders found.</CommandEmpty>
-            <CommandGroup>
-              {purchaseOrders.map((po) => (
-                <CommandItem
-                  key={po._id}
-                  value={`${po.orderNo || po.poNo || po._id} ${po.vendor?.name || ""}`}
-                  onSelect={() => handleSelect(po)}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === po._id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  <span className="truncate">
-                    {po.orderNo || po.poNo || po._id} - {po.vendor?.name}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
+import { DataTable } from "@/components/DataTable";
+import { Combobox } from "@/components/UI/combobox";
+import { Textarea } from "@/components/UI/textarea";
 
 const PurchaseReceive = () => {
   const queryClient = useQueryClient();
+  const formDataRef = React.useRef(null);
+  const extraItemsRef = React.useRef([]);
   const [selectedPO, setSelectedPO] = useState(null);
   const [formData, setFormData] = useState({
     purchaseOrder: "",
@@ -169,6 +88,7 @@ const PurchaseReceive = () => {
             setFormData((prev) => ({
               ...prev,
               items: freshPO.items.map((item) => ({
+                product: item.product,
                 itemId: item._id,
                 title: item.title,
                 asin: item.asin,
@@ -211,16 +131,10 @@ const PurchaseReceive = () => {
       purchaseOrder: po._id,
       vendor: po.vendor?._id || "",
       items: (po.items || []).map((item) => ({
+        product: item.product,
         itemId: item._id,
-        title: item.title,
-        asin: item.asin,
-        orderedQty: item.orderedQty,
         receivedQty: 0,
         alreadyReceived: item.receivedQty || 0,
-        purchasePrice: item.purchasePrice,
-        condition: "",
-        brand: "",
-        total: 0,
       })),
     }));
   };
@@ -232,11 +146,11 @@ const PurchaseReceive = () => {
       Number(item.orderedQty || 0) - alreadyReceived
     );
     const matchesSearch =
-      (item.title || "")
+      (item.product.title || "")
         .toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
-      (item.asin || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(item.purchasePrice || "").includes(searchQuery) ||
+      (item.product.asin || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(item.product.purchasePrice || "").includes(searchQuery) ||
       String(remaining).includes(searchQuery);
     const matchesFilter =
       filterType === "all" ||
@@ -244,6 +158,338 @@ const PurchaseReceive = () => {
       (filterType === "received" && remaining === 0);
     return matchesSearch && matchesFilter;
   });
+
+  formDataRef.current = formData;
+  extraItemsRef.current = extraItems;
+
+  const orderItemRows = React.useMemo(
+    () =>
+      filteredItems.filter((item) =>
+        formData.items.some((fi) => fi.itemId === item._id)
+      ),
+    [filteredItems, formData.items]
+  );
+
+  const { data: productsData } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const res = await api.get("/products/getall");
+      const data = res.data;
+      return data?.products ?? data ?? [];
+    },
+  });
+
+  const products = Array.isArray(productsData) ? productsData : [];
+
+  const orderItemColumns = React.useMemo(
+    () => [
+      {
+        id: "sno",
+        header: "S.No",
+        meta: { label: "S.No" },
+        cell: ({ row }) => (
+          <span className="font-medium">{row.index + 1}</span>
+        ),
+      },
+      {
+        id: "title",
+        header: "Product",
+        meta: { label: "Product" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return <span>{item.product.title}</span>;
+        },
+      },
+      {
+        id: "asin",
+        header: "SKU",
+        meta: { label: "SKU" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return <span>{item.product.sku || "N/A"}</span>;
+        },
+      },
+      {
+        id: "remaining",
+        header: "Remaining",
+        meta: { label: "Remaining" },
+        cell: ({ row }) => {
+          const item = row.original;
+          const alreadyReceived = Number(item.receivedQty || 0);
+          const remaining = Math.max(
+            0,
+            Number(item.orderedQty || 0) - alreadyReceived
+          );
+          return <span>{remaining}</span>;
+        },
+      },
+      {
+        id: "purchasePrice",
+        header: "Purchase Price",
+        meta: { label: "Purchase Price" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return <span>{item.product.purchasePrice}</span>;
+        },
+      },
+      {
+        id: "salePrice",
+        header: "Sale Price",
+        meta: { label: "Sale Price" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return <span>{item.product.salePrice}</span>;
+
+        },
+      },
+      {
+        id: "condition",
+        header: "Condition",
+        meta: { label: "Condition" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return <span>{item?.product?.condition?.name || "N/A"}</span>;
+
+        },
+      },
+      {
+        id: "receiveNow",
+        header: "Receive Now",
+        meta: { label: "Receive Now" },
+        cell: ({ row }) => {
+          const item = row.original;
+          const alreadyReceived = Number(item.receivedQty || 0);
+          const remaining = Math.max(
+            0,
+            Number(item.orderedQty || 0) - alreadyReceived
+          );
+          const items = formDataRef.current?.items ?? [];
+          const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
+          if (actualIndex < 0) return null;
+          const formItem = items[actualIndex];
+          return (
+            <div className="flex items-center gap-2">
+              {remaining > 0 ? (
+                <Input
+                  type="number"
+                  min={0}
+                  max={remaining}
+                  className="w-20"
+                  value={formItem?.receivedQty ?? ""}
+                  onChange={(e) =>
+                    handleItemQtyChange(actualIndex, e.target.value)
+                  }
+                />
+              ) : (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                  Fully Received
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [conditions]
+  );
+
+  const extraItemColumns = React.useMemo(
+    () => [
+      {
+        id: "sno",
+        header: "S.No",
+        meta: { label: "S.No" },
+        cell: ({ row }) => (
+          <span className="font-medium">{row.index + 1}</span>
+        ),
+      },
+      {
+        id: "product",
+        header: "Product",
+        meta: { label: "Product" },
+        cell: ({ row }) => {
+          const idx = row.index;
+          const list = extraItemsRef.current;
+          const item = list[idx];
+          if (!item) return null;
+          return (
+            <Combobox
+              options={products.map((p) => ({
+                label: `${p.title} - ${p.sku}`,
+                value: p._id,
+                qrcode: p.qrCode,
+              }))}
+              className="min-w-[200px] w-full"
+              placeholder="Search product..."
+              value={item.product}
+              onChange={(e) => {
+                const next = [...extraItemsRef.current];
+                next[idx] = { ...next[idx], product: e.target.value };
+                setExtraItems(next);
+              }}
+            />
+          );
+        },
+      },
+      {
+        id: "quantity",
+        header: "Qty",
+        meta: { label: "Qty" },
+        cell: ({ row }) => {
+          const idx = row.index;
+          const list = extraItemsRef.current;
+          const item = list[idx];
+          if (!item) return null;
+          return (
+            <Input
+              type="number"
+              min={1}
+              className="w-20"
+              value={item.quantity}
+              onChange={(e) => {
+                const next = [...extraItemsRef.current];
+                next[idx] = {
+                  ...next[idx],
+                  quantity: Number(e.target.value),
+                };
+                setExtraItems(next);
+              }}
+            />
+          );
+        },
+      },
+      {
+        id: "purchasePrice",
+        header: "Purchase Price",
+        meta: { label: "Purchase Price" },
+        cell: ({ row }) => {
+          const idx = row.index;
+          const list = extraItemsRef.current;
+          const item = list[idx];
+          if (!item) return null;
+          return (
+            <Input
+              type="number"
+              min={0}
+              className="w-24"
+              value={item.price}
+              onChange={(e) => {
+                const next = [...extraItemsRef.current];
+                next[idx] = {
+                  ...next[idx],
+                  price: Number(e.target.value),
+                };
+                setExtraItems(next);
+              }}
+            />
+          );
+        },
+      },
+      {
+        id: "salePrice",
+        header: "Sale Price",
+        meta: { label: "Sale Price" },
+        cell: ({ row }) => {
+          const idx = row.index;
+          const list = extraItemsRef.current;
+          const item = list[idx];
+          if (!item) return null;
+          return (
+            <Input
+              type="number"
+              min={0}
+              className="w-24"
+              placeholder="Sale"
+              value={item.salePrice ?? ""}
+              onChange={(e) => {
+                const next = [...extraItemsRef.current];
+                next[idx] = {
+                  ...next[idx],
+                  salePrice: Number(e.target.value),
+                };
+                setExtraItems(next);
+              }}
+            />
+          );
+        },
+      },
+      {
+        id: "condition",
+        header: "Condition",
+        meta: { label: "Condition" },
+        cell: ({ row }) => {
+          const idx = row.index;
+          const list = extraItemsRef.current;
+          const item = list[idx];
+          if (!item) return null;
+          return (
+            <Combobox
+              options={conditions.map((c) => ({
+                label: c.name,
+                value: c._id,
+              }))}
+              className="min-w-[200px] w-full"
+              placeholder="Search condition..."
+              value={item.condition?._id}
+              onChange={(e) => {
+                const next = [...extraItemsRef.current];
+                next[idx] = { ...next[idx], condition: item.condition?._id };
+                setExtraItems(next);
+              }}
+            />
+          );
+        },
+      },
+      {
+        id: "brand",
+        header: "Brand",
+        meta: { label: "Brand" },
+        cell: ({ row }) => {
+          const idx = row.index;
+          const list = extraItemsRef.current;
+          const item = list[idx];
+          if (!item) return null;
+          return (
+            <Combobox
+              options={brands.map((b) => ({
+                label: b.name,
+                value: b._id,
+              }))}
+              className="min-w-[200px] w-full"
+              placeholder="Search brand..."
+              value={item.brand?._id}
+              onChange={(e) => {
+                const next = [...extraItemsRef.current];
+                next[idx] = { ...next[idx], brand: item.brand?._id };
+                setExtraItems(next);
+              }}
+            />
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        meta: { label: "" },
+        cell: ({ row }) => {
+          const idx = row.index;
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-600"
+              onClick={() =>
+                setExtraItems((prev) => prev.filter((_, i) => i !== idx))
+              }
+            >
+              Remove
+            </Button>
+          );
+        },
+      },
+    ],
+    [conditions, brands]
+  );
 
   const handleAddExtra = () => {
     setExtraItems((prev) => [
@@ -262,22 +508,25 @@ const PurchaseReceive = () => {
   };
 
   const handleItemQtyChange = (index, value) => {
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], receivedQty: Number(value) };
-    setFormData((prev) => ({ ...prev, items: newItems }));
+    const numeric = Number(value);
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]) return prev;
+      items[index] = { ...items[index], receivedQty: numeric };
+      return { ...prev, items };
+    });
   };
 
   const handleConditionChange = (index, conditionId) => {
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], condition: conditionId };
-    setFormData((prev) => ({ ...prev, items: newItems }));
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]) return prev;
+      items[index] = { ...items[index], condition: conditionId };
+      return { ...prev, items };
+    });
   };
 
-  const handleBrandChange = (index, brandId) => {
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], brand: brandId };
-    setFormData((prev) => ({ ...prev, items: newItems }));
-  };
+  console.log(formData);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -304,18 +553,21 @@ const PurchaseReceive = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 md:p-8">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">
           Create Purchase Receive
         </h2>
 
         <Field className="mb-6">
           <FieldLabel>Select Purchase Order</FieldLabel>
-          <PurchaseOrderCombobox
-            purchaseOrders={purchaseOrders}
-            value={formData.purchaseOrder}
-            onChange={handlePOChange}
+          <Combobox
+            options={purchaseOrders.map((po) => ({
+              label: `${po.orderNo || po.poNo || po._id} - ${po.vendor?.name || ""}`,
+              value: po._id,
+            }))}
+            value={selectedPO?._id}
+            onChange={(value) => handlePOChange(value)}
             placeholder="-- Select PO --"
           />
         </Field>
@@ -324,279 +576,54 @@ const PurchaseReceive = () => {
           <div className="mt-6">
             <h3 className="text-lg font-semibold mb-3">Order Items</h3>
             <div className="flex flex-wrap items-center gap-4 mb-3">
-              <Input
-                type="text"
-                placeholder="Search by Product, ASIN, Remaining, Price..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-xs"
-              />
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Items</SelectItem>
-                  <SelectItem value="not-received">Not Received</SelectItem>
-                  <SelectItem value="received">Received</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex-5">
+                <Input
+                  type="text"
+                  placeholder="Search by Product, ASIN, Remaining, Price..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex-1 ">
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="item-aligned">
+                    <SelectGroup>
+                      <SelectLabel>Filter by Status</SelectLabel>
+                      <SelectItem value="all">All Items</SelectItem>
+                      <SelectItem value="not-received">Not Received</SelectItem>
+                      <SelectItem value="received">Received</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">S.No</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>ASIN</TableHead>
-                    <TableHead>Remaining</TableHead>
-                    <TableHead>Purchase Price</TableHead>
-                    <TableHead>Sale Price</TableHead>
-                    <TableHead>Condition</TableHead>
-                    <TableHead>Receive Now</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredItems.map((item, idx) => {
-                    const alreadyReceived = Number(item.receivedQty || 0);
-                    const remaining = Math.max(
-                      0,
-                      Number(item.orderedQty || 0) - alreadyReceived
-                    );
-                    const actualIndex = formData.items.findIndex(
-                      (fi) => fi.itemId === item._id
-                    );
-                    if (actualIndex < 0) return null;
-                    const formItem = formData.items[actualIndex];
-                    return (
-                      <TableRow key={item._id}>
-                        <TableCell className="font-medium">{idx + 1}</TableCell>
-                        <TableCell>{item.title}</TableCell>
-                        <TableCell>{item.asin || "N/A"}</TableCell>
-                        <TableCell>{remaining}</TableCell>
-                        <TableCell>{item.purchasePrice}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min={0}
-                            className="w-24"
-                            placeholder="Sale Price"
-                            value={formItem?.salePrice ?? ""}
-                            onChange={(e) => {
-                              const newItems = [...formData.items];
-                              newItems[actualIndex] = {
-                                ...newItems[actualIndex],
-                                salePrice: Number(e.target.value),
-                              };
-                              setFormData((prev) => ({ ...prev, items: newItems }));
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={formItem?.condition || ""}
-                            onValueChange={(v) =>
-                              handleConditionChange(actualIndex, v)
-                            }
-                          >
-                            <SelectTrigger className="w-32">
-                              <SelectValue placeholder="Condition" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {conditions.map((c) => (
-                                <SelectItem key={c._id} value={c._id}>
-                                  {c.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {remaining > 0 ? (
-                              <Input
-                                type="number"
-                                min={0}
-                                max={remaining}
-                                className="w-20"
-                                value={formItem?.receivedQty ?? ""}
-                                onChange={(e) =>
-                                  handleItemQtyChange(actualIndex, e.target.value)
-                                }
-                              />
-                            ) : (
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                                Fully Received
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              columns={orderItemColumns}
+              data={orderItemRows}
+              addPagination={false}
+              enableSelection={false}
+              enableHeaderContextMenu={false}
+              containerClassName="overflow-x-auto rounded-lg border"
+            />
 
             {extraItems.length > 0 && (
               <div className="mt-8">
                 <h3 className="font-semibold text-lg mb-2">
                   Extra Products (Not in PO)
                 </h3>
-                <div className="overflow-x-auto rounded-lg border border-amber-200 bg-amber-50/50">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-amber-100">
-                        <TableHead className="w-12">S.No</TableHead>
-                        <TableHead>ASIN</TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead className="w-24">Qty</TableHead>
-                        <TableHead className="w-28">Purchase Price</TableHead>
-                        <TableHead className="w-28">Sale Price</TableHead>
-                        <TableHead>Condition</TableHead>
-                        <TableHead>Brand</TableHead>
-                        <TableHead className="w-16"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {extraItems.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="font-medium">{idx + 1}</TableCell>
-                          <TableCell>
-                            <Input
-                              className="w-32"
-                              placeholder="ASIN"
-                              value={item.asin}
-                              onChange={(e) => {
-                                const next = [...extraItems];
-                                next[idx] = { ...next[idx], asin: e.target.value };
-                                setExtraItems(next);
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              className="min-w-[200px]"
-                              placeholder="Title"
-                              value={item.title}
-                              onChange={(e) => {
-                                const next = [...extraItems];
-                                next[idx] = { ...next[idx], title: e.target.value };
-                                setExtraItems(next);
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min={1}
-                              className="w-20"
-                              value={item.quantity}
-                              onChange={(e) => {
-                                const next = [...extraItems];
-                                next[idx] = {
-                                  ...next[idx],
-                                  quantity: Number(e.target.value),
-                                };
-                                setExtraItems(next);
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min={0}
-                              className="w-24"
-                              value={item.price}
-                              onChange={(e) => {
-                                const next = [...extraItems];
-                                next[idx] = {
-                                  ...next[idx],
-                                  price: Number(e.target.value),
-                                };
-                                setExtraItems(next);
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min={0}
-                              className="w-24"
-                              placeholder="Sale"
-                              value={item.salePrice ?? ""}
-                              onChange={(e) => {
-                                const next = [...extraItems];
-                                next[idx] = {
-                                  ...next[idx],
-                                  salePrice: Number(e.target.value),
-                                };
-                                setExtraItems(next);
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={item.condition}
-                              onValueChange={(v) => {
-                                const next = [...extraItems];
-                                next[idx] = { ...next[idx], condition: v };
-                                setExtraItems(next);
-                              }}
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue placeholder="Condition" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {conditions.map((c) => (
-                                  <SelectItem key={c._id} value={c._id}>
-                                    {c.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={item.brand}
-                              onValueChange={(v) => {
-                                const next = [...extraItems];
-                                next[idx] = { ...next[idx], brand: v };
-                                setExtraItems(next);
-                              }}
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue placeholder="Brand" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {brands.map((b) => (
-                                  <SelectItem key={b._id} value={b._id}>
-                                    {b.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600"
-                              onClick={() =>
-                                setExtraItems((prev) =>
-                                  prev.filter((_, i) => i !== idx)
-                                )
-                              }
-                            >
-                              Remove
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <DataTable
+                  columns={extraItemColumns}
+                  data={extraItems}
+                  addPagination={false}
+                  enableSelection={false}
+                  enableHeaderContextMenu={false}
+                  containerClassName="overflow-x-auto rounded-lg border border-amber-200 bg-amber-50/50"
+                />
               </div>
             )}
 
@@ -690,8 +717,8 @@ const PurchaseReceive = () => {
           </Field>
           <Field>
             <FieldLabel>Notes</FieldLabel>
-            <Input
-              type="text"
+            <Textarea
+              // type="text"
               placeholder="Optional notes..."
               value={formData.notes}
               onChange={(e) =>

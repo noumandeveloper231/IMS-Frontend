@@ -80,8 +80,8 @@ const FilteredProducts = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         {/* Header / summary */}
         <div className="flex flex-col gap-4 rounded-xl border border-gray-100 bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>

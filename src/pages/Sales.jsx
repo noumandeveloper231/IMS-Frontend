@@ -358,12 +358,12 @@ const Sales = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
+    <div className="min-h-screen bg-white p-8 sm:p-10 lg:p-12 max-w-full">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-md p-8 mb-8">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">
+        <div className="">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 border-b pb-4">
             Create Sale
-          </h1>
+          </h2>
 
           <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div>

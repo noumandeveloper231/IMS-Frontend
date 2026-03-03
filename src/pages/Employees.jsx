@@ -25,6 +25,7 @@ import {
   SelectGroup,
   SelectItem,
   SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
@@ -37,6 +38,7 @@ import {
   TableRow,
 } from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
+import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 
@@ -54,6 +56,7 @@ const Employees = () => {
 
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [employeeDrawerOpen, setEmployeeDrawerOpen] = useState(false);
@@ -67,6 +70,12 @@ const Employees = () => {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const employeesRef = useRef(EMPTY_ARRAY);
+
+  const effectiveItemsPerPage = useMemo(() => {
+    const custom = parseInt(customItemsPerPage, 10);
+    if (!isNaN(custom) && custom >= 1 && custom <= 500) return custom;
+    return itemsPerPage;
+  }, [itemsPerPage, customItemsPerPage]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -698,8 +707,8 @@ const Employees = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <div className="">
           <Drawer
             direction="right"
@@ -1040,17 +1049,45 @@ const Employees = () => {
                 <Input type="text" placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full" />
               </div>
               <div className="flex-1 w-full md:w-auto">
-                <UiSelect value={String(itemsPerPage)} onValueChange={(value) => setItemsPerPage(Number(value))}>
+                <UiSelect
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "10")}
+                  onValueChange={(value) => {
+                    if (value === "custom") return;
+                    setItemsPerPage(Number(value));
+                    setCustomItemsPerPage("");
+                  }}
+                  className="w-full"
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
-                  <SelectContent position="item-aligned">
+                  <SelectContent
+                    className="min-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]"
+                  >
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
                       <SelectItem value="50">50 per page</SelectItem>
+                      <SelectItem value="100">100 per page</SelectItem>
+                      <SelectItem value="custom" disabled>
+                        Custom{customItemsPerPage ? ` (${effectiveItemsPerPage})` : ""}
+                      </SelectItem>
                     </SelectGroup>
+                    <SelectSeparator />
+                    <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                      <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
+                      <CustomRowsPerPageInput
+                        type="number"
+                        min={1}
+                        max={500}
+                        placeholder="e.g. 25"
+                        className="h-8 w-full text-sm"
+                        value={customItemsPerPage}
+                        onChange={setCustomItemsPerPage}
+                        autoFocus
+                      />
+                    </div>
                   </SelectContent>
                 </UiSelect>
               </div>
@@ -1065,7 +1102,7 @@ const Employees = () => {
               <DataTable
                 columns={employeeColumns}
                 data={filteredEmployees}
-                pageSize={itemsPerPage}
+                pageSize={effectiveItemsPerPage}
                 getRowId={(row) => row._id}
                 rowSelection={tableRowSelection}
                 onRowSelectionChange={setTableRowSelection}

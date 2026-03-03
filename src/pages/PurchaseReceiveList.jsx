@@ -13,24 +13,20 @@ import { Button } from "@/components/UI/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/UI/table";
+import { DataTable } from "@/components/DataTable";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/UI/dialog";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/UI/tooltip";
 
 const PurchaseReceiveList = () => {
   const [search, setSearch] = useState("");
@@ -187,11 +183,214 @@ const PurchaseReceiveList = () => {
     0
   );
 
+  const listColumns = React.useMemo(
+    () => [
+      {
+        id: "receiveNo",
+        header: "Receive No",
+        meta: { label: "Receive No" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          return <span className="font-medium">{rec.receiveNo}</span>;
+        },
+      },
+      {
+        id: "purchaseOrder",
+        header: "Purchase Order",
+        meta: { label: "Purchase Order" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          return <span>{rec.purchaseOrder?.orderNo}</span>;
+        },
+      },
+      {
+        id: "vendor",
+        header: "Vendor",
+        meta: { label: "Vendor" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          return (
+            <span>
+              {rec.vendor?.name}
+              {rec.vendor?.companyName ? ` (${rec.vendor.companyName})` : ""}
+            </span>
+          );
+        },
+      },
+      {
+        id: "receiveDate",
+        header: "Receive Date",
+        meta: { label: "Receive Date" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          return (
+            <span>{new Date(rec.receiveDate).toLocaleDateString()}</span>
+          );
+        },
+      },
+      {
+        id: "status",
+        header: "Status",
+        meta: { label: "Status" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          const isCompleted = rec.status === "completed";
+          return (
+            <span
+              className={`inline-flex px-2 py-1 text-xs rounded ${isCompleted
+                ? "bg-green-100 text-green-700"
+                : "bg-yellow-100 text-yellow-700"
+                }`}
+            >
+              {rec.status}
+            </span>
+          );
+        },
+      },
+      {
+        id: "totalAmount",
+        header: "Total Amount",
+        meta: { label: "Total Amount" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          return (
+            <span className="text-center block">
+              Rs {Number(rec.totalAmount || 0).toLocaleString()}
+            </span>
+          );
+        },
+      },
+      {
+        id: "action",
+        header: "Action",
+        meta: { label: "Action" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          return (
+            <div className="text-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedReceive(rec);
+                  setDetailOpen(true);
+                }}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+
+                      <Eye className="h-4 w-4" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      View Details
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </Button>
+            </div>
+          );
+        },
+      },
+      {
+        id: "notes",
+        header: "Notes",
+        meta: { label: "Notes" },
+        cell: ({ row }) => {
+          const rec = row.original;
+          return <span>{rec.notes || "-"}</span>;
+        },
+      },
+    ],
+    []
+  );
+
+  const itemColumns = React.useMemo(
+    () => [
+      {
+        id: "product",
+        header: "Product",
+        meta: { label: "Product" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <span className="font-medium">
+              {item.product?.title || item.title || "N/A"}
+            </span>
+          );
+        },
+      },
+      {
+        id: "asin",
+        header: "ASIN",
+        meta: { label: "ASIN" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <span>{item.product?.asin || item.product?.sku || "N/A"}</span>
+          );
+        },
+      },
+      {
+        id: "quantity",
+        header: "Quantity",
+        meta: { label: "Quantity" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return <span className="text-center block">{item.receivedQty}</span>;
+        },
+      },
+      {
+        id: "purchasePrice",
+        header: "Purchase Price",
+        meta: { label: "Purchase Price" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <span className="text-center block">
+              {Number(item.purchasePrice || 0).toFixed(2)}
+            </span>
+          );
+        },
+      },
+      {
+        id: "salePrice",
+        header: "Sale Price",
+        meta: { label: "Sale Price" },
+        cell: ({ row }) => {
+          const item = row.original;
+          const sale =
+            item.salePrice ?? item.product?.salePrice ?? 0;
+          return (
+            <span className="text-center block">
+              {Number(sale).toFixed(2)}
+            </span>
+          );
+        },
+      },
+      {
+        id: "total",
+        header: "Total (Rs)",
+        meta: { label: "Total (Rs)" },
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <span className="text-center font-medium block">
+              {Number(item.total || 0).toFixed(2)}
+            </span>
+          );
+        },
+      },
+    ],
+    []
+  );
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6 sm:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 md:p-8">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-gray-900 border-b pb-2">
+          <h1 className="text-2xl font-bold text-gray-900 border-b border-gray-300 pb-2">
             All Purchase Receives
           </h1>
           <div className="flex gap-2">
@@ -229,9 +428,15 @@ const PurchaseReceiveList = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="partially">Partially</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
+                <SelectGroup>
+                  <SelectLabel>
+                    Select Status
+                  </SelectLabel>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="partially">Partially</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectGroup>
+
               </SelectContent>
             </Select>
           </Field>
@@ -257,76 +462,22 @@ const PurchaseReceiveList = () => {
           <div className="flex justify-center py-10">
             <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
           </div>
-        ) : filteredReceives.length === 0 ? (
-          <p className="text-gray-500 py-6">No purchase receives found.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Receive No</TableHead>
-                  <TableHead>Purchase Order</TableHead>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Receive Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total Amount</TableHead>
-                  <TableHead className="text-center">Action</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredReceives.map((rec) => (
-                  <TableRow key={rec._id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">
-                      {rec.receiveNo}
-                    </TableCell>
-                    <TableCell>{rec.purchaseOrder?.orderNo}</TableCell>
-                    <TableCell>
-                      {rec.vendor?.name}
-                      {rec.vendor?.companyName
-                        ? ` (${rec.vendor.companyName})`
-                        : ""}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(rec.receiveDate).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs rounded ${
-                          rec.status === "completed"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {rec.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      Rs {Number(rec.totalAmount || 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openDetail(rec)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                    <TableCell>{rec.notes || "-"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            columns={listColumns}
+            data={filteredReceives}
+            addPagination={false}
+            enableSelection={false}
+            enableHeaderContextMenu={false}
+            // containerClassName="overflow-x-auto rounded-lg border border-gray-300"
+          />
         )}
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-xl border-b pb-2">
+            <DialogTitle className="text-xl border-b border-gray-300 pb-2">
               Purchase Receive Details
             </DialogTitle>
           </DialogHeader>
@@ -351,11 +502,10 @@ const PurchaseReceiveList = () => {
                 <p>
                   <strong className="text-gray-900">Status:</strong>{" "}
                   <span
-                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-                      selectedReceive.status === "completed"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
+                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${selectedReceive.status === "completed"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-yellow-100 text-yellow-800"
+                      }`}
                   >
                     {selectedReceive.status}
                   </span>
@@ -363,53 +513,18 @@ const PurchaseReceiveList = () => {
               </div>
 
               <h3 className="text-lg font-semibold mb-2">Items</h3>
-              <div className="overflow-y-auto max-h-[50vh] border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-                      <TableHead>Product</TableHead>
-                      <TableHead>ASIN</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Purchase Price</TableHead>
-                      <TableHead className="text-right">Sale Price</TableHead>
-                      <TableHead className="text-right">Total (Rs)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item, idx) => (
-                      <TableRow key={item._id || idx}>
-                        <TableCell className="font-medium">
-                          {item.product?.title || item.title || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {item.product?.asin || item.product?.sku || "N/A"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.receivedQty}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {Number(item.purchasePrice || 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {Number(
-                            item.salePrice ?? item.product?.salePrice ?? 0
-                          ).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {Number(item.total || 0).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {items.length === 0 && (
-                  <p className="p-4 text-center text-gray-500">
-                    No items in this receive.
-                  </p>
-                )}
-              </div>
+              {/* <div className="overflow-y-auto max-h-[50vh] border rounded-lg border-gray-300"> */}
+                <DataTable
+                  columns={itemColumns}
+                  data={items}
+                  addPagination={false}
+                  enableSelection={false}
+                  enableHeaderContextMenu={false}
+                  containerClassName="flex flex-col overflow-hidden border rounded-lg border-gray-300 bg-background min-h-[200px] max-h-[320px]"
+                />
+              {/* </div> */}
 
-              <div className="mt-4 pt-4 border-t flex flex-col items-end space-y-1">
+              <div className="mt-4 pt-4 border-t border-gray-300 flex flex-col items-end space-y-1">
                 <p className="font-semibold text-gray-800">
                   Total Quantity: {totalQty}
                 </p>

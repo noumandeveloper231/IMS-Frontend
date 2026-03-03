@@ -50,7 +50,8 @@ const resolveImageUrl = (src) => {
 };
 
 const TEMPLATE_COLUMNS = ["Name", "Image"];
-const REQUIRED_FILE_COLUMNS = ["Name", "Image"];
+/** Only Name is required in the file; Image column is optional. */
+const REQUIRED_FILE_COLUMNS = ["Name"];
 
 /** Stable empty array so conditions don't get new ref when data is undefined (avoids column remount / focus loss). */
 const EMPTY_ARRAY = [];
@@ -496,12 +497,8 @@ const Conditions = () => {
     const keys = Object.keys(first || {});
     const normalized = keys.map((k) => normalizeKey(k));
     const hasName = normalized.includes("name");
-    const hasImage = normalized.includes("image");
     if (!hasName) {
       return { ok: false, message: "File does not contain the required column 'Name'. Please use the template." };
-    }
-    if (!hasImage) {
-      return { ok: false, message: "File does not contain the required column 'Image'. Please use the template." };
     }
     return { ok: true };
   };
@@ -539,12 +536,9 @@ const Conditions = () => {
         fieldErrors[nameKey || "Name"] = "Required";
         statusMessage = "Name required";
       }
-      if (!image) {
-        fieldErrors[imageKey || "Image"] = "Required";
-        statusMessage = statusMessage || "Image required";
-      } else if (!isValidImageUrl(image)) {
+      if (image && !isValidImageUrl(image)) {
         fieldErrors[imageKey || "Image"] = "Invalid URL";
-        statusMessage = "Invalid URL";
+        statusMessage = statusMessage || "Invalid URL";
       }
       if (name && !fieldErrors[nameKey || "Name"]) {
         const norm = normalizeConditionName(name);
@@ -771,7 +765,7 @@ const Conditions = () => {
             const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "").toString().trim();
             const imgErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "image");
             const imgError = Boolean(imgErrorKey);
-            const imgFulfilled = imgVal.length > 0 && !imgError && isValidImageUrl(imgVal);
+            const imgFulfilled = !imgError;
             const imgErrorMsg = imgErrorKey
               ? (rowData.__errors[imgErrorKey] === "Invalid URL"
                 ? "Invalid URL"
@@ -803,21 +797,6 @@ const Conditions = () => {
                     className="h-8 text-xs flex-1 min-w-0"
                     placeholder="Image URL"
                   />
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span
-                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${imgFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
-                          aria-hidden
-                        >
-                          {imgFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[200px]">
-                        {imgFulfilled ? "Field fulfilled" : imgErrorMsg}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                 </div>
                 <div className="flex items-center gap-1.5 justify-center">
                   <input
@@ -1166,8 +1145,8 @@ const Conditions = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full overflow-x-hidden">
-      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <div className="min-w-0">
           <Drawer
             direction="right"
@@ -1438,7 +1417,7 @@ const Conditions = () => {
                         <img
                           src={preview}
                           alt="Preview"
-                          className="w-24 h-24 object-cover rounded-lg border"
+                          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd]"
                         />
                       </div>
                     )}

@@ -97,7 +97,7 @@ export function ImageUploadDropzone({
         <img
           src={previewUrl}
           alt="Preview"
-          className="w-24 h-24 object-cover rounded-lg border mb-2"
+          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd] mb-2"
         />
       ) : (
         <Upload className="h-8 w-8 text-muted-foreground mb-2" />

@@ -60,16 +60,16 @@ const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) 
     ref={ref}
     className={cn(
       // Base (match Input)
-      "w-full h-10 rounded-xl px-4 text-sm flex items-center justify-between",
+      "w-full h-10 rounded-lg px-4 text-sm flex items-center justify-between",
 
       // Border
-      "border border-gray-300",
+      "border border-[#cdcdcd]",
 
       // Remove shadow
-      "shadow-none",
+      "shadow",
 
       // Focus styles (match Input exactly)
-      "outline-none focus-visible:ring-3 focus-visible:ring-gray-300 focus-visible:border-gray-500",
+      "outline-none focus-visible:ring-3 focus-visible:ring-[#cdcdcd] focus-visible:border-[#a1a1a1]",
       // Disabled
       "disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200",
 
@@ -122,7 +122,7 @@ const SelectContent = React.forwardRef(
             else if (ref) ref.current = node
           }}
           className={cn(
-            "relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-lg border border-gray-300 bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-select-content-transform-origin]",
+            "relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-lg border border-[#a1a1a1] bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-select-content-transform-origin]",
             position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
             className

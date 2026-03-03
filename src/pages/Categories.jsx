@@ -1180,8 +1180,8 @@ const Categories = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 max-w-full overflow-x-hidden">
-      <div className="mx-auto flex bg-white flex-col gap-4 sm:gap-6 p-6 sm:p-8 lg:p-10">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         {/* Header + Actions */}
         <div className="min-w-0">
           <Drawer
@@ -1454,7 +1454,7 @@ const Categories = () => {
                         <img
                           src={preview}
                           alt="Preview"
-                          className="w-24 h-24 object-cover rounded-lg border"
+                          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd]"
                         />
                       </div>
                     )}

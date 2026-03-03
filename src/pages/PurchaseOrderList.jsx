@@ -7,19 +7,13 @@ import { Input } from "@/components/UI/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
 import { Button } from "@/components/UI/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/UI/table";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import {
   Dialog,
@@ -27,6 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/UI/dialog";
+import { DataTable } from "@/components/DataTable";
+import { useImageModal } from "@/context/ImageModalContext";
 
 const PurchaseOrderList = () => {
   const [search, setSearch] = useState("");
@@ -60,18 +56,208 @@ const PurchaseOrderList = () => {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const openDetail = (order) => {
-    setSelectedOrder(order);
+  const openDetail = React.useCallback(async (order) => {
+    try {
+      const res = await api.get(`/purchase-orders/${order._id}`);
+      setSelectedOrder(res.data ?? order);
+    } catch {
+      setSelectedOrder(order);
+    }
     setDetailOpen(true);
-  };
+  }, []);
 
   const items = selectedOrder?.items ?? [];
   const totalQty = items.reduce((acc, i) => acc + (Number(i.orderedQty) || 0), 0);
   const grandTotal = items.reduce((acc, i) => acc + (Number(i.total) || 0), 0);
 
+  const orderColumns = React.useMemo(
+    () => [
+      {
+        accessorKey: "orderNo",
+        header: "Order No",
+        meta: { label: "Order No" },
+        cell: ({ row }) => (
+          <span className="font-medium">{row.original.orderNo}</span>
+        ),
+      },
+      {
+        id: "vendor",
+        header: "Vendor",
+        meta: { label: "Vendor" },
+        cell: ({ row }) => {
+          const vendor = row.original.vendor || {};
+          return (
+            <span>
+              {vendor.name}
+              {vendor.companyName ? ` (${vendor.companyName})` : ""}
+            </span>
+          );
+        },
+      },
+      {
+        id: "orderDate",
+        header: "Order Date",
+        meta: { label: "Order Date" },
+        cell: ({ row }) =>
+          row.original.orderDate
+            ? new Date(row.original.orderDate).toLocaleDateString()
+            : "-",
+      },
+      {
+        id: "expectedDelivery",
+        header: "Expected Delivery",
+        meta: { label: "Expected Delivery" },
+        cell: ({ row }) =>
+          row.original.expectedDelivery
+            ? new Date(row.original.expectedDelivery).toLocaleDateString()
+            : "-",
+      },
+      {
+        id: "status",
+        header: "Status",
+        meta: { label: "Status" },
+        cell: ({ row }) => {
+          const status = row.original.status;
+          const baseClasses = "inline-flex px-2 py-1 text-xs rounded ";
+          const statusClasses =
+            status === "completed"
+              ? "bg-green-100 text-green-700"
+              : status === "pending"
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-blue-100 text-blue-700";
+
+          return (
+            <span className={baseClasses + statusClasses}>
+              {status}
+            </span>
+          );
+        },
+      },
+      {
+        id: "totalAmount",
+        header: "Total Amount",
+        meta: { label: "Total Amount" },
+        cell: ({ row }) => (
+          <span className="block text-right">
+            Rs {Number(row.original.totalAmount || 0).toLocaleString()}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Action",
+        meta: { label: "Action" },
+        enableSorting: false,
+        cell: ({ row }) => {
+          const order = row.original;
+          return (
+            <div className="flex justify-center">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openDetail(order)}
+                      className="text-blue-600 hover:text-blue-800 h-8 w-8 p-0"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View order details</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          );
+        },
+      },
+    ],
+    [openDetail]
+  );
+
+  const { openImageModal } = useImageModal();
+
+  const detailColumns = React.useMemo(
+    () => [
+      {
+        id: "serial",
+        header: "S.No",
+        meta: { label: "S.No" },
+        cell: ({ row }) => (
+          <span className="font-medium">{row.index + 1}</span>
+        ),
+      },
+      {
+        id: "qrCode",
+        header: "QR Code",
+        meta: { label: "QR Code" },
+        cell: ({ row }) => (
+          <img onClick={() => openImageModal(row.original.product?.qrCode)} src={row.original.product?.qrCode || "N/A"} alt="QR Code" className="w-20 h-20" />
+        ),
+      },
+      {
+        accessorKey: "title",
+        header: "Product",
+        meta: { label: "Product" },
+        cell: ({ row }) =>
+          <div className="flex items-center gap-2 whitespace-nowrap min-w-[200px]">
+            {
+              row.original.product?.title ||
+              row.original.product?.asin ||
+              "N/A"
+            }
+          </div>
+      },
+      {
+        id: "sku",
+        header: "SKU",
+        meta: { label: "SKU" },
+        cell: ({ row }) =>
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            {
+              row.original.product?.sku ||
+              row.original.product?.asin ||
+              "N/A"
+            }
+          </div>
+      },
+      {
+        id: "orderedQty",
+        header: "Quantity",
+        meta: { label: "Quantity" },
+        cell: ({ row }) => (
+          <span className="block text-center">
+            {row.original.orderedQty}
+          </span>
+        ),
+      },
+      {
+        id: "purchasePrice",
+        header: "Price (Rs)",
+        meta: { label: "Price (Rs)" },
+        cell: ({ row }) => (
+          <span className="block text-center">
+            {Number(row.original.purchasePrice || 0).toFixed(2)}
+          </span>
+        ),
+      },
+      {
+        id: "total",
+        header: "Total (Rs)",
+        meta: { label: "Total (Rs)" },
+        cell: ({ row }) => (
+          <span className="block text-center font-medium">
+            {Number(row.original.total || 0).toFixed(2)}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full">
-      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen max-w-full overflow-x-hidden h-full bg-white">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 border-b pb-4">
           All Purchase Orders
         </h1>
@@ -93,13 +279,16 @@ const PurchaseOrderList = () => {
               <SelectTrigger className="w-full md:w-40">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="partially">Partially</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
+              <SelectContent position="item-aligned">
+                <SelectGroup>
+                  <SelectLabel>Status</SelectLabel>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="processing">Processing</SelectItem>
+                  <SelectItem value="partially">Partially</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
           </Field>
@@ -128,84 +317,20 @@ const PurchaseOrderList = () => {
         ) : filteredOrders.length === 0 ? (
           <p className="text-gray-500 py-6">No purchase orders found.</p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-gray-300">
-            <Table>
-              <TableHeader className="px-4">
-                <TableRow>
-                  <TableHead>Order No</TableHead>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Order Date</TableHead>
-                  <TableHead>Expected Delivery</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total Amount</TableHead>
-                  <TableHead className="text-center">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order._id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">
-                      {order.orderNo}
-                    </TableCell>
-                    <TableCell>
-                      {order.vendor?.name}
-                      {order.vendor?.companyName
-                        ? ` (${order.vendor.companyName})`
-                        : ""}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(order.orderDate).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      {order.expectedDelivery
-                        ? new Date(order.expectedDelivery).toLocaleDateString()
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs rounded ${
-                          order.status === "completed"
-                            ? "bg-green-100 text-green-700"
-                            : order.status === "pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-blue-100 text-blue-700"
-                        }`}
-                      >
-                        {order.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      Rs {Number(order.totalAmount || 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openDetail(order)}
-                              className="text-blue-600 hover:text-blue-800 h-8 w-8 p-0"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>View order details</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            columns={orderColumns}
+            data={filteredOrders}
+            addPagination={false}
+            enableSelection={false}
+            containerClassName="overflow-x-auto rounded-md border border-gray-300"
+          />
         )}
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-xl border-b pb-2">
+            <DialogTitle className="text-xl border-b border-gray-300 pb-2">
               Purchase Order Details
             </DialogTitle>
           </DialogHeader>
@@ -230,13 +355,12 @@ const PurchaseOrderList = () => {
                 <p>
                   <strong className="text-gray-900">Status:</strong>{" "}
                   <span
-                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-                      selectedOrder.status === "completed"
-                        ? "bg-green-100 text-green-800"
-                        : selectedOrder.status === "pending"
+                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${selectedOrder.status === "completed"
+                      ? "bg-green-100 text-green-800"
+                      : selectedOrder.status === "pending"
                         ? "bg-yellow-100 text-yellow-800"
                         : "bg-blue-100 text-blue-800"
-                    }`}
+                      }`}
                   >
                     {selectedOrder.status}
                   </span>
@@ -244,45 +368,16 @@ const PurchaseOrderList = () => {
               </div>
 
               <h3 className="text-lg font-semibold mb-2">Order Items</h3>
-              <div className="overflow-y-auto max-h-[50vh] border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-                      <TableHead className="w-12">S.No</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>ASIN</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Price (Rs)</TableHead>
-                      <TableHead className="text-right">Total (Rs)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item, idx) => (
-                      <TableRow key={item._id || idx}>
-                        <TableCell className="font-medium">{idx + 1}</TableCell>
-                        <TableCell>{item.title || "N/A"}</TableCell>
-                        <TableCell>{item.asin || "N/A"}</TableCell>
-                        <TableCell className="text-right">
-                          {item.orderedQty}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {Number(item.purchasePrice || 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {Number(item.total || 0).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {items.length === 0 && (
-                  <p className="p-4 text-center text-gray-500">
-                    No items in this order.
-                  </p>
-                )}
-              </div>
+              <DataTable
+                columns={detailColumns}
+                data={items}
+                addPagination={false}
+                enableSelection={false}
+                enableHeaderContextMenu={false}
+                containerClassName="overflow-y-auto max-h-[50vh] border border-gray-300 rounded-lg"
+              />
 
-              <div className="mt-4 pt-4 border-t flex flex-col items-end space-y-1">
+              <div className="mt-4 pt-4 border-t border-gray-300 flex flex-col items-end space-y-1">
                 <p className="font-semibold text-gray-800">
                   Total Quantity: {totalQty}
                 </p>

@@ -115,13 +115,15 @@ function Calendar({
           ),
           day: cn(
             "group/day relative aspect-square h-full w-full select-none p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
+            "[&.rdp-selected>button]:!bg-primary [&.rdp-selected>button]:!text-primary-foreground [&.rdp-selected>button]:rounded-md [&.rdp-selected>button]:font-medium",
+            "[&>button]:hover:bg-accent [&>button]:hover:text-accent-foreground [&>button]:rounded-md",
             defaultClassNames.day
           ),
           range_start: cn("bg-accent rounded-l-md", defaultClassNames.range_start),
           range_middle: cn("rounded-none", defaultClassNames.range_middle),
           range_end: cn("bg-accent rounded-r-md", defaultClassNames.range_end),
           today: cn(
-            "bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none",
+            "bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none [&>button]:!bg-accent [&>button]:!text-accent-foreground [&>button]:rounded-md [&>button]:font-medium",
             defaultClassNames.today
           ),
           outside: cn(

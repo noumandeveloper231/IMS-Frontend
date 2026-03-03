@@ -24,6 +24,7 @@ import {
   SelectGroup,
   SelectItem,
   SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
@@ -36,9 +37,11 @@ import {
   TableRow,
 } from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
+import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { Trash2, Pencil, Check, X } from "lucide-react";
+import { Textarea } from "@/components/UI/textarea";
 
 const TEMPLATE_COLUMNS = ["Name", "Company Name", "Email", "Phone", "Address", "City", "Country", "Opening Balance", "Notes", "Status"];
 
@@ -72,11 +75,18 @@ const Vendors = () => {
   const [importStats, setImportStats] = useState({ total: 0, valid: 0, errors: 0, duplicates: 0 });
   const [importLoading, setImportLoading] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedVendorIds, setSelectedVendorIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const vendorsRef = useRef(EMPTY_ARRAY);
+
+  const effectiveItemsPerPage = useMemo(() => {
+    const custom = parseInt(customItemsPerPage, 10);
+    if (!isNaN(custom) && custom >= 1 && custom <= 500) return custom;
+    return itemsPerPage;
+  }, [itemsPerPage, customItemsPerPage]);
 
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery({
     queryKey: ["vendors"],
@@ -715,7 +725,7 @@ const Vendors = () => {
                   onKeyDown={(e) => e.stopPropagation()}
                   onKeyUp={(e) => e.stopPropagation()}
                   className="h-8 text-xs flex-1 min-w-0"
-                  placeholder="Email"
+                  placeholder="name@example.com"
                 />
               </div>
             );
@@ -908,8 +918,8 @@ const Vendors = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 max-w-full overflow-x-hidden">
-      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen max-w-full overflow-x-hidden">
+      <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <div className="min-w-0">
           <Drawer
             direction="right"
@@ -952,7 +962,7 @@ const Vendors = () => {
                   <DrawerTrigger asChild>
                     <Label
                       variant="light"
-                      className="px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                      className="px-3 sm:px-4 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
                     >
                       Import Excel
                     </Label>
@@ -1098,20 +1108,21 @@ const Vendors = () => {
                 <Label
                   variant="success"
                   onClick={handleExport}
-                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Export Excel
                 </Label>
-                <Label
+                <Button
                   type="button"
+                  variant="default"
                   onClick={() => {
                     if (!editingId) resetForm();
                     setVendorDrawerOpen(true);
                   }}
-                  className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  // className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Add New Vendor
-                </Label>
+                </Button>
               </div>
             </div>
             </div>
@@ -1160,7 +1171,7 @@ const Vendors = () => {
                     <Input
                       type="email"
                       name="email"
-                      placeholder="Email"
+                      placeholder="name@example.com"
                       value={form.email}
                       onChange={handleChange}
                     />
@@ -1236,12 +1247,12 @@ const Vendors = () => {
                   </Field>
                   <Field className="md:col-span-2">
                     <FieldLabel>Notes</FieldLabel>
-                    <Input
-                      type="text"
+                    <Textarea
                       name="notes"
                       placeholder="Notes"
                       value={form.notes}
                       onChange={handleChange}
+                      className="h-24"
                     />
                   </Field>
                   <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap md:col-span-2">
@@ -1268,7 +1279,7 @@ const Vendors = () => {
         <div className="min-w-0">
           <div className="flex flex-col gap-4 mb-4">
             <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-              <div className="w-full min-w-0 flex-1">
+              <div className="w-full min-w-0 flex-5">
                 <Input
                   type="text"
                   placeholder="Search vendors..."
@@ -1277,17 +1288,46 @@ const Vendors = () => {
                   className="w-full"
                 />
               </div>
-              <div className="w-full sm:w-auto min-w-0 sm:min-w-[140px]">
-                <UiSelect value={String(itemsPerPage)} onValueChange={(value) => setItemsPerPage(Number(value))}>
-                  <SelectTrigger className="w-full sm:w-[140px]">
+              <div className="w-full sm:w-auto min-w-0 sm:min-0 flex-1">
+                <UiSelect
+                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "10")}
+                  onValueChange={(value) => {
+                    if (value === "custom") return;
+                    setItemsPerPage(Number(value));
+                    setCustomItemsPerPage("");
+                  }}
+                  className="w-full"
+                >
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
-                  <SelectContent position="item-aligned">
+                  <SelectContent
+                    className="min-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]"
+                  >
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="10">10 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
+                      <SelectItem value="50">50 per page</SelectItem>
+                      <SelectItem value="100">100 per page</SelectItem>
+                      <SelectItem value="custom" disabled>
+                        Custom{customItemsPerPage ? ` (${effectiveItemsPerPage})` : ""}
+                      </SelectItem>
                     </SelectGroup>
+                    <SelectSeparator />
+                    <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                      <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
+                      <CustomRowsPerPageInput
+                        type="number"
+                        min={1}
+                        max={500}
+                        placeholder="e.g. 25"
+                        className="h-8 w-full text-sm"
+                        value={customItemsPerPage}
+                        onChange={setCustomItemsPerPage}
+                        autoFocus
+                      />
+                    </div>
                   </SelectContent>
                 </UiSelect>
               </div>
@@ -1303,7 +1343,7 @@ const Vendors = () => {
               <DataTable
                 columns={vendorColumns}
                 data={filteredVendors}
-                pageSize={itemsPerPage}
+                pageSize={effectiveItemsPerPage}
                 getRowId={(row) => row._id}
                 rowSelection={tableRowSelection}
                 onRowSelectionChange={setTableRowSelection}
