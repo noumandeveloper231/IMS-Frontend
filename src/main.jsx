@@ -12,7 +12,7 @@ createRoot(document.getElementById("root")).render(
     <TooltipProvider>
       <BrowserRouter>
         <>
-          <Toaster richColors position="top-right" />
+          <Toaster richColors position="top-right" closeButton />
           <App />
         </>
       </BrowserRouter>

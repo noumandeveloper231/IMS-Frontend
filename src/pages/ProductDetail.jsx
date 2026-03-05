@@ -1,12 +1,33 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../utils/api";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/UI/button";
-import { Table, TableBody, TableCell, TableRow } from "@/components/UI/table";
-import { ArrowLeft } from "lucide-react";
+import { Badge } from "@/components/UI/badge";
 import { useImageModal } from "@/context/ImageModalContext";
 import { API_HOST } from "../config/api";
+import RelatedProductsByCategory from "@/components/RelatedProductsByCategory";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/UI/breadcrumb";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/UI/card";
+import DOMPurify from "dompurify";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/UI/carousel";
+import { Separator } from "@/components/UI/separator";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
+
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -19,6 +40,7 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { openImageModal } = useImageModal();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [carouselApi, setCarouselApi] = useState(null);
 
   const {
     data,
@@ -34,6 +56,11 @@ const ProductDetail = () => {
 
   const product = data;
 
+  const categoryId = useMemo(() => {
+    if (!product?.category) return null;
+    return typeof product.category === "object" ? product.category._id : product.category;
+  }, [product]);
+
   const imageList = useMemo(() => {
     if (!product) return [];
     if (Array.isArray(product.images) && product.images.length) {
@@ -45,7 +72,25 @@ const ProductDetail = () => {
     return [];
   }, [product]);
 
-  const primaryImage = imageList[activeIndex] || imageList[0] || null;
+  useEffect(() => {
+    if (!carouselApi) return;
+
+    const onSelect = () => {
+      const selected = carouselApi.selectedScrollSnap
+        ? carouselApi.selectedScrollSnap()
+        : 0;
+      setActiveIndex(selected);
+    };
+
+    onSelect();
+    carouselApi.on("select", onSelect);
+    carouselApi.on("reInit", onSelect);
+
+    return () => {
+      carouselApi.off("select", onSelect);
+      carouselApi.off("reInit", onSelect);
+    };
+  }, [carouselApi]);
 
   if (isLoading) {
     return (
@@ -58,11 +103,13 @@ const ProductDetail = () => {
   if (isError || !product) {
     return (
       <div className="min-h-screen bg-gray-100 p-6 sm:p-8 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-md p-8 max-w-lg w-full text-center space-y-4">
+        <div className="bg-white rounded-xl p-8 max-w-lg w-full text-center space-y-4">
           <p className="text-lg font-semibold text-gray-800">
             Failed to load product details.
           </p>
-          <Button onClick={() => navigate(-1)}>Go Back</Button>
+          <Button onClick={() => navigate(-1)} title="Go back to previous page">
+            Go Back
+          </Button>
         </div>
       </div>
     );
@@ -71,238 +118,350 @@ const ProductDetail = () => {
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={() => navigate(-1)}
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              {product.title}
-            </h1>
-          </div>
-          <div className="text-sm text-gray-500">
-            <span className="font-medium text-gray-700">SKU:</span>{" "}
-            {product.sku}
-          </div>
-        </div>
+        <Breadcrumb className="mb-2 text-xs sm:text-sm">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/" title="Go to dashboard">Dashboard</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/products" title="Go to products list">Products</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to={`/products/category/${categoryId}`} title="Go to category">{product?.category?.name || "Category"}</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>
+                {product?.title || "Product detail"}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Image gallery */}
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-sm p-4">
-              <div className="group relative overflow-hidden rounded-xl bg-gray-50 flex items-center justify-center min-h-[260px] sm:min-h-[320px]">
-                {primaryImage ? (
-                  <img
-                    src={resolveImageUrl(primaryImage)}
-                    alt={product.title}
-                    className="max-h-[360px] w-auto object-contain transition-transform duration-300 group-hover:scale-110 cursor-zoom-in"
-                    onClick={() =>
-                      openImageModal(resolveImageUrl(primaryImage))
-                    }
-                  />
-                ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2 sm:mt-4 lg:mt-6 ">
+          {/* Image gallery with carousel */}
+          <div className="space-y-4 relative">
+            <div className="max-h-screen flex flex-col sticky top-4 z-10 ">
+              {imageList.length > 0 ? (
+                <div className="flex gap-4">
+                  <div className="flex-1 relative rounded-3xl bg-white p-[22px]">
+                    <Carousel
+                      className="w-full max-w-full"
+                      opts={{ loop: true }}
+                      setApi={setCarouselApi}
+                    >
+                      <CarouselContent>
+                        {imageList.map((img, index) => (
+                          <CarouselItem key={index}>
+                            <Card className="border-0 shadow-none bg-transparent">
+                              <CardContent className="flex items-center justify-center p-0">
+                                <img
+                                  src={resolveImageUrl(img)}
+                                  alt={`${product.title} ${index + 1}`}
+                                  className="w-full max-h-[500px] object-contain cursor-zoom-in"
+                                  title="Click to enlarge"
+                                  onClick={() =>
+                                    openImageModal(resolveImageUrl(img))
+                                  }
+                                />
+                              </CardContent>
+                            </Card>
+                          </CarouselItem>
+                        ))}
+                      </CarouselContent>
+                      <CarouselPrevious
+                        className="w-10 h-10 hidden sm:flex bg-white/90 shadow absolute top-1/2 left-5 -translate-y-1/2"
+                        aria-label="Previous image"
+                        title="Previous image"
+                      />
+                      <CarouselNext
+                        className="w-10 h-10 hidden sm:flex bg-white/90 shadow absolute top-1/2 right-5 -translate-y-1/2"
+                        aria-label="Next image"
+                        title="Next image"
+                      />
+                    </Carousel>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center min-h-[260px] sm:min-h-[320px] rounded-xl bg-gray-50">
                   <span className="text-gray-400 text-sm italic">
                     No images available
                   </span>
-                )}
+                </div>
+              )}
+              <div className="flex gap-2 overflow-y-auto p-3">
+                {imageList.map((img, index) => (
+                  <TooltipProvider key={index}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (carouselApi?.scrollTo) {
+                              carouselApi.scrollTo(index);
+                            }
+                          }}
+                          title={`View image ${index + 1} of ${imageList.length}`}
+                          aria-label={`Select image ${index + 1}`}
+                          className={`relative rounded-xl border transition-all ${index === activeIndex
+                            ? "border-black ring-3 ring-black"
+                            : "border-gray-200 hover:border-black"
+                            }`}
+                        >
+                          <img
+                            src={resolveImageUrl(img)}
+                            alt={`${product.title} ${index + 1}`}
+                            className="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-xl"
+                          />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Image {index + 1} of {imageList.length}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
               </div>
             </div>
-
-            {imageList.length > 1 && (
-              <div className="bg-white rounded-2xl shadow-sm p-3">
-                <div className="flex gap-3 overflow-x-auto">
-                  {imageList.map((img, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => setActiveIndex(index)}
-                      className={`relative flex-shrink-0 rounded-lg border transition-all ${
-                        index === activeIndex
-                          ? "border-blue-500 ring-2 ring-blue-200"
-                          : "border-gray-200 hover:border-blue-300"
-                      }`}
-                    >
-                      <img
-                        src={resolveImageUrl(img)}
-                        alt={`${product.title} ${index + 1}`}
-                        className="h-20 w-20 object-cover rounded-md"
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Product information */}
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                  In Stock: {product.quantity}
+          <div className="space-y-6">
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader className="pb-3">
+                <h1 className="text-lg sm:text-xl font-semibold">
+                  {product.title}
+                </h1>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+
+                {/* Badges Row */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant={product.quantity > 0 ? "success" : "danger"}>
+                    {product.quantity > 0 ? "In Stock" : "Out of Stock"}: {product.quantity}
+                  </Badge>
+
+                  {product.asin && (
+                    <Badge variant="light">
+                      ASIN: <span className="text-gray-500 ml-1">{product.asin}</span>
+                    </Badge>
+                  )}
+
+                  {product.modelno && (
+                    <Badge variant="info">
+                      Model: <span className="text-blue-500 ml-1">{product.modelno}</span>
+                    </Badge>
+                  )}
                 </div>
-                {product.asin && (
-                  <div className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-                    ASIN: {product.asin}
+
+                <Separator />
+
+                {/* Price Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Sale Price
+                    </p>
+                    <p className="text-2xl font-semibold text-destructive">
+                      AED {Number(product.salePrice).toFixed(2)}
+                    </p>
                   </div>
-                )}
-                {product.modelno && (
-                  <div className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                    Model: {product.modelno}
+
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Purchase Price
+                    </p>
+                    <p className="text-xl font-semibold text-primary">
+                      AED {Number(product.purchasePrice).toFixed(2)}
+                    </p>
                   </div>
-                )}
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Purchase Price
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    AED {product.purchasePrice}
-                  </p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Sale Price
-                  </p>
-                  <p className="text-lg font-semibold text-blue-600">
-                    AED {product.salePrice}
-                  </p>
+
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">
+                  Classification
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+
+                {/* Category */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Category</span>
+                  <Badge variant="info">
+                    {product.category
+                      ? (typeof product.category === "object"
+                        ? product.category.name
+                        : product.category)
+                      : "—"}
+                  </Badge>
                 </div>
-              </div>
 
-              {product.description && (
-                <div className="pt-2">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 mb-1.5">
-                    Description
-                  </p>
-                  <p className="text-sm text-gray-700 whitespace-pre-line">
-                    {product.description}
-                  </p>
-                </div>
-              )}
-            </div>
+                <Separator />
 
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-3">
-                Classification
-              </h2>
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="w-40 font-medium text-gray-500">
-                      Categories
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-800">
-                      {product.category
-                        ? (typeof product.category === "object" ? product.category.name : product.category)
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="w-40 font-medium text-gray-500">
-                      Subcategories
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-800">
-                      {product.subcategory
-                        ? (typeof product.subcategory === "object" ? product.subcategory.name : product.subcategory)
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="w-40 font-medium text-gray-500">
-                      Brands
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-800">
-                      {product.brand
-                        ? (typeof product.brand === "object" ? product.brand.name : product.brand)
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="w-40 font-medium text-gray-500">
-                      Conditions
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-800">
-                      {product.condition
-                        ? (typeof product.condition === "object" ? product.condition.name : product.condition)
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col sm:flex-row gap-6">
-              <div className="flex-1 space-y-3">
-                <h2 className="text-base font-semibold text-gray-900">
-                  Identifiers
-                </h2>
-                <Table>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell className="w-40 font-medium text-gray-500">
-                        SKU
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-800">
-                        {product.sku || "—"}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="w-40 font-medium text-gray-500">
-                        ASIN
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-800">
-                        {product.asin || "—"}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="w-40 font-medium text-gray-500">
-                        Model No.
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-800">
-                        {product.modelno || "—"}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="w-full sm:w-48 flex flex-col items-center justify-center border rounded-xl bg-gray-50 p-3">
-                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">
-                  QR Code
-                </p>
-                {product.qrCode ? (
-                  <img
-                    src={product.qrCode}
-                    alt="QR Code"
-                    className="h-32 w-32 object-contain cursor-pointer"
-                    onClick={() => openImageModal(product.qrCode)}
-                  />
-                ) : (
-                  <span className="text-gray-400 text-xs italic">
-                    No QR code
+                {/* Subcategory */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Subcategory</span>
+                  <span className="text-sm font-medium">
+                    {product.subcategory
+                      ? (typeof product.subcategory === "object"
+                        ? product.subcategory.name
+                        : product.subcategory)
+                      : "—"}
                   </span>
-                )}
-              </div>
-            </div>
+                </div>
+
+                <Separator />
+
+                {/* Brand */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Brand</span>
+                  <span className="text-sm font-medium">
+                    {product.brand
+                      ? (typeof product.brand === "object"
+                        ? product.brand.name
+                        : product.brand)
+                      : "—"}
+                  </span>
+                </div>
+
+                <Separator />
+
+                {/* Condition */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Condition</span>
+                  <Badge variant="outline">
+                    {product.condition
+                      ? (typeof product.condition === "object"
+                        ? product.condition.name
+                        : product.condition)
+                      : "—"}
+                  </Badge>
+                </div>
+
+                <Separator />
+
+                {/* Refundable */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Refundable</span>
+                  <Badge variant={product.refundable !== false ? "success" : "secondary"}>
+                    {product.refundable !== false ? "Yes" : "No"}
+                  </Badge>
+                </div>
+
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold">
+                  Identifiers
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="flex flex-col lg:flex-row gap-8">
+
+                {/* LEFT SIDE — IDENTIFIER DETAILS */}
+                <div className="flex-1 space-y-4">
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">SKU</span>
+                    <span className="text-sm font-medium">{product.sku || "—"}</span>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">ASIN</span>
+                    <span className="text-sm font-medium">{product.asin || "—"}</span>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Model No.</span>
+                    <span className="text-sm font-medium">{product.modelno || "—"}</span>
+                  </div>
+
+                </div>
+
+                {/* RIGHT SIDE — QR CODE PANEL */}
+                <div className="w-full lg:w-64 border rounded-xl p-4 flex flex-col items-center gap-4 bg-muted/40">
+
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    QR Code
+                  </p>
+
+                  {product.qrCode ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="relative group p-3 bg-white rounded-xl shadow-sm cursor-pointer w-fit">
+                            <img
+                              src={product.qrCode}
+                              alt="QR Code"
+                              onClick={() => openImageModal(product.qrCode)}
+                              className="h-32 w-32 object-contain"
+                              title="Click to view full size"
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          Click to view full size
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <span className="text-xs italic text-muted-foreground">
+                      No QR code available
+                    </span>
+                  )}
+                </div>
+
+              </CardContent>
+            </Card>
           </div>
         </div>
+        {product.description && (
+          <Card className="rounded-2xl shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">
+                Description
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500 mb-1.5">
+              Description
+            </p>
+            <div
+              className="tiptap text-gray-700 text-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: product.description }}
+            />
+            </CardContent>
+          </Card>
+        )}
 
-        <div className="flex justify-between items-center pt-4">
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            Back to previous page
-          </Button>
-          <Link to="/products">
-            <Button variant="default">Back to products list</Button>
-          </Link>
-        </div>
+        <RelatedProductsByCategory
+          categoryId={categoryId}
+          currentProductId={id}
+          title="More in this category"
+          limit={4}
+          titleClassName="text-xl font-semibold text-center"
+        />
       </div>
     </div>
   );

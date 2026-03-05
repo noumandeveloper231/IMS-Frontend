@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import api from "../utils/api";
 import { User, Phone, Mail, DollarSign, Shield, Calendar, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -70,6 +70,49 @@ const Employees = () => {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const employeesRef = useRef(EMPTY_ARRAY);
+  const employeeDrawerOpenRef = useRef(employeeDrawerOpen);
+
+  useEffect(() => {
+    employeeDrawerOpenRef.current = employeeDrawerOpen;
+  }, [employeeDrawerOpen]);
+
+  // Open Import Excel drawer when a file is dragged over the page (not when Add/Edit Employee drawer is open); close when drag leaves
+  useEffect(() => {
+    const hasFiles = (e) => e.dataTransfer?.types?.includes("Files");
+    const onDragEnter = (e) => {
+      if (!hasFiles(e)) return;
+      if (employeeDrawerOpenRef.current) return;
+      e.preventDefault();
+      setImportDrawerOpen(true);
+    };
+    const onDragOver = (e) => {
+      if (!hasFiles(e)) return;
+      if (employeeDrawerOpenRef.current) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = (e) => {
+      if (!hasFiles(e)) return;
+      if (employeeDrawerOpenRef.current) return;
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      setImportDrawerOpen(false);
+    };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      if (employeeDrawerOpenRef.current) return;
+      e.preventDefault();
+    };
+    document.addEventListener("dragenter", onDragEnter, false);
+    document.addEventListener("dragover", onDragOver, false);
+    document.addEventListener("dragleave", onDragLeave, false);
+    document.addEventListener("drop", onDrop, false);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter, false);
+      document.removeEventListener("dragover", onDragOver, false);
+      document.removeEventListener("dragleave", onDragLeave, false);
+      document.removeEventListener("drop", onDrop, false);
+    };
+  }, []);
 
   const effectiveItemsPerPage = useMemo(() => {
     const custom = parseInt(customItemsPerPage, 10);
@@ -734,7 +777,7 @@ const Employees = () => {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[140px]">
+                      <SelectTrigger className="w-full sm:w-[170px] whitespace-nowrap">
                         <SelectValue placeholder="Bulk actions" />
                       </SelectTrigger>
                       <SelectContent>

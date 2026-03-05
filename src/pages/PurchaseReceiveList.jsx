@@ -387,7 +387,7 @@ const PurchaseReceiveList = () => {
   );
 
   return (
-    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+      <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
       <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
           <h1 className="text-2xl font-bold text-gray-900 border-b border-gray-300 pb-2">

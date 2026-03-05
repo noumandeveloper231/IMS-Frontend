@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import api from "../utils/api";
 import { API_BASE_URL } from "../config/api";
 import axios from "axios";
@@ -96,6 +96,49 @@ const Subcategories = () => {
   const [transferTargetId, setTransferTargetId] = useState("");
   const [cascadeConfirmOpen, setCascadeConfirmOpen] = useState(false);
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
+
+  const subcategoryDrawerOpenRef = useRef(subcategoryDrawerOpen);
+  useEffect(() => {
+    subcategoryDrawerOpenRef.current = subcategoryDrawerOpen;
+  }, [subcategoryDrawerOpen]);
+
+  // Open Import Excel drawer when a file is dragged over the page (not when Add/Edit Subcategory drawer is open); close when drag leaves
+  useEffect(() => {
+    const hasFiles = (e) => e.dataTransfer?.types?.includes("Files");
+    const onDragEnter = (e) => {
+      if (!hasFiles(e)) return;
+      if (subcategoryDrawerOpenRef.current) return;
+      e.preventDefault();
+      setImportDrawerOpen(true);
+    };
+    const onDragOver = (e) => {
+      if (!hasFiles(e)) return;
+      if (subcategoryDrawerOpenRef.current) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = (e) => {
+      if (!hasFiles(e)) return;
+      if (subcategoryDrawerOpenRef.current) return;
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      setImportDrawerOpen(false);
+    };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      if (subcategoryDrawerOpenRef.current) return;
+      e.preventDefault();
+    };
+    document.addEventListener("dragenter", onDragEnter, false);
+    document.addEventListener("dragover", onDragOver, false);
+    document.addEventListener("dragleave", onDragLeave, false);
+    document.addEventListener("drop", onDrop, false);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter, false);
+      document.removeEventListener("dragover", onDragOver, false);
+      document.removeEventListener("dragleave", onDragLeave, false);
+      document.removeEventListener("drop", onDrop, false);
+    };
+  }, []);
 
   const effectiveItemsPerPage = useMemo(() => {
     const custom = parseInt(customItemsPerPage, 10);
@@ -453,7 +496,7 @@ const Subcategories = () => {
   };
 
   const handleProductsClick = (id) => {
-    navigate(`/products/filter/subcategory/${id}`);
+    navigate(`/products/list?filterType=subcategory&filter=${id}`);
   };
 
   const filtered = (subcategoriesWithCounts || []).filter(
@@ -890,7 +933,7 @@ const Subcategories = () => {
     );
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Subcategories");
-    XLSX.writeFile(workbook, "subcategories.xlsx");
+    XLSX.writeFile(workbook, "Subcategories.xlsx");
   };
 
   const subcategoryColumns = useMemo(
@@ -1021,7 +1064,7 @@ const Subcategories = () => {
   );
 
   return (
-    <div className="min-h-screen max-w-full overflow-x-hidden">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
       <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         {/* Header + Actions */}
         <div className="min-w-0">
@@ -1049,7 +1092,7 @@ const Subcategories = () => {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[140px]">
+                      <SelectTrigger className="w-full sm:w-[170px] whitespace-nowrap">
                         <SelectValue placeholder="Bulk actions" />
                       </SelectTrigger>
                       <SelectContent>

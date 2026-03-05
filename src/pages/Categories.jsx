@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Field, FieldGroup, FieldLabel } from "@/components/UI/field";
+import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Button } from "@/components/UI/button";
@@ -38,14 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/UI/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { useImageModal } from "@/context/ImageModalContext";
@@ -129,6 +121,52 @@ const Categories = () => {
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
   const imageUploadAbortRef = useRef(null);
   const categoriesRef = useRef(EMPTY_ARRAY);
+  const categoryDrawerOpenRef = useRef(categoryDrawerOpen);
+
+  useEffect(() => {
+    categoryDrawerOpenRef.current = categoryDrawerOpen;
+  }, [categoryDrawerOpen]);
+
+  // Open Import Excel drawer when a file is dragged over the page (not when Add/Edit Category drawer is open); close when drag leaves
+  useEffect(() => {
+    const hasFiles = (e) => e.dataTransfer?.types?.includes("Files");
+    const onDragEnter = (e) => {
+      if (!hasFiles(e)) return;
+      // Don't open Import drawer if user is dragging an image in the Add/Edit Category drawer
+      if (categoryDrawerOpenRef.current) return;
+      e.preventDefault();
+      setImportDrawerOpen(true);
+    };
+    const onDragOver = (e) => {
+      if (!hasFiles(e)) return;
+      if (categoryDrawerOpenRef.current) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = (e) => {
+      if (!hasFiles(e)) return;
+      if (categoryDrawerOpenRef.current) return;
+      // Only close when leaving the document (e.g. dragged back out of window)
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      setImportDrawerOpen(false);
+    };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      if (categoryDrawerOpenRef.current) return;
+      e.preventDefault();
+      // Drawer stays open; drop zone inside drawer will handle the file if dropped there
+    };
+    document.addEventListener("dragenter", onDragEnter, false);
+    document.addEventListener("dragover", onDragOver, false);
+    document.addEventListener("dragleave", onDragLeave, false);
+    document.addEventListener("drop", onDrop, false);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter, false);
+      document.removeEventListener("dragover", onDragOver, false);
+      document.removeEventListener("dragleave", onDragLeave, false);
+      document.removeEventListener("drop", onDrop, false);
+    };
+  }, []);
 
   const effectiveItemsPerPage = useMemo(() => {
     const custom = parseInt(customItemsPerPage, 10);
@@ -287,7 +325,7 @@ const Categories = () => {
   }, [bulkManagerOpen]);
 
   const handleClick = (id) => {
-    navigate(`/products/filter/category/${id}`);
+    navigate(`/products/list?filterType=category&filter=${id}`);
   };
 
   const handleClearForm = () => {
@@ -852,7 +890,7 @@ const Categories = () => {
                       document.getElementById(`import-image-${rowIndex}`)?.click()
                     }
                   >
-                    <CloudUpload 
+                    <CloudUpload
                       className="h-4 w-4"
                     />
                     Choose from device
@@ -1057,8 +1095,8 @@ const Categories = () => {
           if (!cat.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
-            return (
-              <div className="flex items-center">
+          return (
+            <div className="flex items-center">
               <img
                 src={resolveImageUrl(cat.image)}
                 alt={cat.name}
@@ -1180,12 +1218,13 @@ const Categories = () => {
   );
 
   return (
-    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+    <div className="max-w-full overflow-x-hidden  bg-white">
       <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         {/* Header + Actions */}
         <div className="min-w-0">
           <Drawer
             direction="right"
+            // className="p-10!"
             open={categoryDrawerOpen}
             onOpenChange={setCategoryDrawerOpen}
           >
@@ -1208,7 +1247,7 @@ const Categories = () => {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[140px]">
+                      <SelectTrigger className="w-full sm:w-[170px] whitespace-nowrap">
                         <SelectValue placeholder="Bulk actions" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1406,7 +1445,7 @@ const Categories = () => {
             <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
               <DrawerHeader className="px-4 sm:px-6">
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div className="flex flex-col gap-2">
                     <DrawerTitle>
                       {editingId ? "Edit Category" : "Add New Category"}
                     </DrawerTitle>
@@ -1449,15 +1488,29 @@ const Categories = () => {
                       className="mt-1"
                       accept="image/*"
                     />
-                    {preview && (
-                      <div className="mt-2">
-                        <img
-                          src={preview}
-                          alt="Preview"
-                          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd]"
-                        />
-                      </div>
-                    )}
+                    <div>
+                      {preview && (
+                        <div className="w-24 h-24 mt-2 flex relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreview(null);
+                              setImage(null);
+                            }}
+                            className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white text-[10px] hover:bg-black"
+                            aria-label="Remove image"
+                          >
+                            ×
+                          </button>
+                          <img
+                            src={preview}
+                            alt="Preview"
+                            className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd] bg-white"
+                          />
+                        </div>
+                      )}
+                    </div>
+
                   </Field>
                   <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
                     <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">

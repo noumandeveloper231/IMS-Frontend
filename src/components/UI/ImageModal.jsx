@@ -1,27 +1,69 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X, ZoomIn, ZoomOut, Download } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/UI/button";
 import { useImageModal } from "@/context/ImageModalContext";
+import api from "@/utils/api";
+import { toast } from "sonner";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.25;
 const SCROLL_ZOOM_STEP = 0.1;
 
+const isCloudinaryUrl = (url) =>
+  typeof url === "string" && /^https:\/\/res\.cloudinary\.com\//i.test(url);
+
 export function ImageModal() {
   const { open, setOpen, imageSrc, closeImageModal } = useImageModal();
   const [scale, setScale] = React.useState(1);
+  const [downloading, setDownloading] = React.useState(false);
   const imageRef = React.useRef(null);
   const containerRef = React.useRef(null);
 
   const handleZoomIn = () => setScale((s) => Math.min(MAX_ZOOM, s + ZOOM_STEP));
   const handleZoomOut = () => setScale((s) => Math.max(MIN_ZOOM, s - ZOOM_STEP));
 
-
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!imageSrc) return;
+    if (isCloudinaryUrl(imageSrc)) {
+      setDownloading(true);
+      try {
+        const encoded = encodeURIComponent(imageSrc);
+        const res = await api.get(`/images/download?url=${encoded}`, {
+          responseType: "blob",
+        });
+        const disposition = res.headers["content-disposition"];
+        const match = disposition?.match(/filename="?([^";\n]+)"?/);
+        const filename = match ? match[1].trim() : "image.webp";
+        const blob = new Blob([res.data]);
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        toast.success("Image downloaded");
+      } catch (err) {
+        let message = "Download failed";
+        const data = err.response?.data;
+        if (data instanceof Blob && data.type?.includes("json")) {
+          try {
+            const json = JSON.parse(await data.text());
+            message = json.message || message;
+          } catch {}
+        } else if (typeof data?.message === "string") {
+          message = data.message;
+        }
+        toast.error(message);
+      } finally {
+        setDownloading(false);
+      }
+      return;
+    }
     const link = document.createElement("a");
     link.href = imageSrc;
     link.download = imageSrc.split("/").pop() || "image";
@@ -113,10 +155,15 @@ export function ImageModal() {
                 variant="outline"
                 size="icon"
                 onClick={handleDownload}
+                disabled={downloading}
                 className="h-9 w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
                 aria-label="Download"
               >
-                <Download className="h-4 w-4" />
+                {downloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
               </Button>
             </div>
             <DialogPrimitive.Close asChild>

@@ -65,6 +65,7 @@ const Dashboard = () => {
   const hasError = countsError || stockError;
 
   const safeCounts = {
+    orders: counts?.orders ?? 0,
     products: counts?.products ?? 0,
     categories: counts?.categories ?? 0,
     brands: counts?.brands ?? 0,
@@ -116,6 +117,7 @@ const Dashboard = () => {
   ];
 
   const entityCountsData = [
+    { name: "Orders", value: safeCounts.orders },
     { name: "Products", value: safeCounts.products },
     { name: "Categories", value: safeCounts.categories },
     { name: "Brands", value: safeCounts.brands },
@@ -191,7 +193,7 @@ const Dashboard = () => {
             );
           })}
 
-          <Link to="/products/stock/out-of-stock">
+          <Link to="/orders">
             <Card className="cursor-pointer hover:shadow-md transition">
               <CardContent className="flex items-center justify-between p-4">
 
@@ -214,7 +216,7 @@ const Dashboard = () => {
             </Card>
           </Link>
 
-          <Link to="/products/stock/out-stock">
+          <Link to="/products/list?filterType=availability&filter=out-of-stock">
             <Card className="cursor-pointer hover:shadow-md transition">
               <CardContent className="flex items-center justify-between p-4">
 
@@ -237,7 +239,7 @@ const Dashboard = () => {
             </Card>
           </Link>
 
-          <Link to="/products/stock/in-stock">
+          <Link to="/products/list?filterType=availability&filter=in-stock">
             <Card className="cursor-pointer hover:shadow-md transition">
               <CardContent className="flex items-center justify-between p-4">
 
@@ -338,7 +340,7 @@ const Dashboard = () => {
                     <span>Products &amp; catalog</span>
                   </div>
                   <span className="text-xs text-slate-500">
-                    {safeCounts.products} items
+                    {safeCounts.orders} orders
                   </span>
                 </Link>
 
@@ -351,7 +353,7 @@ const Dashboard = () => {
                     <span>Sales &amp; orders</span>
                   </div>
                   <span className="text-xs text-slate-500">
-                    {safeCounts.sale} total sales
+                    {safeCounts.orders} orders
                   </span>
                 </Link>
 

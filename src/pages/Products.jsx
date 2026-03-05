@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/UI/select";
 import { DataTable } from "@/components/UI/data-table";
+import { Switch } from "@/components/UI/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +76,7 @@ import { InfoIcon } from "lucide-react";
 import { useImageModal } from "@/context/ImageModalContext";
 import axios from "axios";
 import { Combobox } from "@/components/UI/combobox";
+import { RichTextEditor } from "@/components/UI/RichTextEditor";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -122,72 +124,11 @@ const TEMPLATE_COLUMNS = [
   "Subcategories",
   "Brands",
   "Conditions",
+  "Refundable",
   "Images",
 ];
 
 const EMPTY_ARRAY = [];
-
-// import { useEffect } from "react";
-
-function RichTextEditor({ value, onChange, placeholder }) {
-  const editorRef = useRef(null);
-
-  const exec = (command) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand(command, false, null);
-  };
-
-  // Only update innerHTML when value changes externally
-  useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value || "";
-    }
-  }, [value]);
-
-  return (
-    <div className="border border-gray-300 focus-within:border-gray-500 focus-within:ring-3 focus-within:ring-gray-300 transition-all duration-200 rounded-lg overflow-hidden">
-      <div className="flex gap-1 border-b bg-muted px-2 py-1">
-        <Button
-          type="button"
-          size="icon"
-          variant={document.queryCommandState("bold") ? "secondary" : "ghost"}
-          onMouseDown={e => e.preventDefault()}
-          onClick={() => exec("bold")}
-        >
-          <span className="font-bold text-xs">B</span>
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant={document.queryCommandState("italic") ? "secondary" : "ghost"}
-          onMouseDown={e => e.preventDefault()}
-          onClick={() => exec("italic")}
-        >
-          <span className="italic text-xs">I</span>
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant={document.queryCommandState("underline") ? "secondary" : "ghost"}
-          onMouseDown={e => e.preventDefault()}
-          onClick={() => exec("underline")}
-        >
-          <span className="underline text-xs">U</span>
-        </Button>
-      </div>
-
-      <div
-        ref={editorRef}
-        className="min-h-[160px] px-3 py-2 text-sm focus:outline-none"
-        contentEditable
-        suppressContentEditableWarning
-        data-placeholder={placeholder}
-        onInput={(e) => onChange(e.currentTarget.innerHTML)}
-      />
-    </div>
-  );
-}
 
 function ProductCombobox({
   options = [],
@@ -308,6 +249,49 @@ const Products = () => {
   const [imageUploadState, setImageUploadState] = useState(null);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
   const imageUploadAbortRef = useRef(null);
+  const productDrawerOpenRef = useRef(productDrawerOpen);
+
+  useEffect(() => {
+    productDrawerOpenRef.current = productDrawerOpen;
+  }, [productDrawerOpen]);
+
+  // Open Import Excel drawer when a file is dragged over the page (not when Add/Edit Product drawer is open); close when drag leaves
+  useEffect(() => {
+    const hasFiles = (e) => e.dataTransfer?.types?.includes("Files");
+    const onDragEnter = (e) => {
+      if (!hasFiles(e)) return;
+      if (productDrawerOpenRef.current) return;
+      e.preventDefault();
+      setImportDrawerOpen(true);
+    };
+    const onDragOver = (e) => {
+      if (!hasFiles(e)) return;
+      if (productDrawerOpenRef.current) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = (e) => {
+      if (!hasFiles(e)) return;
+      if (productDrawerOpenRef.current) return;
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      setImportDrawerOpen(false);
+    };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      if (productDrawerOpenRef.current) return;
+      e.preventDefault();
+    };
+    document.addEventListener("dragenter", onDragEnter, false);
+    document.addEventListener("dragover", onDragOver, false);
+    document.addEventListener("dragleave", onDragLeave, false);
+    document.addEventListener("drop", onDrop, false);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter, false);
+      document.removeEventListener("dragover", onDragOver, false);
+      document.removeEventListener("dragleave", onDragLeave, false);
+      document.removeEventListener("drop", onDrop, false);
+    };
+  }, []);
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
@@ -332,6 +316,7 @@ const Products = () => {
     subcategory: "",
     brand: "",
     condition: "",
+    refundable: true,
   });
 
   const effectiveItemsPerPage = useMemo(() => {
@@ -571,6 +556,7 @@ const Products = () => {
       subcategory: "",
       brand: "",
       condition: "",
+      refundable: true,
     });
     setEditingId(null);
     imagePreviews.forEach((url) => {
@@ -597,6 +583,7 @@ const Products = () => {
       subcategory: p.subcategory?._id ?? p.subcategory ?? "",
       brand: p.brand?._id ?? p.brand ?? "",
       condition: p.condition?._id ?? p.condition ?? "",
+      refundable: p.refundable !== false,
     });
     setEditingId(p._id);
     setProductDrawerOpen(true);
@@ -805,6 +792,18 @@ const Products = () => {
         },
       },
       {
+        id: "refundable",
+        header: "Refundable",
+        cell: ({ row }) => {
+          const p = row.original;
+          return (
+            <span className="text-sm text-gray-600">
+              {p.refundable !== false ? "Yes" : "No"}
+            </span>
+          );
+        },
+      },
+      {
         id: "actions",
         header: "Actions",
         cell: ({ row }) => {
@@ -869,6 +868,7 @@ const Products = () => {
         Subcategories: p.subcategory ? (typeof p.subcategory === "object" ? p.subcategory.name : p.subcategory) : "",
         Brands: p.brand ? (typeof p.brand === "object" ? p.brand.name : p.brand) : "",
         Conditions: p.condition ? (typeof p.condition === "object" ? p.condition.name : p.condition) : "",
+        Refundable: p.refundable !== false ? "Yes" : "No",
         Image: (() => {
           const primaryImage = Array.isArray(p.images) && p.images.length ? p.images[0] : p.image;
           return primaryImage ? resolveImageUrl(primaryImage) : "";
@@ -959,6 +959,10 @@ const Products = () => {
       }
       const resolvedImageUrl = imageFromUpload || (firstImageUrl && isValidImageUrl(normalizeImageUrl(firstImageUrl)) ? firstImageUrl : "");
 
+      const refundableKey = Object.keys(row).find((k) => normalizeKey(k) === "refundable") ?? null;
+      const refundableRaw = refundableKey ? String(row[refundableKey] ?? "").trim().toLowerCase() : "";
+      const __refundable = ["no", "false", "0", "n"].includes(refundableRaw) ? false : true;
+
       if (!effectiveSku) fieldErrors[skuKey || "SKU"] = "Required";
       if (!name) fieldErrors[nameKey || "Name"] = "Required";
       if (!Number.isFinite(price) || price <= 0) {
@@ -995,6 +999,7 @@ const Products = () => {
         ...row,
         __sku: effectiveSku,
         __imageUrl: resolvedImageUrl,
+        __refundable,
         __errors: fieldErrors,
         __status: hasErrors ? "error" : "valid",
         __statusMessage: statusMessage,
@@ -1204,6 +1209,7 @@ const Products = () => {
       const isSalePrice = nk === "saleprice";
       const isQuantity = nk === "quantity" || nk === "stock" || nk === "qty";
       const isAsin = nk === "asin";
+      const isRefundable = nk === "refundable";
       return {
         id: col,
         header: col,
@@ -1244,6 +1250,20 @@ const Products = () => {
               <div className="flex items-center gap-2 py-1.5 min-w-0">
                 <Button type="button" size="sm" variant="outline" className="h-9 text-xs flex-1 min-w-0 justify-start" onClick={() => handleOpenDescriptionModal(rowIndex, col)}>{display}</Button>
                 {indicator}
+              </div>
+            );
+          }
+          if (isRefundable) {
+            const refundable = rowData.__refundable !== false;
+            return (
+              <div className="flex items-center gap-2 py-1.5" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={refundable}
+                  onCheckedChange={(checked) =>
+                    handleImportCellChange(rowIndex, col, checked ? "Yes" : "No")
+                  }
+                />
+                <span className="text-xs text-muted-foreground">{refundable ? "Yes" : "No"}</span>
               </div>
             );
           }
@@ -1429,7 +1449,7 @@ const Products = () => {
 
     setImportLoading(true);
     try {
-      const payload = validRows.map(({ __errors, __status, __sku, __imageUrl, ...rest }) => {
+      const payload = validRows.map(({ __errors, __status, __sku, __imageUrl, __refundable, ...rest }) => {
         const title = rest.Title ?? rest.title ?? "";
         const asin = rest.ASIN ?? rest.asin ?? "";
         const purchasePrice = rest["Purchase Price"] ?? rest.purchasePrice ?? 0;
@@ -1454,6 +1474,7 @@ const Products = () => {
           subcategory,
           brand,
           condition,
+          refundable: __refundable !== false,
           image: __imageUrl || rest.Images || rest.Image || "",
         };
       });
@@ -1606,6 +1627,7 @@ const Products = () => {
       subcategory: "",
       brand: "",
       condition: "",
+      refundable: true,
     });
     setEditingId(null);
     imagePreviews.forEach((url) => {
@@ -1646,7 +1668,7 @@ const Products = () => {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[140px]">
+                      <SelectTrigger className="w-full sm:w-[170px] whitespace-nowrap">
                         <SelectValue placeholder="Bulk actions" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2058,6 +2080,21 @@ const Products = () => {
                       }}
                       placeholder="Select Condition..."
                     />
+                  </div>
+                  <div className="col-span-1 md:col-span-2 flex items-center gap-3">
+                    <Field>
+                      <FieldLabel htmlFor="product-refundable" className="mb-0">Refundable</FieldLabel>
+                    </Field>
+                    <Switch
+                      id="product-refundable"
+                      checked={form.refundable}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({ ...prev, refundable: !!checked }))
+                      }
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {form.refundable ? "Yes" : "No"}
+                    </span>
                   </div>
                   <div className="col-span-1 md:col-span-2">
                     <Field>

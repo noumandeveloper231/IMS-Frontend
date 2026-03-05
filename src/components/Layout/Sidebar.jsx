@@ -20,6 +20,7 @@ import {
   Bell,
   Sparkles,
   Smartphone,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/UI/scroll-area";
@@ -71,20 +72,140 @@ const purchasePaths = [
 const isPurchaseActive = (pathname) =>
   purchasePaths.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
+const productPaths = ["/products"];
+const isProductsActive = (pathname) =>
+  productPaths.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+const isManageProductsActive = (pathname) =>
+  pathname === "/products" ||
+  (pathname.startsWith("/products/") && !pathname.startsWith("/products/list"));
+
+// Single config object: sections with items; items can be links (to) or collapsibles (subItems)
+const SIDEBAR_CONFIG = [
+  {
+    label: "Overview",
+    items: [
+      { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
+      { to: "/reports", label: "Reports", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Inventory Setup",
+    items: [
+      { to: "/categories", label: "Categories", icon: Tag },
+      { to: "/subcategories", label: "Subcategories", icon: Layers },
+      { to: "/brands", label: "Brands", icon: ClipboardList },
+      { to: "/conditions", label: "Conditions", icon: ShoppingBasket },
+      {
+        key: "products",
+        label: "Products",
+        icon: Package,
+        activeType: "products",
+        subItems: [
+          { to: "/products/list", label: "Product list", exact: true },
+          { to: "/products", label: "Manage Product", activeType: "manageProducts" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Purchasing",
+    items: [
+      {
+        key: "purchases",
+        label: "Purchases",
+        icon: ShoppingBasket,
+        activeType: "purchases",
+        subItems: [
+          { to: "/vendors", label: "Vendors", exact: true },
+          {
+            key: "po",
+            label: "PO",
+            subItems: [
+              { to: "/purchase-orders", label: "Add PO", exact: true },
+              { to: "/purchaseorderslist", label: "List of PO", exact: true },
+            ],
+          },
+          {
+            key: "pr",
+            label: "PR",
+            subItems: [
+              { to: "/purchase-receives", label: "Add PR", exact: true },
+              { to: "/purchasereceiveslist", label: "List of PR", exact: true },
+            ],
+          },
+          { to: "/bills", label: "Bills", exact: true },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Sales",
+    items: [
+      { to: "/sales", label: "POS", icon: ShoppingCart },
+      { to: "/orders", label: "Orders", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "People / Management",
+    items: [
+      { to: "/employees", label: "Employees", icon: Users },
+      { to: "/customers", label: "Customers", icon: Users },
+    ],
+  },
+  {
+    label: "Hardware",
+    items: [
+      { to: "/connected-devices", label: "Connected Devices", icon: Smartphone },
+    ],
+  },
+];
+
 const Sidebar = ({ onCollapseToggle }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [purchasesOpen, setPurchasesOpen] = useState(false);
-  const [purchasesAnchorRect, setPurchasesAnchorRect] = useState(null);
-  const [poOpen, setPoOpen] = useState(false);
-  const [prOpen, setPrOpen] = useState(false);
-  const purchasesAnchorRef = useRef(null);
-  const purchasesMenuRef = useRef(null);
+  const [openMenus, setOpenMenus] = useState({
+    products: false,
+    purchases: false,
+    po: false,
+    pr: false,
+  });
+  const [anchorRects, setAnchorRects] = useState({ products: null, purchases: null });
+  const anchorRefs = useRef({ products: null, purchases: null });
+  const menuRefs = useRef({ products: null, purchases: null });
   const sidebarRef = useRef(null);
 
   const isActive = (to, exact = false) =>
     exact ? pathname === to : pathname.startsWith(to);
+
+  const getItemActive = (item) => {
+    if (item.to) {
+      return item.exact ? pathname === item.to : pathname.startsWith(item.to);
+    }
+    if (item.activeType === "products") return isProductsActive(pathname);
+    if (item.activeType === "purchases") return isPurchaseActive(pathname);
+    return false;
+  };
+
+  const getSubItemActive = (sub) => {
+    if (sub.to) {
+      if (sub.activeType === "manageProducts") return isManageProductsActive(pathname);
+      return sub.exact ? pathname === sub.to : pathname.startsWith(sub.to);
+    }
+    return false;
+  };
+
+  const setMenuOpen = (key, value) => {
+    setOpenMenus((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "purchases" && !value) {
+        next.po = false;
+        next.pr = false;
+      }
+      return next;
+    });
+  };
 
   const { user, logout } = useContext(AuthContext);
   const handleLogout = () => {
@@ -93,107 +214,200 @@ const Sidebar = ({ onCollapseToggle }) => {
     navigate("/login");
   };
 
-  const togglePurchasesMenu = () => {
-    if (isCollapsed && purchasesAnchorRef.current) {
-      setPurchasesAnchorRect(purchasesAnchorRef.current.getBoundingClientRect());
+  const toggleCollapsibleMenu = (key) => {
+    if (isCollapsed && anchorRefs.current[key]) {
+      setAnchorRects((prev) => ({
+        ...prev,
+        [key]: anchorRefs.current[key].getBoundingClientRect(),
+      }));
     }
-    setPurchasesOpen((prev) => {
-      const next = !prev;
-      if (!next) {
-        setPoOpen(false);
-        setPrOpen(false);
-      }
-      return next;
-    });
+    setMenuOpen(key, !openMenus[key]);
   };
 
   useEffect(() => {
-    // Keep Purchases uncollapsed when on any purchase route; open PO/PR only when on their routes
     if (isPurchaseActive(pathname)) {
-      setPurchasesOpen(true);
-      const isOnPo =
-        pathname === "/purchase-orders" ||
-        pathname === "/purchaseorderslist" ||
-        pathname.startsWith("/purchase-orders/") ||
-        pathname.startsWith("/purchaseorderslist/");
-      const isOnPr =
-        pathname === "/purchase-receives" ||
-        pathname === "/purchasereceiveslist" ||
-        pathname.startsWith("/purchase-receives/") ||
-        pathname.startsWith("/purchasereceiveslist/");
-      setPoOpen(isOnPo);
-      setPrOpen(isOnPr);
+      setOpenMenus((prev) => ({
+        ...prev,
+        purchases: true,
+        po:
+          pathname === "/purchase-orders" ||
+          pathname === "/purchaseorderslist" ||
+          pathname.startsWith("/purchase-orders/") ||
+          pathname.startsWith("/purchaseorderslist/"),
+        pr:
+          pathname === "/purchase-receives" ||
+          pathname === "/purchasereceiveslist" ||
+          pathname.startsWith("/purchase-receives/") ||
+          pathname.startsWith("/purchasereceiveslist/"),
+      }));
     } else {
-      setPurchasesOpen(false);
-      setPoOpen(false);
-      setPrOpen(false);
+      setOpenMenus((prev) => ({ ...prev, purchases: false, po: false, pr: false }));
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (isProductsActive(pathname)) {
+      setOpenMenus((prev) => ({ ...prev, products: true }));
     }
   }, [pathname]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      const anchorEl = purchasesAnchorRef.current;
-      const menuEl = purchasesMenuRef.current;
       const sidebarEl = sidebarRef.current;
-
-      if (
-        !purchasesOpen ||
-        !event.target ||
-        (sidebarEl && sidebarEl.contains(event.target)) ||
-        (anchorEl && anchorEl.contains(event.target)) ||
-        (menuEl && menuEl.contains(event.target))
-      ) {
-        return;
-      }
-
-      setPurchasesOpen(false);
-      setPoOpen(false);
-      setPrOpen(false);
+      const target = event.target;
+      ["products", "purchases"].forEach((key) => {
+        if (!openMenus[key]) return;
+        const anchorEl = anchorRefs.current[key];
+        const menuEl = menuRefs.current[key];
+        if (
+          target &&
+          !(sidebarEl && sidebarEl.contains(target)) &&
+          !(anchorEl && anchorEl.contains(target)) &&
+          !(menuEl && menuEl.contains(target))
+        ) {
+          setMenuOpen(key, false);
+          if (key === "purchases") {
+            setOpenMenus((prev) => ({ ...prev, po: false, pr: false }));
+          }
+        }
+      });
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("touchstart", handleClickOutside);
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("touchstart", handleClickOutside);
     };
-  }, [purchasesOpen]);
+  }, [openMenus.products, openMenus.purchases]);
 
   useEffect(() => {
     if (!sidebarRef.current || typeof ResizeObserver === "undefined") return;
-
     const el = sidebarRef.current;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
       const width = entry.contentRect.width;
-
       setIsCollapsed((prev) => {
-        if (width <= 120 && !prev) {
-          return true;
-        }
-        if (width >= 180 && prev) {
-          return false;
-        }
+        if (width <= 120 && !prev) return true;
+        if (width >= 180 && prev) return false;
         return prev;
       });
     });
-
     observer.observe(el);
-
     return () => observer.disconnect();
   }, []);
+
+  // Render a single sub-item: link or nested collapsible
+  const renderSubItem = (sub, parentKey, isFloating = false) => {
+    if (sub.to) {
+      const active = getSubItemActive(sub);
+      return (
+        <Link
+          key={sub.to}
+          to={sub.to}
+          onClick={() => {
+            if (isFloating && parentKey) setMenuOpen(parentKey, false);
+          }}
+        >
+          <span className={subItemClasses(active)}>{sub.label}</span>
+        </Link>
+      );
+    }
+    if (sub.subItems) {
+      const subKey = sub.key;
+      const isOpen = openMenus[subKey];
+      const onCloseParent = () => parentKey && setMenuOpen(parentKey, false);
+      return (
+        <Collapsible
+          key={subKey}
+          open={isOpen}
+          onOpenChange={(open) => setOpenMenus((prev) => ({ ...prev, [subKey]: open }))}
+        >
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
+            >
+              <span>{sub.label}</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className={isFloating ? "pl-2 space-y-0.5" : "ml-6 space-y-0.5 border-l border-gray-300 pl-2"}>
+              {sub.subItems.map((leaf) =>
+                leaf.to ? (
+                  <Link
+                    key={leaf.to}
+                    to={leaf.to}
+                    onClick={() => {
+                      if (isFloating) {
+                        onCloseParent();
+                        setOpenMenus((prev) => ({ ...prev, [subKey]: false }));
+                      }
+                    }}
+                  >
+                    <span className={subItemClasses(getSubItemActive(leaf))}>
+                      {leaf.label}
+                    </span>
+                  </Link>
+                ) : null
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      );
+    }
+    return null;
+  };
+
+  // Render sub-items block (for expanded sidebar or floating menu)
+  const renderSubItemsBlock = (subItems, parentKey, isFloating = false) => (
+    <div className={isFloating ? "space-y-0.5" : "ml-6 mt-1 space-y-0.5 border-l border-gray-300 pl-3 mr-5"}>
+      {subItems.map((sub) =>
+        sub.to ? (
+          <Link
+            key={sub.to}
+            to={sub.to}
+            onClick={() => isFloating && parentKey && setMenuOpen(parentKey, false)}
+          >
+            <span className={subItemClasses(getSubItemActive(sub))}>{sub.label}</span>
+          </Link>
+        ) : (
+          renderSubItem(sub, parentKey, isFloating)
+        )
+      )}
+    </div>
+  );
+
+  // Floating menu content for a collapsible item (products or purchases)
+  const renderFloatingMenu = (item) => {
+    const key = item.key;
+    if (!anchorRects[key] || !openMenus[key]) return null;
+    return (
+      <div
+        ref={(el) => (menuRefs.current[key] = el)}
+        className="fixed z-50"
+        style={{
+          top: anchorRects[key].top,
+          left: anchorRects[key].right + 2,
+        }}
+      >
+        <div className="w-52 rounded-md border bg-white p-2 space-y-1">
+          {renderSubItemsBlock(item.subItems, key, true)}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <aside
       ref={sidebarRef}
       className={`hidden sm:flex h-screen flex-col border-r border-gray-200 bg-white transition-[width] duration-200`}
     >
-      {/* Header: logo + brand (or logo only when collapsed) */}
       <div
-        className={`flex items-center border-b border-gray-100 shrink-0 ${isCollapsed ? "justify-center px-0 py-4" : "gap-3 px-4 py-4"
-          }`}
+        className={`flex items-center border-b border-gray-100 shrink-0 ${isCollapsed ? "justify-center px-0 py-4" : "gap-3 px-4 py-4"}`}
       >
         <img src={assets.logo} alt="logo" className="w-7 h-7 shrink-0" />
         {!isCollapsed && (
@@ -204,406 +418,84 @@ const Sidebar = ({ onCollapseToggle }) => {
       <ScrollArea className={`flex-1 py-4 overflow-y-auto no-scrollbar min-h-0 ${isCollapsed ? "px-2" : "px-3"}`}>
         <nav className="space-y-1">
           <div className="font-medium space-y-1">
-            {/* 1. Overview */}
-            <SectionLabel collapsed={isCollapsed}>Overview</SectionLabel>
-            <Link to="/">
-              <Button
-                variant={isActive("/", true) ? "default" : "ghost"}
-                className={navItemClasses(isActive("/", true), isCollapsed)}
-                title={isCollapsed ? "Dashboard" : undefined}
-              >
-                <LayoutDashboard className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Dashboard</span>}
-              </Button>
-            </Link>
-            <Link to="/reports">
-              <Button
-                variant={isActive("/reports") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/reports"), isCollapsed)}
-                title={isCollapsed ? "Reports" : undefined}
-              >
-                <BarChart3 className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Reports</span>}
-              </Button>
-            </Link>
-
-            {/* 2. Catalog / Inventory Setup */}
-            <SectionLabel collapsed={isCollapsed}>Inventory Setup</SectionLabel>
-            <Link to="/categories">
-              <Button
-                variant={isActive("/categories") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/categories"), isCollapsed)}
-                title={isCollapsed ? "Categories" : undefined}
-              >
-                <Tag className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Categories</span>}
-              </Button>
-            </Link>
-            <Link to="/subcategories">
-              <Button
-                variant={isActive("/subcategories") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/subcategories"), isCollapsed)}
-                title={isCollapsed ? "Subcategories" : undefined}
-              >
-                <Layers className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Subcategories</span>}
-              </Button>
-            </Link>
-            <Link to="/brands">
-              <Button
-                variant={isActive("/brands") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/brands"), isCollapsed)}
-                title={isCollapsed ? "Brands" : undefined}
-              >
-                <ClipboardList className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Brands</span>}
-              </Button>
-            </Link>
-            <Link to="/conditions">
-              <Button
-                variant={isActive("/conditions") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/conditions"), isCollapsed)}
-                title={isCollapsed ? "Conditions" : undefined}
-              >
-                <ShoppingBasket className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Conditions</span>}
-              </Button>
-            </Link>
-            <Link to="/products">
-              <Button
-                variant={isActive("/products") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/products"), isCollapsed)}
-                title={isCollapsed ? "Products" : undefined}
-              >
-                <Package className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Products</span>}
-              </Button>
-            </Link>
-
-            {/* 3. Purchasing */}
-            <SectionLabel collapsed={isCollapsed}>Purchasing</SectionLabel>
-            <div ref={purchasesAnchorRef}>
-              {isCollapsed ? (
-                <Button
-                  variant={isPurchaseActive(pathname) ? "default" : "ghost"}
-                  className={navItemClasses(isPurchaseActive(pathname), true)}
-                  title="Purchases"
-                  onClick={togglePurchasesMenu}
-                >
-                  <ShoppingBasket className="h-4 w-4 shrink-0" />
-                </Button>
-              ) : (
-                <Collapsible open={purchasesOpen} onOpenChange={setPurchasesOpen}>
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant={isPurchaseActive(pathname) ? "default" : "ghost"}
-                      className={`${navItemClasses(isPurchaseActive(pathname), false)} justify-between`}
-                    >
-                      <div className="flex items-center gap-3 justify-between w-full">
-                        <span className="flex items-center gap-3">
-                          <ShoppingBasket className="h-4 w-4 shrink-0" />
-                          <span>Purchases</span>
-                        </span>
-                        <ChevronRight
-                          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${purchasesOpen ? "rotate-90" : ""
-                            }`}
-                        />
+            {SIDEBAR_CONFIG.map((section) => (
+              <React.Fragment key={section.label}>
+                <SectionLabel collapsed={isCollapsed}>{section.label}</SectionLabel>
+                {section.items.map((item) => {
+                  // Link item
+                  if (item.to) {
+                    const active = getItemActive(item);
+                    const Icon = item.icon;
+                    return (
+                      <Link key={item.to} to={item.to}>
+                        <Button
+                          variant={active ? "default" : "ghost"}
+                          className={navItemClasses(active, isCollapsed)}
+                          title={isCollapsed ? item.label : undefined}
+                        >
+                          {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                          {!isCollapsed && <span>{item.label}</span>}
+                        </Button>
+                      </Link>
+                    );
+                  }
+                  // Collapsible item with subItems
+                  if (item.subItems) {
+                    const key = item.key;
+                    const active = getItemActive(item);
+                    const Icon = item.icon;
+                    const isOpen = openMenus[key];
+                    return (
+                      <div key={key} ref={(el) => (anchorRefs.current[key] = el)}>
+                        {isCollapsed ? (
+                          <Button
+                            variant={active ? "default" : "ghost"}
+                            className={navItemClasses(active, true)}
+                            title={item.label}
+                            onClick={() => toggleCollapsibleMenu(key)}
+                          >
+                            {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                          </Button>
+                        ) : (
+                          <Collapsible open={isOpen} onOpenChange={(v) => setMenuOpen(key, v)}>
+                            <CollapsibleTrigger asChild>
+                              <Button
+                                variant={active ? "default" : "ghost"}
+                                className={`${navItemClasses(active, false)} justify-between`}
+                              >
+                                <div className="flex items-center gap-3 justify-between w-full">
+                                  <span className="flex items-center gap-3">
+                                    {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                                    <span>{item.label}</span>
+                                  </span>
+                                  <ChevronRight
+                                    className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                                  />
+                                </div>
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              {renderSubItemsBlock(item.subItems, null, false)}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
                       </div>
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="ml-6 mt-1 space-y-0.5 border-l border-gray-300 pl-3 mr-5">
-                      <Link to="/vendors">
-                        <span
-                          className={subItemClasses(isActive("/vendors", true))}
-                        >
-                          Vendors
-                        </span>
-                      </Link>
+                    );
+                  }
+                  return null;
+                })}
+              </React.Fragment>
+            ))}
 
-                      <Collapsible open={poOpen} onOpenChange={setPoOpen}>
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
-                          >
-                            <span>PO</span>
-                            <ChevronDown
-                              className={`h-4 w-4 transition-transform duration-200 ${poOpen ? "rotate-180" : ""
-                                }`}
-                            />
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <div className="ml-6 space-y-0.5 border-l border-gray-300 pl-2">
-                            <Link
-                              to="/purchase-orders"
-                            >
-                              <span
-                                className={subItemClasses(
-                                  isActive("/purchase-orders", true)
-                                )}
-                              >
-                                Add PO
-                              </span>
-                            </Link>
-                            <Link
-                              to="/purchaseorderslist"
-                            >
-                              <span
-                                className={subItemClasses(
-                                  isActive("/purchaseorderslist", true)
-                                )}
-                              >
-                                List of PO
-                              </span>
-                            </Link>
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-
-                      <Collapsible open={prOpen} onOpenChange={setPrOpen}>
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
-                          >
-                            <span>PR</span>
-                            <ChevronDown
-                              className={`h-4 w-4 transition-transform duration-200 ${prOpen ? "rotate-180" : ""
-                                }`}
-                            />
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <div className="ml-6 space-y-0.5 border-l border-gray-300 pl-2">
-                            <Link
-                              to="/purchase-receives"
-                            >
-                              <span
-                                className={subItemClasses(
-                                  isActive("/purchase-receives", true)
-                                )}
-                              >
-                                Add PR
-                              </span>
-                            </Link>
-                            <Link
-                              to="/purchasereceiveslist"
-                            >
-                              <span
-                                className={subItemClasses(
-                                  isActive("/purchasereceiveslist", true)
-                                )}
-                              >
-                                List of PR
-                              </span>
-                            </Link>
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-
-                      <Link to="/bills">
-                        <span
-                          className={subItemClasses(isActive("/bills", true))}
-                        >
-                          Bills
-                        </span>
-                      </Link>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </div>
-
-            {/* When sidebar is collapsed: show floating menu with Collapsible submenus */}
+            {/* Collapsed floating menus */}
             {isCollapsed &&
-              purchasesOpen &&
-              purchasesAnchorRect &&
-              createPortal(
-                <div
-                  ref={purchasesMenuRef}
-                  className="fixed z-50"
-                  style={{
-                    top: purchasesAnchorRect.top,
-                    left: purchasesAnchorRect.right + 2,
-                  }}
-                >
-                  <div className="w-52 rounded-md border bg-white p-2 space-y-1">
-                    <Link
-                      to="/vendors"
-                      onClick={() => {
-                        setPurchasesOpen(false);
-                      }}
-                    >
-                      <span
-                        className={subItemClasses(isActive("/vendors", true))}
-                      >
-                        Vendors
-                      </span>
-                    </Link>
-
-                    <Collapsible open={poOpen} onOpenChange={setPoOpen}>
-                      <CollapsibleTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
-                        >
-                          <span>PO</span>
-                          <ChevronDown
-                            className={`h-4 w-4 transition-transform duration-200 ${poOpen ? "rotate-180" : ""
-                              }`}
-                          />
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="pl-2 space-y-0.5">
-                          <Link
-                            to="/purchase-orders"
-                            onClick={() => {
-                              setPurchasesOpen(false);
-                              setPoOpen(false);
-                            }}
-                          >
-                            <span
-                              className={subItemClasses(
-                                isActive("/purchase-orders", true)
-                              )}
-                            >
-                              Add PO
-                            </span>
-                          </Link>
-                          <Link
-                            to="/purchaseorderslist"
-                            onClick={() => {
-                              setPurchasesOpen(false);
-                              setPoOpen(false);
-                            }}
-                          >
-                            <span
-                              className={subItemClasses(
-                                isActive("/purchaseorderslist", true)
-                              )}
-                            >
-                              List of PO
-                            </span>
-                          </Link>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-
-                    <Collapsible open={prOpen} onOpenChange={setPrOpen}>
-                      <CollapsibleTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-100"
-                        >
-                          <span>PR</span>
-                          <ChevronDown
-                            className={`h-4 w-4 transition-transform duration-200 ${prOpen ? "rotate-180" : ""
-                              }`}
-                          />
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="pl-2 space-y-0.5">
-                          <Link
-                            to="/purchase-receives"
-                            onClick={() => {
-                              setPurchasesOpen(false);
-                              setPrOpen(false);
-                            }}
-                          >
-                            <span
-                              className={subItemClasses(
-                                isActive("/purchase-receives", true)
-                              )}
-                            >
-                              Add PR
-                            </span>
-                          </Link>
-                          <Link
-                            to="/purchasereceiveslist"
-                            onClick={() => {
-                              setPurchasesOpen(false);
-                              setPrOpen(false);
-                            }}
-                          >
-                            <span
-                              className={subItemClasses(
-                                isActive("/purchasereceiveslist", true)
-                              )}
-                            >
-                              List of PR
-                            </span>
-                          </Link>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-
-                    <Link
-                      to="/bills"
-                      onClick={() => setPurchasesOpen(false)}
-                    >
-                      <span
-                        className={subItemClasses(isActive("/bills", true))}
-                      >
-                        Bills
-                      </span>
-                    </Link>
-                  </div>
-                </div>,
-                document.body
-              )}
-
-            {/* 4. Sales */}
-            <SectionLabel collapsed={isCollapsed}>Sales</SectionLabel>
-            <Link to="/sales">
-              <Button
-                variant={isActive("/sales") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/sales"), isCollapsed)}
-                title={isCollapsed ? "POS" : undefined}
-              >
-                <ShoppingCart className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>POS</span>}
-              </Button>
-            </Link>
-            <Link to="/orders">
-              <Button
-                variant={isActive("/orders") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/orders"), isCollapsed)}
-                title={isCollapsed ? "Orders" : undefined}
-              >
-                <ClipboardList className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Orders</span>}
-              </Button>
-            </Link>
-
-            {/* 5. People / Management */}
-            <SectionLabel collapsed={isCollapsed}>People / Management</SectionLabel>
-            <Link to="/employees">
-              <Button
-                variant={isActive("/employees") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/employees"), isCollapsed)}
-                title={isCollapsed ? "Employees" : undefined}
-              >
-                <Users className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Employees</span>}
-              </Button>
-            </Link>
-
-            {/* 6. Hardware */}
-            <SectionLabel collapsed={isCollapsed}>Hardware</SectionLabel>
-            <Link to="/connected-devices">
-              <Button
-                variant={isActive("/connected-devices") ? "default" : "ghost"}
-                className={navItemClasses(isActive("/connected-devices"), isCollapsed)}
-                title={isCollapsed ? "Connected Devices" : undefined}
-              >
-                <Smartphone className="h-4 w-4 shrink-0" />
-                {!isCollapsed && <span>Connected Devices</span>}
-              </Button>
-            </Link>
+              SIDEBAR_CONFIG.flatMap((section) => section.items)
+                .filter((item) => item.subItems && item.key)
+                .map((item) =>
+                  openMenus[item.key] && anchorRects[item.key]
+                    ? createPortal(renderFloatingMenu(item), document.body)
+                    : null
+                )}
           </div>
         </nav>
       </ScrollArea>
@@ -684,11 +576,11 @@ const Sidebar = ({ onCollapseToggle }) => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-gray-300!" />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/settings")}>
                 <User className="h-4 w-4" />
                 Settings
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-gray-300!"  />
+              <DropdownMenuSeparator className="bg-gray-300!" />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
                 Log out

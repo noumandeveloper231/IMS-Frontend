@@ -1,4 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Albert+Sans:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
+@import "./styles/tiptap-content.css";
 
 @plugin "tailwindcss-animate";
 
@@ -19,6 +21,8 @@
     --color-popover: var(--popover);
     --color-popover-foreground: var(--popover-foreground);
     --color-primary: var(--primary);
+    --color-light: var(--light);
+    --color-light-foreground: var(--light-foreground);
     --color-primary-foreground: var(--primary-foreground);
     --color-secondary: var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
@@ -54,6 +58,8 @@
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
     --primary: oklch(0.205 0 0);
+    --light: oklch(0.97 0 0);
+    --light-foreground: oklch(0.205 0 0);
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
@@ -80,6 +86,10 @@
     --sidebar-ring: oklch(0.708 0 0);
 }
 
+*{
+  font-family: 'Albert Sans', sans-serif;
+}
+
 .dark {
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
@@ -88,6 +98,8 @@
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
     --primary: oklch(0.922 0 0);
+    --light: oklch(0.97 0 0);
+    --light-foreground: oklch(0.205 0 0);
     --primary-foreground: oklch(0.205 0 0);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);

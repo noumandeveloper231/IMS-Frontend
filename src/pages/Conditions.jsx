@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
 import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
@@ -120,6 +120,49 @@ const Conditions = () => {
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
   const imageUploadAbortRef = useRef(null);
   const conditionsRef = useRef(EMPTY_ARRAY);
+  const conditionDrawerOpenRef = useRef(conditionDrawerOpen);
+
+  useEffect(() => {
+    conditionDrawerOpenRef.current = conditionDrawerOpen;
+  }, [conditionDrawerOpen]);
+
+  // Open Import Excel drawer when a file is dragged over the page (not when Add/Edit Condition drawer is open); close when drag leaves
+  useEffect(() => {
+    const hasFiles = (e) => e.dataTransfer?.types?.includes("Files");
+    const onDragEnter = (e) => {
+      if (!hasFiles(e)) return;
+      if (conditionDrawerOpenRef.current) return;
+      e.preventDefault();
+      setImportDrawerOpen(true);
+    };
+    const onDragOver = (e) => {
+      if (!hasFiles(e)) return;
+      if (conditionDrawerOpenRef.current) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = (e) => {
+      if (!hasFiles(e)) return;
+      if (conditionDrawerOpenRef.current) return;
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      setImportDrawerOpen(false);
+    };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      if (conditionDrawerOpenRef.current) return;
+      e.preventDefault();
+    };
+    document.addEventListener("dragenter", onDragEnter, false);
+    document.addEventListener("dragover", onDragOver, false);
+    document.addEventListener("dragleave", onDragLeave, false);
+    document.addEventListener("drop", onDrop, false);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter, false);
+      document.removeEventListener("dragover", onDragOver, false);
+      document.removeEventListener("dragleave", onDragLeave, false);
+      document.removeEventListener("drop", onDrop, false);
+    };
+  }, []);
 
   const effectiveItemsPerPage = useMemo(() => {
     const custom = parseInt(customItemsPerPage, 10);
@@ -258,7 +301,7 @@ const Conditions = () => {
   const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
   const handleClick = (id) => {
-    navigate(`/products/filter/condition/${id}`);
+    navigate(`/products/list?filterType=condition&filter=${id}`);
   };
 
   const handleClearForm = () => {
@@ -1172,7 +1215,7 @@ const Conditions = () => {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[140px]">
+                      <SelectTrigger className="w-full sm:w-[170px] whitespace-nowrap">
                         <SelectValue placeholder="Bulk actions" />
                       </SelectTrigger>
                       <SelectContent>

@@ -6,7 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/UI/button";
 import { Input } from "@/components/UI/input";
 import { cn } from "@/lib/utils";
-
+import assets from "@/assets/assets";
 export default function Login() {
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -33,7 +33,7 @@ export default function Login() {
       await login(email, password);
       toast.success("Welcome back!");
       navigate("/", { replace: true });
-    } catch (err) {
+    } catch (err) { 
       toast.error(err.response?.data?.message || "Login failed");
     } finally {
       setLoading(false);
@@ -47,14 +47,14 @@ export default function Login() {
         <div className="absolute left-8 top-8 text-lg font-semibold">
           POS-IMS
         </div>
+        <img src={assets.authImg} alt="POS-IMS" className="w-4/5 h-4/5 object-contain absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
         <div className="absolute bottom-8 left-8 right-8 text-sm">
           <blockquote className="space-y-2">
             <p>
-              &ldquo;This library has saved me countless hours of work and helped me
-              deliver stunning designs to my clients faster than ever before.&rdquo;
+                &ldquo;The best way to predict the future is to invent it.&rdquo;
             </p>
             <footer className="text-muted-foreground">
-              — Sofia Davis
+              — Nouman Developer
             </footer>
           </blockquote>
         </div>

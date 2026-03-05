@@ -15,17 +15,9 @@ import {
   SelectLabel,
   SelectGroup,
 } from "@/components/UI/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/UI/table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { DataTable } from "@/components/DataTable";
-import { Trash2, ChevronDown, Check, X } from "lucide-react";
+import { Check, X, Trash2, Edit2 } from "lucide-react";
 import {
   Drawer,
   DrawerClose,
@@ -37,149 +29,10 @@ import {
   DrawerFooter,
 } from "@/components/UI/drawer";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/UI/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/UI/command";
-import { cn } from "@/lib/utils";
 import { Combobox } from "@/components/UI/combobox";
-import { Calendar } from "@/components/UI/calendar";
 import { Textarea } from "@/components/UI/textarea";
 
-function ProductCombobox({
-  products = [],
-  value,
-  onChange,
-  onSelectProduct,
-  placeholder = "Enter Product Title",
-  className,
-}) {
-  const [open, setOpen] = useState(false);
-
-  const handleSelect = (product) => {
-    onChange(product.title || "");
-    onSelectProduct?.(product);
-    setOpen(false);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div className="relative min-w-[200px]">
-          <Input
-            type="text"
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={() => setOpen(true)}
-            className={cn("min-w-[200px]", className)}
-          />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0 max-h-60"
-        align="start"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <Command>
-          <CommandInput placeholder="Search products..." />
-          <CommandList>
-            <CommandEmpty>No products found.</CommandEmpty>
-            <CommandGroup>
-              {products.map((p) => (
-                <CommandItem
-                  key={p._id}
-                  value={[p.title, p.sku, p.asin].filter(Boolean).join(" ")}
-                  onSelect={() => handleSelect(p)}
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{p.title || p.sku || "—"}</span>
-                    {(p.sku || p.asin) && (
-                      <span className="text-xs text-muted-foreground">
-                        {[p.sku, p.asin].filter(Boolean).join(" · ")}
-                      </span>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function VendorCombobox({
-  vendors = [],
-  value,
-  onChange,
-  placeholder = "Select Vendor",
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = vendors.find((v) => v._id === value) ?? null;
-  const displayLabel = selected ? selected.name : placeholder;
-
-  const handleSelect = (vendor) => {
-    onChange(vendor._id);
-    setOpen(false);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
-            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-            !selected && "text-muted-foreground"
-          )}
-        >
-          <span className="truncate">{displayLabel}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 max-h-80" align="start">
-        <Command>
-          <CommandInput placeholder="Search vendor..." />
-          <CommandList>
-            <CommandEmpty>No vendors found.</CommandEmpty>
-            <CommandGroup>
-              {vendors.map((v) => (
-                <CommandItem
-                  key={v._id}
-                  value={v.name}
-                  onSelect={() => handleSelect(v)}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === v._id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {v.name}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 const TEMPLATE_COLUMNS = ["SKU", "Quantity", "Purchase Price"];
-const EMPTY_ARRAY = [];
 
 const PurchaseOrderForm = () => {
   const queryClient = useQueryClient();
@@ -202,6 +55,40 @@ const PurchaseOrderForm = () => {
     duplicates: 0,
   });
   const [importLoading, setImportLoading] = useState(false);
+
+  // Open Import Excel drawer when a file is dragged over the page; close when drag leaves
+  useEffect(() => {
+    const hasFiles = (e) => e.dataTransfer?.types?.includes("Files");
+    const onDragEnter = (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      setImportDrawerOpen(true);
+    };
+    const onDragOver = (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = (e) => {
+      if (!hasFiles(e)) return;
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      setImportDrawerOpen(false);
+    };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+    };
+    document.addEventListener("dragenter", onDragEnter, false);
+    document.addEventListener("dragover", onDragOver, false);
+    document.addEventListener("dragleave", onDragLeave, false);
+    document.addEventListener("drop", onDrop, false);
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter, false);
+      document.removeEventListener("dragover", onDragOver, false);
+      document.removeEventListener("dragleave", onDragLeave, false);
+      document.removeEventListener("drop", onDrop, false);
+    };
+  }, []);
 
   const { data: vendorsData } = useQuery({
     queryKey: ["vendors"],

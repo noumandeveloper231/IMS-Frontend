@@ -1,6 +1,6 @@
 import React, { useContext, useState, useRef, useEffect } from "react";
 import { User, LogOut, Settings, ChevronDown } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import assets from "@/assets/assets";
 
@@ -30,12 +30,12 @@ const Navbar = () => {
 
   return (
     <div className="bg-white text-gray-900 border-b border-gray-300 px-5 py-3 flex justify-between items-center dark:border-gray-600 dark:bg-gray-900 dark:text-white">
-      <div className="flex items-center gap-2">
+      <Link to="/" className="flex items-center gap-2">
         <img src={assets.logo} alt="logo" className="w-10 h-10" />
         <h1 className="text-xl font-semibold">
           Al Ramil
         </h1>
-      </div>
+      </Link>
 
       <div className="relative" ref={dropdownRef}>
         <button

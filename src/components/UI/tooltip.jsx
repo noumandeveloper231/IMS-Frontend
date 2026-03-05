@@ -22,7 +22,7 @@ const TooltipContent = React.forwardRef(
         className={cn(
           "relative z-50 w-max",
           "bg-black text-white text-xs",
-          "rounded px-4 py-1 pb-2 shadow-lg",
+          "rounded px-4 py-1.5 shadow-lg",
           "whitespace-nowrap border-none!",
           // Animation
           "data-[state=delayed-open]:animate-in",
