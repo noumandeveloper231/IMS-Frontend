@@ -16,11 +16,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   User,
-  CreditCard,
-  Bell,
-  Sparkles,
   Smartphone,
-  Settings as SettingsIcon,
+  UsersRound
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/UI/scroll-area";
@@ -150,7 +147,7 @@ const SIDEBAR_CONFIG = [
     label: "People / Management",
     items: [
       { to: "/employees", label: "Employees", icon: Users },
-      { to: "/customers", label: "Customers", icon: Users },
+      { to: "/customers", label: "Customers", icon: UsersRound },
     ],
   },
   {
