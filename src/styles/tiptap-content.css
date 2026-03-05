@@ -1,27 +1,27 @@
 /**
- * Tiptap editor & read-only content styles.
- * Use class "tiptap" on the element that wraps the HTML content
+ * tinymce editor & read-only content styles.
+ * Use class "tinymce" on the element that wraps the HTML content
  * (editor content or dangerouslySetInnerHTML container).
  * Uses CSS custom properties from your theme (index.css) for consistency.
  */
 
 /* Base wrapper */
-.tiptap {
+.tinymce {
   outline: none;
 }
 
-.tiptap > :first-child {
+.tinymce > :first-child {
   margin-top: 0;
 }
 
 /* Placeholder (editor only) */
-.tiptap p.is-editor-empty:first-child::before {
+.tinymce p.is-editor-empty:first-child::before {
   color: var(--muted-foreground);
   content: attr(data-placeholder);
 }
 
 /* Headings */
-.tiptap h1 {
+.tinymce h1 {
   font-size: 1.5rem;
   font-weight: 700;
   margin-top: 2.5rem;
@@ -29,7 +29,7 @@
   line-height: 1.25;
 }
 
-.tiptap h2 {
+.tinymce h2 {
   font-size: 1.25rem;
   font-weight: 700;
   margin-top: 2.5rem;
@@ -37,28 +37,28 @@
   line-height: 1.25;
 }
 
-.tiptap h3 {
+.tinymce h3 {
   font-size: 1.125rem;
   font-weight: 700;
   margin-top: 2rem;
   line-height: 1.25;
 }
 
-.tiptap h4 {
+.tinymce h4 {
   font-size: 1rem;
   font-weight: 700;
   margin-top: 1.5rem;
   line-height: 1.25;
 }
 
-.tiptap h5 {
+.tinymce h5 {
   font-size: 0.875rem;
   font-weight: 700;
   margin-top: 1rem;
   line-height: 1.25;
 }
 
-.tiptap h6 {
+.tinymce h6 {
   font-size: 0.875rem;
   font-weight: 700;
   margin-top: 1rem;
@@ -66,38 +66,38 @@
 }
 
 /* Paragraph */
-.tiptap p {
+.tinymce p {
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
   line-height: 1.625;
 }
 
 /* Lists */
-.tiptap ul {
+.tinymce ul {
   list-style-type: disc;
   padding-left: 1.5rem;
   margin-top: 1rem;
   margin-bottom: 1rem;
 }
 
-.tiptap ol {
+.tinymce ol {
   list-style-type: decimal;
   padding-left: 1.5rem;
   margin-top: 1rem;
   margin-bottom: 1rem;
 }
 
-.tiptap li {
+.tinymce li {
   line-height: 1.625;
 }
 
-.tiptap li p {
+.tinymce li p {
   margin-top: 0.125rem;
   margin-bottom: 0.125rem;
 }
 
 /* Blockquote */
-.tiptap blockquote {
+.tinymce blockquote {
   border-left: 4px solid var(--border);
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
@@ -107,7 +107,7 @@
 }
 
 /* Code */
-.tiptap code {
+.tinymce code {
   background-color: var(--muted);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
@@ -115,7 +115,7 @@
   font-family: ui-monospace, monospace;
 }
 
-.tiptap pre {
+.tinymce pre {
   background-color: var(--muted);
   border-radius: 0.5rem;
   margin-top: 1.5rem;
@@ -124,30 +124,30 @@
   overflow-x: auto;
 }
 
-.tiptap pre code {
+.tinymce pre code {
   background: none;
   padding: 0;
   font-size: 0.875rem;
 }
 
 /* Highlight.js (syntax highlighting in code blocks) */
-.tiptap .hljs {
+.tinymce .hljs {
   background: transparent;
 }
 
 /* Links */
-.tiptap a {
+.tinymce a {
   color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.tiptap a:hover {
+.tinymce a:hover {
   opacity: 0.8;
 }
 
 /* Horizontal rule */
-.tiptap hr {
+.tinymce hr {
   border: none;
   border-top: 1px solid var(--border);
   margin-top: 2rem;
@@ -155,14 +155,210 @@
 }
 
 /* Text marks */
-.tiptap strong {
+.tinymce strong {
   font-weight: 700;
 }
 
-.tiptap em {
+.tinymce em {
   font-style: italic;
 }
 
-.tiptap s {
+.tinymce s {
   text-decoration: line-through;
+}
+
+
+/* -------------------- Tables -------------------- */
+.tinymce table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.tinymce th,
+.tinymce td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tinymce th {
+  background-color: var(--muted);
+  font-weight: 700;
+}
+
+.tinymce caption {
+  caption-side: bottom;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-top: 0.5rem;
+}
+
+/* -------------------- Images & Media -------------------- */
+.tinymce img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1rem auto;
+  border-radius: 0.5rem;
+}
+
+.tinymce video,
+.tinymce iframe {
+  max-width: 100%;
+  display: block;
+  margin: 1rem auto;
+}
+
+/* -------------------- Details / Summary -------------------- */
+.tinymce details {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background-color: var(--background);
+}
+
+.tinymce summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* -------------------- Definition Lists -------------------- */
+.tinymce dl {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.tinymce dt {
+  font-weight: 700;
+  margin-top: 1rem;
+}
+
+.tinymce dd {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* -------------------- Horizontal Alignment -------------------- */
+.tinymce div[align="center"] {
+  text-align: center;
+}
+.tinymce div[align="right"] {
+  text-align: right;
+}
+.tinymce div[align="left"] {
+  text-align: left;
+}
+
+/* -------------------- Horizontal & Line Breaks -------------------- */
+.tinymce hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+.tinymce br {
+  line-height: 1.625;
+}
+
+/* -------------------- Block-level Elements -------------------- */
+.tinymce address {
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.tinymce figure {
+  margin: 1.5rem 0;
+}
+
+.tinymce figcaption {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-top: 0.25rem;
+}
+
+/* -------------------- Lists -------------------- */
+.tinymce ul ul,
+.tinymce ol ol,
+.tinymce ul ol,
+.tinymce ol ul {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* -------------------- Forms (readonly styling) -------------------- */
+.tinymce input,
+.tinymce textarea,
+.tinymce select {
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--background);
+}
+
+/* -------------------- Abbreviations & Small -------------------- */
+.tinymce abbr[title] {
+  border-bottom: 1px dotted var(--muted-foreground);
+  cursor: help;
+}
+
+.tinymce small {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* -------------------- Figures & Media Objects -------------------- */
+.tinymce audio {
+  display: block;
+  margin: 1rem auto;
+}
+
+.tinymce picture {
+  display: block;
+  margin: 1rem auto;
+}
+
+/* -------------------- Mark & Highlight -------------------- */
+.tinymce mark {
+  background-color: var(--primary)/20;
+  color: var(--primary);
+  padding: 0.1rem 0.2rem;
+  border-radius: 0.2rem;
+}
+
+/* -------------------- Superscript & Subscript -------------------- */
+.tinymce sup {
+  vertical-align: super;
+  font-size: 0.75em;
+}
+
+.tinymce sub {
+  vertical-align: sub;
+  font-size: 0.75em;
+}
+
+/* -------------------- Horizontal & Vertical Spacing -------------------- */
+.tinymce blockquote,
+.tinymce pre,
+.tinymce table,
+.tinymce dl,
+.tinymce details {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* -------------------- Accessibility -------------------- */
+.tinymce a:focus,
+.tinymce button:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }

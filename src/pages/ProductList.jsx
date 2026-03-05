@@ -1,32 +1,22 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, Router, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ArrowLeftIcon, ChevronDown } from "lucide-react";
 import api from "../utils/api";
-import { API_HOST } from "../config/api";
 import { Field } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
 import { Label } from "@/components/UI/label";
 import { Checkbox } from "@/components/UI/checkbox";
 import { Slider } from "@/components/UI/slider";
+import { Card } from "@/components/UI/card";
+import ProductCard from "@/components/ProductCard";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/UI/collapsible";
-
-const getPrimaryImageUrl = (product) => {
-  const primary =
-    (Array.isArray(product.images) && product.images.length && product.images[0]) ||
-    product.image ||
-    null;
-
-  if (!primary) return null;
-  if (typeof primary === "string" && (primary.startsWith("http://") || primary.startsWith("https://"))) {
-    return primary;
-  }
-  return `${API_HOST}${primary}`;
-};
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbPage, BreadcrumbSeparator } from "@/components/UI/breadcrumb";
+import { BreadcrumbLink } from "@/components/UI/breadcrumb";
 
 const getRefName = (ref) => (ref && typeof ref === "object" ? ref.name : ref);
 
@@ -45,6 +35,8 @@ const ProductList = () => {
   const [filterSubcategoryIds, setFilterSubcategoryIds] = useState([]);
   const [filterBrandIds, setFilterBrandIds] = useState([]);
   const [filterConditionIds, setFilterConditionIds] = useState([]);
+  const [brandSearch, setBrandSearch] = useState("");
+  const [conditionSearch, setConditionSearch] = useState("");
 
   // TanStack Query: fetch products
   const {
@@ -70,6 +62,15 @@ const ProductList = () => {
     },
   });
   const categories = categoriesData ?? [];
+
+  const { data: subcategoriesData } = useQuery({
+    queryKey: ["subcategories"],
+    queryFn: async () => {
+      const res = await api.get("/subcategories/getall");
+      return res.data?.subcategories ?? res.data ?? [];
+    },
+  });
+  const subcategories = subcategoriesData ?? [];
 
   const { data: brandsData } = useQuery({
     queryKey: ["brands-list"],
@@ -243,17 +244,29 @@ const ProductList = () => {
     return () => observer.disconnect();
   }, [loadMore]);
 
+  const navigate = useNavigate();
+
   // Counts for filter options (from full product list)
-  const { inStockCount, outStockCount, categoryCounts, brandCounts, conditionCounts } =
+  const {
+    inStockCount,
+    outStockCount,
+    categoryCounts,
+    subcategoryCounts,
+    brandCounts,
+    conditionCounts,
+  } =
     useMemo(() => {
       const inStock = products.filter((p) => (p.quantity ?? 0) > 0).length;
       const outStock = products.filter((p) => (p.quantity ?? 0) === 0).length;
       const catCounts = {};
+      const subcatCounts = {};
       const bCounts = {};
       const condCounts = {};
       products.forEach((p) => {
         const cid = p.category?._id ?? p.category;
         if (cid) catCounts[cid] = (catCounts[cid] || 0) + 1;
+        const sid = p.subcategory?._id ?? p.subcategory;
+        if (sid) subcatCounts[sid] = (subcatCounts[sid] || 0) + 1;
         const bid = p.brand?._id ?? p.brand;
         if (bid) bCounts[bid] = (bCounts[bid] || 0) + 1;
         const condId = p.condition?._id ?? p.condition;
@@ -263,6 +276,7 @@ const ProductList = () => {
         inStockCount: inStock,
         outStockCount: outStock,
         categoryCounts: catCounts,
+        subcategoryCounts: subcatCounts,
         brandCounts: bCounts,
         conditionCounts: condCounts,
       };
@@ -311,10 +325,33 @@ const ProductList = () => {
   }
 
   return (
-    <div className="min-h-screen max-w-full bg-gray-50">
-      <div className="mx-auto flex flex-col gap-6 bg-gray-50 p-4 sm:p-6 lg:flex-row lg:items-start lg:gap-8 lg:p-8">
+    <div className="min-h-screen max-w-full bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <Breadcrumb>
+        <BreadcrumbList className="flex items-center gap-">
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <span onClick={() => navigate(-1)} title="Go to home">
+                <ArrowLeftIcon className="h-4 w-4 cursor-pointer" />
+              </span>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to="/" title="Go to home">Home</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>
+              Products list
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      <div className="mx-auto mt-4 flex flex-col gap-6 bg-gray-50  lg:flex-row lg:items-start lg:gap-10 ">
         {/* Filter sidebar - sticky works when no ancestor has overflow (scroll is on App ScrollArea) */}
-        <aside className="sticky top-4 z-10 w-full shrink-0 space-y-1 self-start rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:w-72 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+        <aside className="sticky top-4 z-10 w-full shrink-0 space-y-1 self-start rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:w-80 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           <div className="flex items-center justify-between pb-2">
             <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
             {hasActiveFilters && (
@@ -401,32 +438,97 @@ const ProductList = () => {
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Collection / Category */}
+          {/* Collection / Category with nested subcategories */}
           <Collapsible defaultOpen className="group border-b border-gray-100 pb-3">
             <CollapsibleTrigger className="flex w-full items-center justify-between py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
-              <span>Collection</span>
+              <span className="w-15 sm:w-20 lg:w-25">Categories</span>
               <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
             </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2 space-y-2 max-h-48 overflow-y-auto">
+            <CollapsibleContent className="pt-2 space-y-1 max-h-64 overflow-y-auto">
               {categories.map((c) => {
                 const count = categoryCounts[c._id] ?? 0;
-                const checked = filterCategoryIds.includes(c._id);
                 if (count === 0) return null;
+
+                const subcatsForCategory = subcategories.filter(
+                  (s) => (s.category?._id ?? s.category) === c._id
+                );
+                const visibleSubcatsForCategory = subcatsForCategory.filter(
+                  (s) => (subcategoryCounts[s._id] ?? 0) > 0
+                );
+                const categoryChecked = filterCategoryIds.includes(c._id);
+                const anySubChecked = visibleSubcatsForCategory.some((s) =>
+                  filterSubcategoryIds.includes(s._id)
+                );
+                const allSubChecked =
+                  visibleSubcatsForCategory.length > 0 &&
+                  visibleSubcatsForCategory.every((s) =>
+                    filterSubcategoryIds.includes(s._id)
+                  );
+
+                const categoryCheckboxState = categoryChecked || allSubChecked
+                  ? true
+                  : anySubChecked
+                    ? "indeterminate"
+                    : false;
+
                 return (
-                  <label
-                    key={c._id}
-                    className="flex cursor-pointer items-center gap-3 rounded-md py-1.5 hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(checked) => {
-                        setFilterCategoryIds((prev) =>
-                          checked ? [...prev, c._id] : prev.filter((id) => id !== c._id)
-                        );
-                      }}
-                    />
-                    <span className="text-sm text-gray-700">{c.name} ({count})</span>
-                  </label>
+                  <Collapsible key={c._id} className="group/category rounded-md">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-1.5 py-1.5 text-left text-sm font-medium text-gray-900 hover:bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={categoryCheckboxState}
+                          onCheckedChange={(checked) => {
+                            setFilterCategoryIds((prev) =>
+                              checked ? [...prev, c._id] : prev.filter((id) => id !== c._id)
+                            );
+                            const subIds = visibleSubcatsForCategory.map((s) => s._id);
+                            setFilterSubcategoryIds((prev) => {
+                              if (checked) {
+                                const next = new Set(prev);
+                                subIds.forEach((id) => next.add(id));
+                                return Array.from(next);
+                              }
+                              return prev.filter((id) => !subIds.includes(id));
+                            });
+                          }}
+                        />
+                        <span className="text-sm text-gray-700">
+                          {c.name} ({count})
+                        </span>
+                      </div>
+                      {subcatsForCategory.length > 0 && (
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-500 transition-transform group-data-[state=open]/category:rotate-180" />
+                      )}
+                    </CollapsibleTrigger>
+                    {visibleSubcatsForCategory.length > 0 && (
+                      <CollapsibleContent className="pl-7 pr-1 pb-2 pt-1 space-y-1">
+                        {visibleSubcatsForCategory.map((s) => {
+                          const subCount = subcategoryCounts[s._id] ?? 0;
+                          const subChecked = filterSubcategoryIds.includes(s._id);
+                          return (
+                            <label
+                              key={s._id}
+                              className="flex cursor-pointer items-center gap-2 rounded-md py-1 hover:bg-gray-50"
+                            >
+                              <Checkbox
+                                checked={subChecked}
+                                onCheckedChange={(checked) => {
+                                  setFilterSubcategoryIds((prev) =>
+                                    checked
+                                      ? [...prev, s._id]
+                                      : prev.filter((id) => id !== s._id)
+                                  );
+                                }}
+                              />
+                              <span className="text-xs text-gray-700">
+                                {s.name} ({subCount})
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </CollapsibleContent>
+                    )}
+                  </Collapsible>
                 );
               })}
               {categories.length === 0 && (
@@ -437,32 +539,47 @@ const ProductList = () => {
 
           {/* Brands */}
           <Collapsible defaultOpen className="group border-b border-gray-100 pb-3">
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
-              <span>Brands</span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger className="flex items-center gap-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
+                <span className="w-15 sm:w-20 lg:w-25">Brands</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <Input
+                type="text"
+                placeholder="Search..."
+                value={brandSearch}
+                onChange={(e) => setBrandSearch(e.target.value)}
+                className="h-8 flex-1 text-xs"
+              />
+            </div>
             <CollapsibleContent className="pt-2 space-y-2 max-h-48 overflow-y-auto">
-              {brands.map((b) => {
-                const count = brandCounts[b._id] ?? 0;
-                const checked = filterBrandIds.includes(b._id);
-                if (count === 0) return null;
-                return (
-                  <label
-                    key={b._id}
-                    className="flex cursor-pointer items-center gap-3 rounded-md py-1.5 hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(checked) => {
-                        setFilterBrandIds((prev) =>
-                          checked ? [...prev, b._id] : prev.filter((id) => id !== b._id)
-                        );
-                      }}
-                    />
-                    <span className="text-sm text-gray-700">{b.name} ({count})</span>
-                  </label>
-                );
-              })}
+              {brands
+                .filter((b) => {
+                  const term = brandSearch.toLowerCase().trim();
+                  if (!term) return true;
+                  return b.name?.toLowerCase().includes(term);
+                })
+                .map((b) => {
+                  const count = brandCounts[b._id] ?? 0;
+                  const checked = filterBrandIds.includes(b._id);
+                  if (count === 0) return null;
+                  return (
+                    <label
+                      key={b._id}
+                      className="flex cursor-pointer items-center gap-3 rounded-md py-1.5 hover:bg-gray-50"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(checked) => {
+                          setFilterBrandIds((prev) =>
+                            checked ? [...prev, b._id] : prev.filter((id) => id !== b._id)
+                          );
+                        }}
+                      />
+                      <span className="text-sm text-gray-700">{b.name} ({count})</span>
+                    </label>
+                  );
+                })}
               {brands.length === 0 && (
                 <p className="text-xs text-gray-500 py-1">No brands</p>
               )}
@@ -471,32 +588,47 @@ const ProductList = () => {
 
           {/* Conditions */}
           <Collapsible defaultOpen className="group pb-2">
-            <CollapsibleTrigger className="flex w-full items-center justify-between py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
-              <span>Condition</span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger className="flex items-center gap-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
+                <span className="w-15 sm:w-20 lg:w-25">Condition</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <Input
+                type="text"
+                placeholder="Search..."
+                value={conditionSearch}
+                onChange={(e) => setConditionSearch(e.target.value)}
+                className="h-8 flex-1 text-xs"
+              />
+            </div>
             <CollapsibleContent className="pt-2 space-y-2 max-h-48 overflow-y-auto">
-              {conditions.map((c) => {
-                const count = conditionCounts[c._id] ?? 0;
-                const checked = filterConditionIds.includes(c._id);
-                if (count === 0) return null;
-                return (
-                  <label
-                    key={c._id}
-                    className="flex cursor-pointer items-center gap-3 rounded-md py-1.5 hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(checked) => {
-                        setFilterConditionIds((prev) =>
-                          checked ? [...prev, c._id] : prev.filter((id) => id !== c._id)
-                        );
-                      }}
-                    />
-                    <span className="text-sm text-gray-700">{c.name} ({count})</span>
-                  </label>
-                );
-              })}
+              {conditions
+                .filter((c) => {
+                  const term = conditionSearch.toLowerCase().trim();
+                  if (!term) return true;
+                  return c.name?.toLowerCase().includes(term);
+                })
+                .map((c) => {
+                  const count = conditionCounts[c._id] ?? 0;
+                  const checked = filterConditionIds.includes(c._id);
+                  if (count === 0) return null;
+                  return (
+                    <label
+                      key={c._id}
+                      className="flex cursor-pointer items-center gap-3 rounded-md py-1.5 hover:bg-gray-50"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(checked) => {
+                          setFilterConditionIds((prev) =>
+                            checked ? [...prev, c._id] : prev.filter((id) => id !== c._id)
+                          );
+                        }}
+                      />
+                      <span className="text-sm text-gray-700">{c.name} ({count})</span>
+                    </label>
+                  );
+                })}
               {conditions.length === 0 && (
                 <p className="text-xs text-gray-500 py-1">No conditions</p>
               )}
@@ -552,59 +684,13 @@ const ProductList = () => {
               ) : (
                 <>
                   {productsToShow.map((item) => (
-                    <div
+                    <ProductCard
                       key={item._id ?? item.id ?? item.sku}
-                      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md"
-                    >
-                      <div className="flex h-52 w-full items-center justify-center bg-gray-50 p-4">
-                        {getPrimaryImageUrl(item) ? (
-                          <img
-                            src={getPrimaryImageUrl(item)}
-                            alt={item.title || "Product image"}
-                            className="h-full w-full rounded-lg object-contain transition-transform duration-200 group-hover:scale-105"
-                          />
-                        ) : (
-                          <span className="text-sm italic text-gray-400">No image</span>
-                        )}
-                      </div>
-                      <div className="flex flex-1 flex-col gap-2 p-4">
-                        <h3 className="line-clamp-2 text-sm font-semibold text-gray-900">
-                          {item.title}
-                        </h3>
-                        <div className="flex items-baseline gap-2 text-sm">
-                          {item.purchasePrice != null && item.purchasePrice !== "" && (
-                            <span className="text-xs text-gray-400 line-through">
-                              AED {item.purchasePrice}
-                            </span>
-                          )}
-                          <span className="text-lg font-semibold text-indigo-600">
-                            AED {item.salePrice ?? "-"}
-                          </span>
-                        </div>
-                        <div className="mt-1 space-y-1 text-xs text-gray-600">
-                          <p>
-                            <span className="font-medium text-gray-700">SKU:</span>{" "}
-                            {item.sku || "-"}
-                          </p>
-                          <p>
-                            <span className="font-medium text-gray-700">Model No:</span>{" "}
-                            {item.modelno || "-"}
-                          </p>
-                          <p>
-                            <span className="font-medium text-gray-700">Brand:</span>{" "}
-                            {getRefName(item.brand) || "-"}
-                          </p>
-                          <p>
-                            <span className="font-medium text-gray-700">Category:</span>{" "}
-                            {getRefName(item.category) || "-"}
-                          </p>
-                          <p>
-                            <span className="font-medium text-gray-700">Condition:</span>{" "}
-                            {getRefName(item.condition) || "-"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                      item={item}
+                      brandName={getRefName(item.brand)}
+                      categoryName={getRefName(item.category)}
+                      conditionName={getRefName(item.condition)}
+                    />
                   ))}
                   {/* Sentinel for infinite scroll */}
                   {hasMore && (

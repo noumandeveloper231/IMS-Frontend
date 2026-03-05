@@ -4,7 +4,7 @@ import { API_BASE_URL, API_HOST } from "../config/api";
 import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
@@ -86,6 +86,7 @@ const Categories = () => {
   const fileInputRef = useRef(null);
   const nameInputRef = useRef(null);
   const navigate = useNavigate();
+  const { page: pageParam } = useParams();
   const { openImageModal } = useImageModal();
 
   const [name, setName] = useState("");
@@ -126,6 +127,24 @@ const Categories = () => {
   useEffect(() => {
     categoryDrawerOpenRef.current = categoryDrawerOpen;
   }, [categoryDrawerOpen]);
+
+  const initialPageIndex = useMemo(() => {
+    const pageNumber = parseInt(pageParam || "1", 10);
+    if (Number.isNaN(pageNumber) || pageNumber < 1) return 0;
+    return pageNumber - 1;
+  }, [pageParam]);
+
+  const handlePageChange = useCallback(
+    (pageIndex) => {
+      const pageNumber = pageIndex + 1;
+      if (pageNumber <= 1) {
+        navigate("/categories", { replace: true });
+      } else {
+        navigate(`/categories/page/${pageNumber}`, { replace: true });
+      }
+    },
+    [navigate],
+  );
 
   // Open Import Excel drawer when a file is dragged over the page (not when Add/Edit Category drawer is open); close when drag leaves
   useEffect(() => {
@@ -1609,6 +1628,8 @@ const Categories = () => {
                 columns={categoryColumns}
                 data={filteredCategories}
                 pageSize={effectiveItemsPerPage}
+                initialPageIndex={initialPageIndex}
+                onPageChange={handlePageChange}
                 rowSelection={tableRowSelection}
                 onRowSelectionChange={setTableRowSelection}
                 onSelectionChange={(rows) => setSelectedCategoryIds(rows.map((r) => r._id))}

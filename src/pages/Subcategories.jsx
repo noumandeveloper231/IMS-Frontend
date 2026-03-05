@@ -5,7 +5,7 @@ import axios from "axios";
 import { ChevronDown, Check, Trash2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
@@ -14,6 +14,8 @@ import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
 import { Combobox } from "@/components/UI/combobox";
+import { SubcategoryBulkDependencyManagerModal } from "@/components/SubcategoryBulkDependencyManagerModal";
+import { useSubcategoryBulkDependencyManager } from "@/hooks/useSubcategoryBulkDependencyManager";
 import {
   ResolveDependenciesDialog,
   TransferDependenciesDialog,
@@ -68,6 +70,7 @@ const normalizeSubcategoryName = (value) =>
 const Subcategories = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { page: pageParam } = useParams();
   const nameInputRef = useRef(null);
   /** Refs to keep import callbacks stable so columns useMemo does not change every render (prevents input focus loss). */
   const categoriesRef = useRef(EMPTY_ARRAY);
@@ -90,6 +93,7 @@ const Subcategories = () => {
   const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkManagerOpen, setBulkManagerOpen] = useState(false);
   const [deleteWithDepsOpen, setDeleteWithDepsOpen] = useState(false);
   const [deleteWithDepsData, setDeleteWithDepsData] = useState(null);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
@@ -101,6 +105,24 @@ const Subcategories = () => {
   useEffect(() => {
     subcategoryDrawerOpenRef.current = subcategoryDrawerOpen;
   }, [subcategoryDrawerOpen]);
+
+  const initialPageIndex = useMemo(() => {
+    const pageNumber = parseInt(pageParam || "1", 10);
+    if (Number.isNaN(pageNumber) || pageNumber < 1) return 0;
+    return pageNumber - 1;
+  }, [pageParam]);
+
+  const handlePageChange = useCallback(
+    (pageIndex) => {
+      const pageNumber = pageIndex + 1;
+      if (pageNumber <= 1) {
+        navigate("/subcategories", { replace: true });
+      } else {
+        navigate(`/subcategories/page/${pageNumber}`, { replace: true });
+      }
+    },
+    [navigate],
+  );
 
   // Open Import Excel drawer when a file is dragged over the page (not when Add/Edit Subcategory drawer is open); close when drag leaves
   useEffect(() => {
@@ -174,6 +196,30 @@ const Subcategories = () => {
     },
   });
   const products = productsData ?? [];
+
+  const bulkManager = useSubcategoryBulkDependencyManager({
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["subcategories"] });
+      setSelectedSubcategoryIds([]);
+      setTableRowSelection({});
+      const count = data?.deleted?.length ?? 0;
+      toast.success(`Deleted ${count} subcategories successfully`);
+    },
+    onError: (message) => {
+      toast.error(message || "Bulk delete failed");
+    },
+  });
+
+  useEffect(() => {
+    if (
+      bulkManagerOpen &&
+      selectedSubcategoryIds.length > 0 &&
+      bulkManager.status === "idle"
+    ) {
+      bulkManager.startAnalysis(selectedSubcategoryIds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkManagerOpen]);
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c._id, label: c.name })),
@@ -1087,7 +1133,7 @@ const Subcategories = () => {
                           if (selectedSubcategoryIds.length === 1) {
                             confirmDelete(selectedSubcategoryIds[0]);
                           } else {
-                            setBulkDeleteOpen(true);
+                            setBulkManagerOpen(true);
                           }
                         }
                       }}
@@ -1379,7 +1425,7 @@ const Subcategories = () => {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
-                  <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
+                  <SelectContent className="min-w-(--radix-select-trigger-width)">
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="10">10 per page</SelectItem>
@@ -1420,6 +1466,8 @@ const Subcategories = () => {
                 columns={subcategoryColumns}
                 data={filtered}
                 pageSize={effectiveItemsPerPage}
+                initialPageIndex={initialPageIndex}
+                onPageChange={handlePageChange}
                 rowSelection={tableRowSelection}
                 onRowSelectionChange={setTableRowSelection}
                 onSelectionChange={(rows) => setSelectedSubcategoryIds(rows.map((r) => r._id))}
@@ -1490,6 +1538,16 @@ const Subcategories = () => {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         loading={loading}
+      />
+
+      <SubcategoryBulkDependencyManagerModal
+        open={bulkManagerOpen}
+        onOpenChange={setBulkManagerOpen}
+        manager={bulkManager}
+        subcategories={subcategories}
+        onComplete={() => {
+          setBulkManagerOpen(false);
+        }}
       />
     </div>
   );

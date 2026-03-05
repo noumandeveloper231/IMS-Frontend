@@ -99,8 +99,8 @@ const SIDEBAR_CONFIG = [
         icon: Package,
         activeType: "products",
         subItems: [
-          { to: "/products/list", label: "Product list", exact: true },
-          { to: "/products", label: "Manage Product", activeType: "manageProducts" },
+          { to: "/products", label: "Manage Products", activeType: "manageProducts" },
+          { to: "/products/list", label: "Products list", exact: true },
         ],
       },
     ],
@@ -148,6 +148,8 @@ const SIDEBAR_CONFIG = [
     items: [
       { to: "/employees", label: "Employees", icon: Users },
       { to: "/customers", label: "Customers", icon: UsersRound },
+      { to: "/expenses", label: "Expenses", icon: UsersRound },
+      { to: "/expensecategories", label: "Expense Categories", icon: UsersRound },  
     ],
   },
   {

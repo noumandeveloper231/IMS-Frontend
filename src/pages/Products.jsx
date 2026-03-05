@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ChevronDown,
   Check,
@@ -120,6 +120,10 @@ const TEMPLATE_COLUMNS = [
   "Quantity",
   "Model No.",
   "Description",
+  "Amazon URL",
+  "Noon URL",
+  "SharafDG URL",
+  "Carrefour URL",
   "Categories",
   "Subcategories",
   "Brands",
@@ -218,6 +222,8 @@ const Products = () => {
   const titleInputRef = useRef(null);
   const descriptionTextareaRef = useRef(null);
   const { openImageModal } = useImageModal();
+  const { page: pageParam } = useParams();
+  const navigate = useNavigate();
 
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
@@ -311,6 +317,8 @@ const Products = () => {
     salePrice: "",
     quantity: "",
     description: "",
+    specification: "",
+    competitors: [],
     modelno: "",
     category: "",
     subcategory: "",
@@ -324,6 +332,24 @@ const Products = () => {
     if (!isNaN(custom) && custom >= 1 && custom <= 500) return custom;
     return itemsPerPage;
   }, [itemsPerPage, customItemsPerPage]);
+
+  const initialPageIndex = useMemo(() => {
+    const pageNumber = parseInt(pageParam || "1", 10);
+    if (Number.isNaN(pageNumber) || pageNumber < 1) return 0;
+    return pageNumber - 1;
+  }, [pageParam]);
+
+  const handlePageChange = useCallback(
+    (pageIndex) => {
+      const pageNumber = pageIndex + 1;
+      if (pageNumber <= 1) {
+        navigate("/products", { replace: true });
+      } else {
+        navigate(`/products/page/${pageNumber}`, { replace: true });
+      }
+    },
+    [navigate],
+  );
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ["products"],
@@ -439,6 +465,8 @@ const Products = () => {
       if (data?.success) {
         toast.success("Product added ✅");
         queryClient.invalidateQueries({ queryKey: ["products"] });
+        setProductDrawerOpen(false);
+        handleClear();
       } else {
         toast.error(data?.message || "Error saving product ❌");
       }
@@ -458,6 +486,8 @@ const Products = () => {
       if (data?.success) {
         toast.success("Product updated ✅");
         queryClient.invalidateQueries({ queryKey: ["products"] });
+        setProductDrawerOpen(false);
+        handleClear();
       } else {
         toast.error(data?.message || "Error updating product ❌");
       }
@@ -529,11 +559,21 @@ const Products = () => {
     if (!form.title || !form.sku) return toast.error("Title and SKU required ❌");
 
     const formData = new FormData();
-    const { category, subcategory, brand, condition, ...rest } = form;
+    const { category, subcategory, brand, condition, competitors, ...rest } = form;
     if (category) formData.append("category", category);
     if (subcategory) formData.append("subcategory", subcategory);
     if (brand) formData.append("brand", brand);
     if (condition) formData.append("condition", condition);
+    const normalizedCompetitors = (competitors || [])
+      .filter((c) => c && c.label && c.url)
+      .slice(0, 8)
+      .map((c) => ({
+        label: c.label.trim(),
+        url: c.url.trim(),
+      }));
+    if (normalizedCompetitors.length) {
+      formData.append("competitors", JSON.stringify(normalizedCompetitors));
+    }
     Object.entries(rest).forEach(([key, value]) => formData.append(key, value ?? ""));
     images.forEach((file) => formData.append("images", file));
 
@@ -551,6 +591,11 @@ const Products = () => {
       salePrice: "",
       quantity: "",
       description: "",
+      specification: "",
+      amazonUrl: "",
+      noonUrl: "",
+      sharafdgUrl: "",
+      carrefourUrl: "",
       modelno: "",
       category: "",
       subcategory: "",
@@ -570,6 +615,13 @@ const Products = () => {
   };
 
   const handleEdit = (p) => {
+    const existingCompetitors = Array.isArray(p.competitors)
+      ? p.competitors
+      : p.competitors && typeof p.competitors === "object"
+        ? Object.entries(p.competitors)
+          .filter(([key, value]) => typeof value === "string" && value)
+          .map(([key, value]) => ({ label: key, url: value }))
+        : [];
     setForm({
       title: p.title,
       sku: p.sku,
@@ -578,6 +630,8 @@ const Products = () => {
       salePrice: p.salePrice,
       quantity: p.quantity,
       description: p.description,
+      specification: p.specification || "",
+      competitors: existingCompetitors,
       modelno: p.modelno,
       category: p.category?._id ?? p.category ?? "",
       subcategory: p.subcategory?._id ?? p.subcategory ?? "",
@@ -864,6 +918,14 @@ const Products = () => {
         Quantity: p.quantity,
         "Model No.": p.modelno,
         Description: p.description,
+        ...(Array.isArray(p.competitors)
+          ? p.competitors.slice(0, 8).reduce((acc, c, index) => {
+              const idx = index + 1;
+              acc[`Competitor ${idx} Label`] = c.label || "";
+              acc[`Competitor ${idx} URL`] = c.url || "";
+              return acc;
+            }, {})
+          : {}),
         Categories: p.category ? (typeof p.category === "object" ? p.category.name : p.category) : "",
         Subcategories: p.subcategory ? (typeof p.subcategory === "object" ? p.subcategory.name : p.subcategory) : "",
         Brands: p.brand ? (typeof p.brand === "object" ? p.brand.name : p.brand) : "",
@@ -1457,6 +1519,10 @@ const Products = () => {
         const quantity = rest.Quantity ?? rest.quantity ?? 0;
         const modelno = rest["Model No."] ?? rest.modelno ?? "";
         const description = rest.Description ?? rest.description ?? "";
+        const amazonUrl = rest["Amazon URL"] ?? rest.amazonUrl ?? "";
+        const noonUrl = rest["Noon URL"] ?? rest.noonUrl ?? "";
+        const sharafdgUrl = rest["SharafDG URL"] ?? rest.sharafdgUrl ?? "";
+        const carrefourUrl = rest["Carrefour URL"] ?? rest.carrefourUrl ?? "";
         const category = rest.Categories ?? rest.category ?? rest.categories;
         const subcategory = rest.Subcategories ?? rest.subcategory ?? rest.subcategories;
         const brand = rest.Brands ?? rest.brand ?? rest.brands;
@@ -1470,6 +1536,11 @@ const Products = () => {
           quantity: Number(quantity) || 0,
           modelno: modelno || null,
           description: description || null,
+          specification: null,
+          amazonUrl,
+          noonUrl,
+          sharafdgUrl,
+          carrefourUrl,
           category,
           subcategory,
           brand,
@@ -2110,6 +2181,90 @@ const Products = () => {
                       />
                     </div>
                   </div>
+                  <div className="col-span-1 md:col-span-2">
+                    <Field>
+                      <FieldLabel htmlFor="product-specification">Specification</FieldLabel>
+                    </Field>
+                    <div className="mt-1">
+                      <RichTextEditor
+                        value={form.specification}
+                        onChange={(html) =>
+                          setForm((prev) => ({ ...prev, specification: html }))
+                        }
+                        placeholder="Specification"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-span-1 md:col-span-2">
+                    <Field>
+                      <FieldLabel>Competitors (max 8)</FieldLabel>
+                    </Field>
+                    <div className="mt-1 space-y-2">
+                      {(form.competitors || []).map((c, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <Input
+                            type="text"
+                            placeholder="Label (e.g. Amazon)"
+                            value={c.label || ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setForm((prev) => {
+                                const next = [...(prev.competitors || [])];
+                                next[idx] = { ...next[idx], label: value };
+                                return { ...prev, competitors: next };
+                              });
+                            }}
+                          />
+                          <Input
+                            type="url"
+                            placeholder="https://..."
+                            value={c.url || ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setForm((prev) => {
+                                const next = [...(prev.competitors || [])];
+                                next[idx] = { ...next[idx], url: value };
+                                return { ...prev, competitors: next };
+                              });
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            // size="icon"
+                            className="text-red-600 w-10 h-10 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              setForm((prev) => ({
+                                ...prev,
+                                competitors: (prev.competitors || []).filter((_, i) => i !== idx),
+                              }));
+                            }}
+                            aria-label="Remove competitor"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {(!form.competitors || form.competitors.length < 8) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              competitors: [
+                                ...(prev.competitors || []),
+                                { label: "", url: "" },
+                              ],
+                            }))
+                          }
+                        >
+                          Add competitor
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   {/* Image Upload */}
                   <div className="col-span-1 md:col-span-2">
                     <Field>
@@ -2288,6 +2443,8 @@ const Products = () => {
                 columns={productColumns}
                 data={filteredProducts}
                 pageSize={effectiveItemsPerPage}
+                initialPageIndex={initialPageIndex}
+                onPageChange={handlePageChange}
                 rowSelection={tableRowSelection}
                 onRowSelectionChange={setTableRowSelection}
                 onSelectionChange={(rows) => setSelectedProductIds(rows.map((r) => r._id))}

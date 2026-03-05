@@ -444,13 +444,10 @@ const ProductDetail = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500 mb-1.5">
-              Description
-            </p>
-            <div
-              className="tiptap text-gray-700 text-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: product.description }}
-            />
+              <div
+                className="tinymce text-gray-700 text-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: product.description }}
+              />
             </CardContent>
           </Card>
         )}

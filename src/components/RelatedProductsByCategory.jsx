@@ -1,19 +1,14 @@
 import React from "react";
-import { Link } from "react-router-dom";
+// import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../utils/api";
-import { API_HOST } from "../config/api";
+// import { API_HOST } from "../config/api";
 import { Card, CardContent } from "@/components/UI/card";
 import { Skeleton } from "@/components/UI/skeleton";
 import { cn } from "@/lib/utils";
-
-const resolveImageUrl = (src) => {
-  if (!src) return null;
-  if (typeof src === "string" && (src.startsWith("http://") || src.startsWith("https://"))) {
-    return src;
-  }
-  return `${API_HOST}${src}`;
-};
+import ProductCard from "./ProductCard";
+import { Button } from "./UI/button";
+import { useNavigate } from "react-router-dom";
 
 const RelatedProductsByCategory = ({
   categoryId,
@@ -23,6 +18,8 @@ const RelatedProductsByCategory = ({
   limit = 8,
   className = "",
 }) => {
+  const navigate = useNavigate();
+
   if (!categoryId) return null;
 
   const {
@@ -67,45 +64,27 @@ const RelatedProductsByCategory = ({
       <h2 className={cn("text-lg font-semibold mb-3", titleClassName)}>{title}</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {data.map((p) => {
-          const imgSrc =
-            (Array.isArray(p.images) && p.images.length && p.images[0]) || p.image;
-          const productId = p._id ?? p.id;
-          const price = Number(p.salePrice ?? p.purchasePrice ?? 0).toFixed(2);
-
           return (
-            <Link
-              key={productId}
-              to={`/products/${productId}`}
-              className="group h-full"
-              title={p.title ? `View ${p.title}` : "View product"}
-            >
-              <Card className="h-full border bg-white transition-shadow group-hover:shadow-md hover:border-black">
-                <CardContent className="p-3 flex flex-col">
-                  <div className="aspect-square rounded-lg bg-muted/50 overflow-hidden mb-2">
-                    {imgSrc ? (
-                      <img
-                        src={resolveImageUrl(imgSrc)}
-                        alt={p.title || "Product image"}
-                        className="h-full w-full object-contain transition-transform group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center text-muted-foreground text-xs">
-                        No image
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-sm font-medium line-clamp-2 text-gray-900 group-hover:text-primary">
-                    {p.title || "Untitled product"}
-                  </p>
-                  <p className="text-xs text-destructive font-semibold mt-1">
-                    AED {price}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
+            <ProductCard options={{
+              showSKU: false,
+              showModelNo: false,
+              showBrand: false,
+              showCategory: false,
+              showCondition: false,
+            }} key={p._id ?? p.id ?? p.sku} item={p} />
           );
         })}
       </div>
+
+      <Button
+        variant="ghost"
+        className="w-full hover:underline text-lg mt-4"
+        onClick={() => {
+          navigate(`/products/list?filterType=category&filter=${categoryId}`);
+        }}
+      >
+        View all
+      </Button>
     </section>
   );
 };

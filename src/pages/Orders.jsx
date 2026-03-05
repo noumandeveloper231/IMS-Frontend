@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Eye, Trash2, CalendarIcon, FileText } from "lucide-react";
 import api from "../utils/api";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ import {
 } from "@/components/UI/table";
 import { DataTable } from "@/components/UI/data-table";
 import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
+import { useParams, useNavigate } from "react-router-dom";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { DeleteModel } from "@/components/DeleteModel";
 import {
@@ -52,6 +53,8 @@ import {
 
 const Orders = () => {
   const queryClient = useQueryClient();
+  const { page: pageParam } = useParams();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -186,6 +189,22 @@ const Orders = () => {
   };
 
   const loading = isLoading || deleteMutation.isPending;
+
+  useEffect(() => {
+    const pageNumber = parseInt(pageParam || "1", 10);
+    const normalized = Number.isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    setCurrentPage((prev) => (prev === normalized ? prev : normalized));
+  }, [pageParam]);
+
+  const setPageAndNavigate = (nextPage) => {
+    const normalized = Math.max(1, nextPage);
+    setCurrentPage(normalized);
+    if (normalized <= 1) {
+      navigate("/orders", { replace: true });
+    } else {
+      navigate(`/orders/page/${normalized}`, { replace: true });
+    }
+  };
 
   const orderColumns = useMemo(
     () => [
@@ -329,7 +348,7 @@ const Orders = () => {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setCurrentPage(1);
+                setPageAndNavigate(1);
               }}
               className="min-w-[200px]"
             />
@@ -376,7 +395,7 @@ const Orders = () => {
                 if (v === "custom") return;
                 setItemsPerPage(Number(v));
                 setCustomItemsPerPage("");
-                setCurrentPage(1);
+                setPageAndNavigate(1);
               }}
             >
               <SelectTrigger className="w-full">
@@ -432,7 +451,7 @@ const Orders = () => {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
-                          setCurrentPage((p) => Math.max(1, p - 1));
+                          setPageAndNavigate(currentPage - 1);
                         }}
                         disabled={currentPage === 1}
                       />
@@ -444,7 +463,7 @@ const Orders = () => {
                           isActive={currentPage === i + 1}
                           onClick={(e) => {
                             e.preventDefault();
-                            setCurrentPage(i + 1);
+                            setPageAndNavigate(i + 1);
                           }}
                         >
                           {i + 1}
@@ -456,7 +475,7 @@ const Orders = () => {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
-                          setCurrentPage((p) => Math.min(totalPages, p + 1));
+                          setPageAndNavigate(currentPage + 1);
                         }}
                         disabled={currentPage === totalPages}
                       />

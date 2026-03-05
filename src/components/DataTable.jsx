@@ -59,6 +59,10 @@ export function DataTable({
   containerClassName,
   /** When false, header cells are not wrapped in context menu (e.g. for import/input tables). Default true. */
   enableHeaderContextMenu = true,
+  /** Optional: initial page index (0-based) for pagination. */
+  initialPageIndex,
+  /** Optional: called whenever page index changes (0-based). */
+  onPageChange,
   // TanStack Query: when provided, table uses useQuery instead of data prop
   queryKey,
   queryFn,
@@ -87,10 +91,10 @@ export function DataTable({
   const effectivePageSize = addPagination
     ? (pageSizeProp || 10)
     : (data?.length ?? 0) || 10;
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
+  const [pagination, setPagination] = React.useState(() => ({
+    pageIndex: initialPageIndex ?? 0,
     pageSize: effectivePageSize,
-  });
+  }));
 
   React.useEffect(() => {
     if (!addPagination && data?.length != null) {
@@ -100,13 +104,38 @@ export function DataTable({
         pageSize: Math.max(1, data.length),
       }));
     } else if (addPagination) {
-      setPagination((prev) => ({
-        ...prev,
-        pageIndex: 0,
-        pageSize: pageSizeProp || 10,
-      }));
+      setPagination((prev) => {
+        const nextPageSize = pageSizeProp || 10;
+        const totalRows = data?.length ?? 0;
+        const maxPageIndex =
+          nextPageSize > 0 ? Math.max(0, Math.ceil(totalRows / nextPageSize) - 1) : 0;
+        const nextPageIndex =
+          prev.pageIndex > maxPageIndex ? maxPageIndex : prev.pageIndex;
+        return {
+          pageIndex: nextPageIndex,
+          pageSize: nextPageSize,
+        };
+      });
     }
   }, [addPagination, data?.length, pageSizeProp]);
+
+  const handlePaginationChange = React.useCallback(
+    (updater) => {
+      setPagination((prev) => {
+        const next =
+          typeof updater === "function" ? updater(prev) : updater;
+        if (
+          addPagination &&
+          typeof onPageChange === "function" &&
+          next.pageIndex !== prev.pageIndex
+        ) {
+          onPageChange(next.pageIndex);
+        }
+        return next;
+      });
+    },
+    [addPagination, onPageChange],
+  );
 
   const selectionColumn = React.useMemo(
     () => ({
@@ -202,10 +231,12 @@ export function DataTable({
       rowSelection,
       pagination,
     },
+    /** Prevent TanStack Table from jumping back to page 0 whenever data changes. */
+    autoResetPageIndex: false,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    onPaginationChange: setPagination,
+    onPaginationChange: handlePaginationChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

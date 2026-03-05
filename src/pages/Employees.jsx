@@ -50,6 +50,8 @@ const EMPTY_ARRAY = [];
 const ROLES = ["salesman", "cashier", "manager", "admin"];
 const STATUSES = ["active", "inactive"];
 
+import { useParams, useNavigate } from "react-router-dom";
+
 const Employees = () => {
   const queryClient = useQueryClient();
   const nameInputRef = useRef(null);
@@ -71,6 +73,8 @@ const Employees = () => {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const employeesRef = useRef(EMPTY_ARRAY);
   const employeeDrawerOpenRef = useRef(employeeDrawerOpen);
+  const { page: pageParam } = useParams();
+  const navigate = useNavigate();
 
   useEffect(() => {
     employeeDrawerOpenRef.current = employeeDrawerOpen;
@@ -119,6 +123,24 @@ const Employees = () => {
     if (!isNaN(custom) && custom >= 1 && custom <= 500) return custom;
     return itemsPerPage;
   }, [itemsPerPage, customItemsPerPage]);
+
+  const initialPageIndex = useMemo(() => {
+    const pageNumber = parseInt(pageParam || "1", 10);
+    if (Number.isNaN(pageNumber) || pageNumber < 1) return 0;
+    return pageNumber - 1;
+  }, [pageParam]);
+
+  const handlePageChange = React.useCallback(
+    (pageIndex) => {
+      const pageNumber = pageIndex + 1;
+      if (pageNumber <= 1) {
+        navigate("/employees", { replace: true });
+      } else {
+        navigate(`/employees/page/${pageNumber}`, { replace: true });
+      }
+    },
+    [navigate],
+  );
 
   const [formData, setFormData] = useState({
     name: "",
@@ -1146,6 +1168,8 @@ const Employees = () => {
                 columns={employeeColumns}
                 data={filteredEmployees}
                 pageSize={effectiveItemsPerPage}
+                initialPageIndex={initialPageIndex}
+                onPageChange={handlePageChange}
                 getRowId={(row) => row._id}
                 rowSelection={tableRowSelection}
                 onRowSelectionChange={setTableRowSelection}

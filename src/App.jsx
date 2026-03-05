@@ -63,13 +63,18 @@ const ROUTE_CONFIG = [
   { path: "/", hideSidebar: false },
   { path: "/ecom", hideSidebar: false },
   { path: "/categories", hideSidebar: false },
+  { path: "/categories/page/:page", hideSidebar: false },
   { path: "/subcategories", hideSidebar: false },
+  { path: "/subcategories/page/:page", hideSidebar: false },
   { path: "/brands", hideSidebar: false },
+  { path: "/brands/page/:page", hideSidebar: false },
   { path: "/conditions", hideSidebar: false },
+  { path: "/conditions/page/:page", hideSidebar: false },
   { path: "/vendors", hideSidebar: false },
   { path: "/expenses", hideSidebar: false },
   { path: "/expensecategories", hideSidebar: false },
   { path: "/products", hideSidebar: false },
+  { path: "/products/page/:page", hideSidebar: false },
   { path: "/purchase-orders", hideSidebar: false },
   { path: "/purchaseorderslist", hideSidebar: false },
   { path: "/purchasereceiveslist", hideSidebar: false },
@@ -77,8 +82,11 @@ const ROUTE_CONFIG = [
   { path: "/bills", hideSidebar: false },
   { path: "/sales", hideSidebar: false },
   { path: "/orders", hideSidebar: false },
+  { path: "/orders/page/:page", hideSidebar: false },
   { path: "/employees", hideSidebar: false },
+  { path: "/employees/page/:page", hideSidebar: false },
   { path: "/customers", hideSidebar: false },
+  { path: "/customers/page/:page", hideSidebar: false },
   { path: "/reports", hideSidebar: false },
   { path: "/connected-devices", hideSidebar: false },
   { path: "/settings", hideSidebar: false },
@@ -129,13 +137,18 @@ function App() {
                             <Route path="/" element={<Dashboard />} />
                             <Route path="/ecom" element={<EcommerceStore />} />
                             <Route path="/categories" element={<Categories />} />
+                            <Route path="/categories/page/:page" element={<Categories />} />
                             <Route path="/subcategories" element={<Subcategories />} />
+                            <Route path="/subcategories/page/:page" element={<Subcategories />} />
                             <Route path="/brands" element={<Brands />} />
+                            <Route path="/brands/page/:page" element={<Brands />} />
                             <Route path="/conditions" element={<Conditions />} />
+                            <Route path="/conditions/page/:page" element={<Conditions />} />
                             <Route path="/vendors" element={<Vendors />} />
                             <Route path="/expenses" element={<Expenses />} />
                             <Route path="/expensecategories" element={<ExpenseCategories />} />
                             <Route path="/products" element={<Products />} />
+                            <Route path="/products/page/:page" element={<Products />} />
                             <Route path="/products/:id" element={<ProductDetail />} />
                             <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
                             <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
@@ -144,8 +157,11 @@ function App() {
                             <Route path="/bills" element={<BillManagement />} />
                             <Route path="/sales" element={<Sales />} />
                             <Route path="/orders" element={<Orders />} />
+                            <Route path="/orders/page/:page" element={<Orders />} />
                             <Route path="/employees" element={<Employees />} />
+                            <Route path="/employees/page/:page" element={<Employees />} />
                             <Route path="/customers" element={<Customers />} />
+                            <Route path="/customers/page/:page" element={<Customers />} />
                             <Route path="/reports" element={<Reports />} />
                             <Route path="/connected-devices" element={<ConnectedDevices />} />
                             <Route path="/settings" element={<Settings />} />
@@ -173,37 +189,45 @@ function App() {
                         <ResizableHandle withHandle />
                         <ResizablePanel defaultSize={82} minSize={60}>
                           <ScrollArea className="flex-1 min-w-0 overflow-y-auto h-full lg:h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-white">
-                            <Navbar />
-                            <ImageModal />
-                            <Routes>
-                              <Route path="/" element={<Dashboard />} />
-                              <Route path="/ecom" element={<EcommerceStore />} />
-                              <Route path="/categories" element={<Categories />} />
-                              <Route path="/subcategories" element={<Subcategories />} />
-                              <Route path="/brands" element={<Brands />} />
-                              <Route path="/conditions" element={<Conditions />} />
-                              <Route path="/vendors" element={<Vendors />} />
-                              <Route path="/expenses" element={<Expenses />} />
-                              <Route path="/expensecategories" element={<ExpenseCategories />} />
-                              <Route path="/products" element={<Products />} />
-                              <Route path="/products/:id" element={<ProductDetail />} />
-                              <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
-                              <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
-                              <Route path="/purchasereceiveslist" element={<PurchaseReceiveList />} />
-                              <Route path="/purchase-receives" element={<PurchaseReceive />} />
-                              <Route path="/bills" element={<BillManagement />} />
-                              <Route path="/sales" element={<Sales />} />
-                              <Route path="/orders" element={<Orders />} />
-                              <Route path="/employees" element={<Employees />} />
-                              <Route path="/customers" element={<Customers />} />
-                              <Route path="/reports" element={<Reports />} />
-                              <Route path="/connected-devices" element={<ConnectedDevices />} />
-                              <Route path="/settings" element={<Settings />} />
-                              <Route path="/products/list" element={<ProductList />} />
-                              <Route path="/products/filter/:type/:id" element={<ProductList />} />
-                              <Route path="/products/stock/:status" element={<ProductList />} />
-                              <Route path="*" element={<NotFound />} />
-                            </Routes>
+                          <Navbar />
+                          <ImageModal />
+                          <Routes>
+                            <Route path="/" element={<Dashboard />} />
+                            <Route path="/ecom" element={<EcommerceStore />} />
+                            <Route path="/categories" element={<Categories />} />
+                            <Route path="/categories/page/:page" element={<Categories />} />
+                            <Route path="/subcategories" element={<Subcategories />} />
+                            <Route path="/subcategories/page/:page" element={<Subcategories />} />
+                            <Route path="/brands" element={<Brands />} />
+                            <Route path="/brands/page/:page" element={<Brands />} />
+                            <Route path="/conditions" element={<Conditions />} />
+                            <Route path="/conditions/page/:page" element={<Conditions />} />
+                            <Route path="/vendors" element={<Vendors />} />
+                            <Route path="/expenses" element={<Expenses />} />
+                            <Route path="/expensecategories" element={<ExpenseCategories />} />
+                            <Route path="/products" element={<Products />} />
+                            <Route path="/products/page/:page" element={<Products />} />
+                            <Route path="/products/:id" element={<ProductDetail />} />
+                            <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
+                            <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
+                            <Route path="/purchasereceiveslist" element={<PurchaseReceiveList />} />
+                            <Route path="/purchase-receives" element={<PurchaseReceive />} />
+                            <Route path="/bills" element={<BillManagement />} />
+                            <Route path="/sales" element={<Sales />} />
+                            <Route path="/orders" element={<Orders />} />
+                            <Route path="/orders/page/:page" element={<Orders />} />
+                            <Route path="/employees" element={<Employees />} />
+                            <Route path="/employees/page/:page" element={<Employees />} />
+                            <Route path="/customers" element={<Customers />} />
+                            <Route path="/customers/page/:page" element={<Customers />} />
+                            <Route path="/reports" element={<Reports />} />
+                            <Route path="/connected-devices" element={<ConnectedDevices />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/products/list" element={<ProductList />} />
+                            <Route path="/products/filter/:type/:id" element={<ProductList />} />
+                            <Route path="/products/stock/:status" element={<ProductList />} />
+                            <Route path="*" element={<NotFound />} />
+                          </Routes>
                           </ScrollArea>
                         </ResizablePanel>
                       </ResizablePanelGroup>
