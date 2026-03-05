@@ -242,196 +242,193 @@ const ProductDetail = () => {
                 </h1>
               </CardHeader>
 
-              <CardContent className="space-y-4">
-
-                {/* Badges Row */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <Badge variant={product.quantity > 0 ? "success" : "danger"}>
-                    {product.quantity > 0 ? "In Stock" : "Out of Stock"}: {product.quantity}
-                  </Badge>
-
-                  {product.asin && (
-                    <Badge variant="light">
-                      ASIN: <span className="text-gray-500 ml-1">{product.asin}</span>
+              <CardContent className="space-y-6">
+                {/* Top: badges + prices */}
+                <div className="space-y-4">
+                  {/* Badges Row */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge variant={product.quantity > 0 ? "success" : "danger"}>
+                      {product.quantity > 0 ? "In Stock" : "Out of Stock"}: {product.quantity}
                     </Badge>
-                  )}
 
-                  {product.modelno && (
+                    {product.asin && (
+                      <Badge variant="light">
+                        ASIN: <span className="text-gray-500 ml-1">{product.asin}</span>
+                      </Badge>
+                    )}
+
+                    {product.modelno && (
+                      <Badge variant="info">
+                        Model: <span className="text-blue-500 ml-1">{product.modelno}</span>
+                      </Badge>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Price Section */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Sale Price
+                      </p>
+                      <p className="text-2xl font-semibold text-destructive">
+                        AED {Number(product.salePrice).toFixed(2)}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Purchase Price
+                      </p>
+                      <p className="text-xl font-semibold text-primary">
+                        AED {Number(product.purchasePrice).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Classification section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-semibold">
+                      Classification
+                    </CardTitle>
+                  </div>
+
+                  {/* Category */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Category</span>
                     <Badge variant="info">
-                      Model: <span className="text-blue-500 ml-1">{product.modelno}</span>
+                      {product.category
+                        ? (typeof product.category === "object"
+                          ? product.category.name
+                          : product.category)
+                        : "—"}
                     </Badge>
-                  )}
-                </div>
-
-                <Separator />
-
-                {/* Price Section */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Sale Price
-                    </p>
-                    <p className="text-2xl font-semibold text-destructive">
-                      AED {Number(product.salePrice).toFixed(2)}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Purchase Price
-                    </p>
-                    <p className="text-xl font-semibold text-primary">
-                      AED {Number(product.purchasePrice).toFixed(2)}
-                    </p>
-                  </div>
-
-                </div>
-
-              </CardContent>
-            </Card>
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">
-                  Classification
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-
-                {/* Category */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Category</span>
-                  <Badge variant="info">
-                    {product.category
-                      ? (typeof product.category === "object"
-                        ? product.category.name
-                        : product.category)
-                      : "—"}
-                  </Badge>
-                </div>
-
-                <Separator />
-
-                {/* Subcategory */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Subcategory</span>
-                  <span className="text-sm font-medium">
-                    {product.subcategory
-                      ? (typeof product.subcategory === "object"
-                        ? product.subcategory.name
-                        : product.subcategory)
-                      : "—"}
-                  </span>
-                </div>
-
-                <Separator />
-
-                {/* Brand */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Brand</span>
-                  <span className="text-sm font-medium">
-                    {product.brand
-                      ? (typeof product.brand === "object"
-                        ? product.brand.name
-                        : product.brand)
-                      : "—"}
-                  </span>
-                </div>
-
-                <Separator />
-
-                {/* Condition */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Condition</span>
-                  <Badge variant="outline">
-                    {product.condition
-                      ? (typeof product.condition === "object"
-                        ? product.condition.name
-                        : product.condition)
-                      : "—"}
-                  </Badge>
-                </div>
-
-                <Separator />
-
-                {/* Refundable */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Refundable</span>
-                  <Badge variant={product.refundable !== false ? "success" : "secondary"}>
-                    {product.refundable !== false ? "Yes" : "No"}
-                  </Badge>
-                </div>
-
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">
-                  Identifiers
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="flex flex-col lg:flex-row gap-8">
-
-                {/* LEFT SIDE — IDENTIFIER DETAILS */}
-                <div className="flex-1 space-y-4">
-
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">SKU</span>
-                    <span className="text-sm font-medium">{product.sku || "—"}</span>
                   </div>
 
                   <Separator />
 
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">ASIN</span>
-                    <span className="text-sm font-medium">{product.asin || "—"}</span>
-                  </div>
-
-                  <Separator />
-
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Model No.</span>
-                    <span className="text-sm font-medium">{product.modelno || "—"}</span>
-                  </div>
-
-                </div>
-
-                {/* RIGHT SIDE — QR CODE PANEL */}
-                <div className="w-full lg:w-64 border rounded-xl p-4 flex flex-col items-center gap-4 bg-muted/40">
-
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    QR Code
-                  </p>
-
-                  {product.qrCode ? (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="relative group p-3 bg-white rounded-xl shadow-sm cursor-pointer w-fit">
-                            <img
-                              src={product.qrCode}
-                              alt="QR Code"
-                              onClick={() => openImageModal(product.qrCode)}
-                              className="h-32 w-32 object-contain"
-                              title="Click to view full size"
-                            />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          Click to view full size
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ) : (
-                    <span className="text-xs italic text-muted-foreground">
-                      No QR code available
+                  {/* Subcategory */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Subcategory</span>
+                    <span className="text-sm font-medium">
+                      {product.subcategory
+                        ? (typeof product.subcategory === "object"
+                          ? product.subcategory.name
+                          : product.subcategory)
+                        : "—"}
                     </span>
-                  )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Brand */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Brand</span>
+                    <span className="text-sm font-medium">
+                      {product.brand
+                        ? (typeof product.brand === "object"
+                          ? product.brand.name
+                          : product.brand)
+                        : "—"}
+                    </span>
+                  </div>
+
+                  <Separator />
+
+                  {/* Condition */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Condition</span>
+                    <Badge variant="outline">
+                      {product.condition
+                        ? (typeof product.condition === "object"
+                          ? product.condition.name
+                          : product.condition)
+                        : "—"}
+                    </Badge>
+                  </div>
+
+                  <Separator />
+
+                  {/* Refundable */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Refundable</span>
+                    <Badge variant={product.refundable !== false ? "success" : "secondary"}>
+                      {product.refundable !== false ? "Yes" : "No"}
+                    </Badge>
+                  </div>
                 </div>
 
+                <Separator />
+
+                {/* Identifiers section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold">
+                      Identifiers
+                    </CardTitle>
+                  </div>
+
+                  <div className="flex flex-col lg:flex-row gap-8">
+                    {/* LEFT SIDE — IDENTIFIER DETAILS */}
+                    <div className="flex-1 space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">SKU</span>
+                        <span className="text-sm font-medium">{product.sku || "—"}</span>
+                      </div>
+
+                      <Separator />
+
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">ASIN</span>
+                        <span className="text-sm font-medium">{product.asin || "—"}</span>
+                      </div>
+
+                      <Separator />
+
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Model No.</span>
+                        <span className="text-sm font-medium">{product.modelno || "—"}</span>
+                      </div>
+                    </div>
+
+                    {/* RIGHT SIDE — QR CODE PANEL */}
+                    <div className="w-full lg:w-64 border rounded-xl p-4 flex flex-col items-center gap-4 bg-muted/40">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        QR Code
+                      </p>
+
+                      {product.qrCode ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="relative group p-3 bg-white rounded-xl shadow-sm cursor-pointer w-fit">
+                                <img
+                                  src={product.qrCode}
+                                  alt="QR Code"
+                                  onClick={() => openImageModal(product.qrCode)}
+                                  className="h-32 w-32 object-contain"
+                                  title="Click to view full size"
+                                />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              Click to view full size
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="text-xs italic text-muted-foreground">
+                          No QR code available
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
