@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { MoreVertical } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import {
   Pagination,
@@ -296,11 +297,7 @@ export function DataTable({
   return (
     <div className="space-y-3 w-full flex flex-col">
       <div
-        className={
-          containerClassName !== undefined
-            ? containerClassName
-            : "flex h-[500px] flex-col overflow-hidden rounded-md border border-gray-200 bg-background"
-        }
+        className={cn(containerClassName, "flex h-[500px] flex-col overflow-hidden rounded-md border border-gray-200 bg-background")}
       >
         <div className="flex-1 overflow-y-auto">
           <Table className="relative min-w-full text-black" stickyHeader>

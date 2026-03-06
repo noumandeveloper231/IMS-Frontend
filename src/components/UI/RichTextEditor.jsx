@@ -5,15 +5,11 @@ export function RichTextEditor({ value, onChange }) {
   const editorRef = useRef(null);
   const tinyMCEKey = import.meta.env.VITE_TINYMCE_API_KEY;
 
-  const handleEditorChange = (content) => {
-    onChange(content);
-  };
-
   return (
     <Editor
       apiKey={tinyMCEKey}
       onInit={(evt, editor) => (editorRef.current = editor)}
-      initialValue={value}
+      value={value}
       init={{
         height: 400,
         menubar: false,
@@ -26,7 +22,7 @@ export function RichTextEditor({ value, onChange }) {
         toolbar:
           "undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | link image | code"
       }}
-      xonEditorChange={handleEditorChange}
+      onEditorChange={(content) => onChange(content)}
     />
   );
 }

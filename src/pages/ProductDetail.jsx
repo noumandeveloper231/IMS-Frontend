@@ -368,7 +368,7 @@ const ProductDetail = () => {
                 {/* Identifiers section */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">
+                    <CardTitle className="text-lg font-semibold">
                       Identifiers
                     </CardTitle>
                   </div>
@@ -444,6 +444,21 @@ const ProductDetail = () => {
               <div
                 className="tinymce text-gray-700 text-sm max-w-none"
                 dangerouslySetInnerHTML={{ __html: product.description }}
+              />
+            </CardContent>
+          </Card>
+        )}
+        {product.specification && (
+          <Card className="rounded-2xl shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">
+                Specification
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div
+                className="tinymce text-gray-700 text-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: product.specification }}
               />
             </CardContent>
           </Card>

@@ -227,8 +227,7 @@ const Products = () => {
 
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
-  const [images, setImages] = useState([]);
-  const [imagePreviews, setImagePreviews] = useState([]);
+  const [productImages, setProductImages] = useState([]);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [dragImageIndex, setDragImageIndex] = useState(null);
@@ -575,7 +574,18 @@ const Products = () => {
       formData.append("competitors", JSON.stringify(normalizedCompetitors));
     }
     Object.entries(rest).forEach(([key, value]) => formData.append(key, value ?? ""));
-    images.forEach((file) => formData.append("images", file));
+
+    const existingImages = productImages
+      .filter((img) => !img.isNew && img.url)
+      .map((img) => img.url);
+    const newImageFiles = productImages
+      .filter((img) => img.isNew && img.file)
+      .map((img) => img.file);
+
+    if (existingImages.length) {
+      formData.append("existingImages", JSON.stringify(existingImages));
+    }
+    newImageFiles.forEach((file) => formData.append("images", file));
 
     if (editingId) {
       await updateMutation.mutateAsync({ id: editingId, formData });
@@ -604,24 +614,37 @@ const Products = () => {
       refundable: true,
     });
     setEditingId(null);
-    imagePreviews.forEach((url) => {
-      if (url && url.startsWith("blob:")) {
-        URL.revokeObjectURL(url);
-      }
+    setProductImages((prev) => {
+      prev.forEach((img) => {
+        if (img.isNew && img.previewUrl && img.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(img.previewUrl);
+        }
+      });
+      return [];
     });
-    setImages([]);
-    setImagePreviews([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleEdit = (p) => {
-    const existingCompetitors = Array.isArray(p.competitors)
-      ? p.competitors
-      : p.competitors && typeof p.competitors === "object"
-        ? Object.entries(p.competitors)
-          .filter(([key, value]) => typeof value === "string" && value)
-          .map(([key, value]) => ({ label: key, url: value }))
-        : [];
+    // Normalize competitors into array of { label, url }
+    let existingCompetitors = [];
+
+    if (Array.isArray(p.competitors)) {
+      existingCompetitors = p.competitors;
+    } else if (typeof p.competitors === "string") {
+      try {
+        const parsed = JSON.parse(p.competitors);
+        if (Array.isArray(parsed)) {
+          existingCompetitors = parsed;
+        }
+      } catch {
+        existingCompetitors = [];
+      }
+    } else if (p.competitors && typeof p.competitors === "object") {
+      existingCompetitors = Object.entries(p.competitors)
+        .filter(([_, value]) => typeof value === "string" && value)
+        .map(([key, value]) => ({ label: key, url: value }));
+    }
     setForm({
       title: p.title,
       sku: p.sku,
@@ -641,14 +664,18 @@ const Products = () => {
     });
     setEditingId(p._id);
     setProductDrawerOpen(true);
-    setImages([]);
     const existingImages = Array.isArray(p.images) && p.images.length
       ? p.images
       : p.image
         ? [p.image]
         : [];
-    const previewUrls = existingImages.map((img) => resolveImageUrl(img));
-    setImagePreviews(previewUrls);
+    const imageItems = existingImages.map((img, index) => ({
+      id: `existing-${p._id}-${index}`,
+      isNew: false,
+      url: img,
+      previewUrl: resolveImageUrl(img),
+    }));
+    setProductImages(imageItems);
 
     // 🔹 Toast show
     toast.info(`Editing product: ${p.title}`);
@@ -662,7 +689,10 @@ const Products = () => {
   };
 
   const filteredProducts = (products || []).filter((p) => {
-    const matchesSearch = (p.title || "").toLowerCase().includes(search.toLowerCase());
+    const query = search.toLowerCase();
+    const matchesSearch =
+      (p.title || "").toLowerCase().includes(query) ||
+      (p.asin || "").toLowerCase().includes(query);
 
     let matchesStock = true;
     if (stockFilter === "in-stock") {
@@ -918,22 +948,46 @@ const Products = () => {
         Quantity: p.quantity,
         "Model No.": p.modelno,
         Description: p.description,
-        ...(Array.isArray(p.competitors)
-          ? p.competitors.slice(0, 8).reduce((acc, c, index) => {
-              const idx = index + 1;
-              acc[`Competitor ${idx} Label`] = c.label || "";
-              acc[`Competitor ${idx} URL`] = c.url || "";
-              return acc;
-            }, {})
-          : {}),
+        ...(() => {
+          // Normalize competitors for export as well
+          let competitors = [];
+          if (Array.isArray(p.competitors)) {
+            competitors = p.competitors;
+          } else if (typeof p.competitors === "string") {
+            try {
+              const parsed = JSON.parse(p.competitors);
+              if (Array.isArray(parsed)) competitors = parsed;
+            } catch {
+              competitors = [];
+            }
+          } else if (p.competitors && typeof p.competitors === "object") {
+            competitors = Object.entries(p.competitors)
+              .filter(([_, value]) => typeof value === "string" && value)
+              .map(([key, value]) => ({ label: key, url: value }));
+          }
+
+          return competitors.slice(0, 8).reduce((acc, c, index) => {
+            const idx = index + 1;
+            acc[`Competitor ${idx} Label`] = c.label || "";
+            acc[`Competitor ${idx} URL`] = c.url || "";
+            return acc;
+          }, {});
+        })(),
         Categories: p.category ? (typeof p.category === "object" ? p.category.name : p.category) : "",
         Subcategories: p.subcategory ? (typeof p.subcategory === "object" ? p.subcategory.name : p.subcategory) : "",
         Brands: p.brand ? (typeof p.brand === "object" ? p.brand.name : p.brand) : "",
         Conditions: p.condition ? (typeof p.condition === "object" ? p.condition.name : p.condition) : "",
         Refundable: p.refundable !== false ? "Yes" : "No",
-        Image: (() => {
-          const primaryImage = Array.isArray(p.images) && p.images.length ? p.images[0] : p.image;
-          return primaryImage ? resolveImageUrl(primaryImage) : "";
+        Images: (() => {
+          const imgs = Array.isArray(p.images) && p.images.length
+            ? p.images
+            : p.image
+              ? [p.image]
+              : [];
+          if (!imgs.length) return "";
+          return imgs
+            .map((img) => resolveImageUrl(img))
+            .join(", ");
         })(),
       }))
     );
@@ -1015,11 +1069,25 @@ const Products = () => {
         ) ?? null;
       const imagesVal = imagesKey ? String(row[imagesKey] ?? "").trim() : "";
       const imageFromUpload = row.__imageUrl || "";
-      const firstImageUrl = (imageFromUpload || (imagesVal ? imagesVal.split(",")[0] : "") || "").trim();
-      if (imagesVal && firstImageUrl && !isValidImageUrl(normalizeImageUrl(firstImageUrl))) {
-        fieldErrors[imagesKey || "Images"] = "Invalid URL";
+      const rawImagesInput = (imageFromUpload || imagesVal || "").toString();
+      const imageParts = rawImagesInput
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const normalizedImages = [];
+      if (imageParts.length) {
+        for (const part of imageParts) {
+          const normalized = normalizeImageUrl(part);
+          if (!isValidImageUrl(normalized)) {
+            fieldErrors[imagesKey || "Images"] = "Invalid URL";
+            break;
+          }
+          normalizedImages.push(normalized);
+        }
       }
-      const resolvedImageUrl = imageFromUpload || (firstImageUrl && isValidImageUrl(normalizeImageUrl(firstImageUrl)) ? firstImageUrl : "");
+
+      const resolvedImageUrl = normalizedImages.length ? normalizedImages[0] : "";
 
       const refundableKey = Object.keys(row).find((k) => normalizeKey(k) === "refundable") ?? null;
       const refundableRaw = refundableKey ? String(row[refundableKey] ?? "").trim().toLowerCase() : "";
@@ -1061,6 +1129,7 @@ const Products = () => {
         ...row,
         __sku: effectiveSku,
         __imageUrl: resolvedImageUrl,
+        __images: normalizedImages,
         __refundable,
         __errors: fieldErrors,
         __status: hasErrors ? "error" : "valid",
@@ -1211,7 +1280,12 @@ const Products = () => {
   const handleImportImageUrlBlur = useCallback((rowIndex, columnKey, value) => {
     const trimmed = (value ?? "").toString().trim();
     if (!trimmed) return;
-    const normalized = normalizeImageUrl(trimmed);
+    const parts = trimmed
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!parts.length) return;
+    const normalized = parts.map((p) => normalizeImageUrl(p)).join(", ");
     if (normalized === trimmed) return;
     setImportRows((prev) => {
       const next = prev.map((r, i) =>
@@ -1511,7 +1585,7 @@ const Products = () => {
 
     setImportLoading(true);
     try {
-      const payload = validRows.map(({ __errors, __status, __sku, __imageUrl, __refundable, ...rest }) => {
+      const payload = validRows.map(({ __errors, __status, __sku, __imageUrl, __images, __refundable, ...rest }) => {
         const title = rest.Title ?? rest.title ?? "";
         const asin = rest.ASIN ?? rest.asin ?? "";
         const purchasePrice = rest["Purchase Price"] ?? rest.purchasePrice ?? 0;
@@ -1527,6 +1601,17 @@ const Products = () => {
         const subcategory = rest.Subcategories ?? rest.subcategory ?? rest.subcategories;
         const brand = rest.Brands ?? rest.brand ?? rest.brands;
         const condition = rest.Conditions ?? rest.condition ?? rest.conditions;
+        const imagesArray =
+          Array.isArray(__images) && __images.length
+            ? __images
+            : (() => {
+                const raw = (__imageUrl || rest.Images || rest.Image || "").toString();
+                const parts = raw
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                return parts;
+              })();
         return {
           title,
           sku: __sku,
@@ -1546,7 +1631,8 @@ const Products = () => {
           brand,
           condition,
           refundable: __refundable !== false,
-          image: __imageUrl || rest.Images || rest.Image || "",
+          images: imagesArray,
+          image: imagesArray[0] || "",
         };
       });
       await api.post("/products/bulk-create", payload);
@@ -1635,18 +1721,21 @@ const Products = () => {
     const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
     if (!filesArray.length) return;
 
-    setImages((prev) => [...prev, ...filesArray]);
-    const newPreviews = filesArray.map((file) => URL.createObjectURL(file));
-    setImagePreviews((prev) => [...prev, ...newPreviews]);
+    const newItems = filesArray.map((file, index) => ({
+      id: `new-${Date.now()}-${index}`,
+      isNew: true,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setProductImages((prev) => [...prev, ...newItems]);
   };
 
   const handleRemoveImageAtIndex = (index) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => {
+    setProductImages((prev) => {
       const next = [...prev];
       const [removed] = next.splice(index, 1);
-      if (removed && removed.startsWith("blob:")) {
-        URL.revokeObjectURL(removed);
+      if (removed && removed.isNew && removed.previewUrl && removed.previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(removed.previewUrl);
       }
       return next;
     });
@@ -1670,18 +1759,18 @@ const Products = () => {
   const handleThumbnailDrop = (index) => {
     if (dragImageIndex === null || dragImageIndex === index) return;
 
-    setImages((prev) => moveItem(prev, dragImageIndex, index));
-    setImagePreviews((prev) => moveItem(prev, dragImageIndex, index));
+    setProductImages((prev) => moveItem(prev, dragImageIndex, index));
     setDragImageIndex(null);
   };
   const handleClearProductImage = () => {
-    imagePreviews.forEach((url) => {
-      if (url && url.startsWith("blob:")) {
-        URL.revokeObjectURL(url);
-      }
+    setProductImages((prev) => {
+      prev.forEach((img) => {
+        if (img.isNew && img.previewUrl && img.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(img.previewUrl);
+        }
+      });
+      return [];
     });
-    setImages([]);
-    setImagePreviews([]);
   };
 
   const handleClear = () => {
@@ -1701,13 +1790,14 @@ const Products = () => {
       refundable: true,
     });
     setEditingId(null);
-    imagePreviews.forEach((url) => {
-      if (url && url.startsWith("blob:")) {
-        URL.revokeObjectURL(url);
-      }
+    setProductImages((prev) => {
+      prev.forEach((img) => {
+        if (img.isNew && img.previewUrl && img.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(img.previewUrl);
+        }
+      });
+      return [];
     });
-    setImages([]);
-    setImagePreviews([]);
   };
 
   return (
@@ -1982,6 +2072,7 @@ const Products = () => {
                       id="product-asin"
                       type="text"
                       name="asin"
+                      maxLength={10}
                       placeholder="ASIN"
                       value={form.asin}
                       onChange={(e) =>
@@ -2272,23 +2363,22 @@ const Products = () => {
                     </Field>
                     <ImageUploadDropzone
                       onFileSelect={handleProductImageSelect}
-                      previewUrl={imagePreviews[0]}
+                      previewUrl={productImages[0]?.previewUrl}
                       accept="image/*"
                       className="mt-1"
                       multiple
                       primaryLabel="Upload product images"
                       secondaryLabel="You can select multiple images (first will show in list)"
                       onReorderFrontFromIndex={(index) => {
-                        setImages((prev) => moveItem(prev, index, 0));
-                        setImagePreviews((prev) => moveItem(prev, index, 0));
+                        setProductImages((prev) => moveItem(prev, index, 0));
                       }}
                     />
-                    {imagePreviews.length > 0 && (
+                    {productImages.length > 0 && (
                       <>
                         <div className="mt-3 flex flex-wrap gap-3">
-                          {imagePreviews.map((src, index) => (
+                          {productImages.map((img, index) => (
                             <div
-                              key={index}
+                              key={img.id ?? index}
                               className="relative w-24 h-24 rounded-md overflow-hidden border border-muted bg-muted/40 cursor-move"
                               draggable
                               onDragStart={(e) => {
@@ -2299,7 +2389,7 @@ const Products = () => {
                               onDrop={() => handleThumbnailDrop(index)}
                             >
                               <img
-                                src={src}
+                                src={img.previewUrl}
                                 alt={`Selected ${index + 1}`}
                                 className="w-full h-full object-contain"
                               />
@@ -2448,6 +2538,7 @@ const Products = () => {
                 rowSelection={tableRowSelection}
                 onRowSelectionChange={setTableRowSelection}
                 onSelectionChange={(rows) => setSelectedProductIds(rows.map((r) => r._id))}
+                containerClassName="h-[630px]!"
               />
             </div>
           )}
