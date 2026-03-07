@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,21 +7,7 @@ import {
   DialogTitle,
 } from "@/components/UI/dialog";
 import { Button } from "@/components/UI/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/UI/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/UI/command";
-import { Check, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Combobox } from "@/components/UI/combobox";
 
 /**
  * Choice dialog: entity has dependencies. User chooses "Transfer" or "Cascade".
@@ -161,9 +147,6 @@ export function TransferDependenciesDialog({
   loading = false,
   submitLabel = "Transfer & Delete",
 }) {
-  const [comboboxOpen, setComboboxOpen] = useState(false);
-  const selected = targetOptions.find((o) => o.value === value) ?? null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -177,61 +160,12 @@ export function TransferDependenciesDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={comboboxOpen}
-                className={cn(
-                  "w-full justify-between font-normal",
-                  !selected && "text-muted-foreground"
-                )}
-              >
-                <span className="truncate">
-                  {selected ? selected.label : "Select target"}
-                </span>
-                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-[var(--radix-popover-trigger-width)] p-0"
-              align="start"
-              onOpenAutoFocus={(e) => e.preventDefault()}
-              onWheel={(e) => e.stopPropagation()}
-            >
-              <Command className="flex flex-col overflow-hidden">
-                <CommandInput placeholder="Search..." />
-                {/* Scrollable list area - same pattern as Select: max-height + overflow-y-auto */}
-                <div className="max-h-60 overflow-y-auto overflow-x-hidden min-h-0">
-                  <CommandList className="max-h-none overflow-visible p-1">
-                    <CommandEmpty>No results found.</CommandEmpty>
-                    <CommandGroup>
-                      {targetOptions.map((opt) => (
-                        <CommandItem
-                          key={opt.value}
-                          value={opt.label}
-                          onSelect={() => {
-                            onValueChange(opt.value);
-                            setComboboxOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4 shrink-0",
-                              value === opt.value ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {opt.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </div>
-              </Command>
-            </PopoverContent>
-          </Popover>
-
+          <Combobox
+            options={targetOptions}
+            value={value}
+            onChange={onValueChange}
+            placeholder="Select target"
+          />
           <Button
             type="button"
             onClick={onSubmit}

@@ -40,6 +40,7 @@ import {
 } from "@/components/UI/select";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+import { MediaGalleryModal } from "@/components/media";
 import { useImageModal } from "@/context/ImageModalContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
@@ -93,6 +94,7 @@ const Categories = () => {
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [image, setImage] = useState(null);
+  const [imageMediaId, setImageMediaId] = useState(null);
   const [preview, setPreview] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -120,6 +122,7 @@ const Categories = () => {
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
   const [imageUploadState, setImageUploadState] = useState(null);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const imageUploadAbortRef = useRef(null);
   const categoriesRef = useRef(EMPTY_ARRAY);
   const categoryDrawerOpenRef = useRef(categoryDrawerOpen);
@@ -201,13 +204,12 @@ const Categories = () => {
     },
   });
   const categories = categoriesData ?? EMPTY_ARRAY;
+  console.log("categories", categories)
   categoriesRef.current = categories;
 
   const createMutation = useMutation({
     mutationFn: async (formData) => {
-      const res = await api.post("/categories/create", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post("/categories/create", formData);
       return res.data;
     },
     onSuccess: (data) => {
@@ -246,9 +248,7 @@ const Categories = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, formData }) => {
-      const res = await api.put(`/categories/update/${id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.put(`/categories/update/${id}`, formData);
       return res.data;
     },
     onSuccess: (data) => {
@@ -350,6 +350,7 @@ const Categories = () => {
   const handleClearForm = () => {
     setName("");
     setImage(null);
+    setImageMediaId(null);
     setPreview(null);
     setEditingId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -405,7 +406,11 @@ const Categories = () => {
 
     const formData = new FormData();
     formData.append("name", trimmedName);
-    if (image) formData.append("image", image);
+    if (imageMediaId) {
+      formData.append("image", String(imageMediaId));
+    } else if (image) {
+      formData.append("image", image);
+    }
 
     if (editingId) {
       await updateMutation.mutateAsync({ id: editingId, formData });
@@ -417,7 +422,9 @@ const Categories = () => {
   const handleEdit = (cat) => {
     setName(cat.name);
     setEditingId(cat._id);
-    setPreview(cat.image ? resolveImageUrl(cat.image) : null);
+    const imageUrl = cat.imageUrl || (cat.image?.url) || (cat.image && resolveImageUrl(cat.image));
+    setPreview(imageUrl || null);
+    setImageMediaId(cat.image?._id != null ? String(cat.image._id) : (typeof cat.image === "string" && cat.image ? String(cat.image) : null));
     setImage(null);
     setCategoryDrawerOpen(true);
     toast.info(`Editing Category: ${cat.name}`);
@@ -526,6 +533,7 @@ const Categories = () => {
     }
 
     setImage(file);
+    setImageMediaId(null);
     setPreview(URL.createObjectURL(file));
   };
 
@@ -545,6 +553,7 @@ const Categories = () => {
     }
 
     setImage(file);
+    setImageMediaId(null);
     setPreview(URL.createObjectURL(file));
   };
 
@@ -686,7 +695,6 @@ const Categories = () => {
       const formData = new FormData();
       formData.append("image", file);
       const res = await api.post("/categories/upload-image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
         signal: controller.signal,
         onUploadProgress: (ev) => {
           const pct = ev.total ? Math.round((ev.loaded / ev.total) * 100) : 0;
@@ -1086,7 +1094,7 @@ const Categories = () => {
     const worksheet = XLSX.utils.json_to_sheet(
       filteredCategories.map((c) => ({
         "Name": c.name,
-        "Image": c.image ? resolveImageUrl(c.image) : "",
+        "Image": c.imageUrl || (c.image ? resolveImageUrl(c.image) : ""),
         "Product Count": c.productCount ?? 0,
         "Created At": c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "",
         "Updated At": c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : "",
@@ -1111,15 +1119,16 @@ const Categories = () => {
         accessorKey: "image",
         cell: ({ row }) => {
           const cat = row.original;
-          if (!cat.image) {
+          console.log("cat", cat)
+          if (!cat.imageUrl && !cat.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
           return (
             <div className="flex items-center">
               <img
-                src={resolveImageUrl(cat.image)}
+                src={cat.imageUrl || resolveImageUrl(cat.image)}
                 alt={cat.name}
-                onClick={() => openImageModal(resolveImageUrl(cat.image))}
+                onClick={() => openImageModal(cat.imageUrl || resolveImageUrl(cat.image))}
                 className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
               />
             </div>
@@ -1501,6 +1510,16 @@ const Categories = () => {
                   </Field>
                   <Field>
                     <FieldLabel>Image</FieldLabel>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMediaGalleryOpen(true)}
+                      >
+                        Select from gallery
+                      </Button>
+                    </div>
                     <ImageUploadDropzone
                       onFileSelect={handleDropFile}
                       previewUrl={preview}
@@ -1515,6 +1534,7 @@ const Categories = () => {
                             onClick={() => {
                               setPreview(null);
                               setImage(null);
+                              setImageMediaId(null);
                             }}
                             className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white text-[10px] hover:bg-black"
                             aria-label="Remove image"
@@ -1531,6 +1551,20 @@ const Categories = () => {
                     </div>
 
                   </Field>
+                  <MediaGalleryModal
+                    open={mediaGalleryOpen}
+                    onOpenChange={setMediaGalleryOpen}
+                    multiple={false}
+                    title="Select category image"
+                    onConfirm={(media) => {
+                      if (media) {
+                        setImageMediaId(media._id != null ? String(media._id) : null);
+                        setPreview(media.url);
+                        setImage(null);
+                      }
+                      setMediaGalleryOpen(false);
+                    }}
+                  />
                   <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
                     <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
                       {loading

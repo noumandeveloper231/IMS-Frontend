@@ -14,7 +14,7 @@ import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
 import { Combobox } from "@/components/UI/combobox";
-import { SubcategoryBulkDependencyManagerModal } from "@/components/SubcategoryBulkDependencyManagerModal";
+import { BulkDependencyManagerModal } from "@/components/BulkDependencyManagerModal";
 import { useSubcategoryBulkDependencyManager } from "@/hooks/useSubcategoryBulkDependencyManager";
 import {
   ResolveDependenciesDialog,
@@ -1540,11 +1540,12 @@ const Subcategories = () => {
         loading={loading}
       />
 
-      <SubcategoryBulkDependencyManagerModal
+      <BulkDependencyManagerModal
         open={bulkManagerOpen}
         onOpenChange={setBulkManagerOpen}
         manager={bulkManager}
-        subcategories={subcategories}
+        itemsSource={subcategories}
+        mode="subcategory"
         onComplete={() => {
           setBulkManagerOpen(false);
         }}

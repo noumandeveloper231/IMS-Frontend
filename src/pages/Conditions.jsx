@@ -16,6 +16,8 @@ import {
   ResolveDependenciesDialog,
   TransferDependenciesDialog,
 } from "@/components/ResolveDependenciesDialog";
+import { BulkDependencyManagerModal } from "@/components/BulkDependencyManagerModal";
+import { useConditionBulkDependencyManager } from "@/hooks/useConditionBulkDependencyManager";
 import {
   Drawer,
   DrawerClose,
@@ -38,6 +40,7 @@ import {
 } from "@/components/UI/select";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+import { MediaGalleryModal } from "@/components/media";
 import { useImageModal } from "@/context/ImageModalContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
@@ -92,6 +95,7 @@ const Conditions = () => {
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [image, setImage] = useState(null);
+  const [imageMediaId, setImageMediaId] = useState(null);
   const [preview, setPreview] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -110,7 +114,7 @@ const Conditions = () => {
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedConditionIds, setSelectedConditionIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkManagerOpen, setBulkManagerOpen] = useState(false);
   const [deleteWithDepsOpen, setDeleteWithDepsOpen] = useState(false);
   const [deleteWithDepsData, setDeleteWithDepsData] = useState(null);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
@@ -119,6 +123,7 @@ const Conditions = () => {
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
   const [imageUploadState, setImageUploadState] = useState(null);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const imageUploadAbortRef = useRef(null);
   const conditionsRef = useRef(EMPTY_ARRAY);
   const conditionDrawerOpenRef = useRef(conditionDrawerOpen);
@@ -201,9 +206,7 @@ const Conditions = () => {
 
   const createMutation = useMutation({
     mutationFn: async (formData) => {
-      const res = await api.post("/conditions/create", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post("/conditions/create", formData);
       return res.data;
     },
     onSuccess: (data) => {
@@ -242,9 +245,7 @@ const Conditions = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, formData }) => {
-      const res = await api.put(`/conditions/update/${id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.put(`/conditions/update/${id}`, formData);
       return res.data;
     },
     onSuccess: (data) => {
@@ -317,7 +318,34 @@ const Conditions = () => {
     },
   });
 
-  const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const loading =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
+
+  const bulkManager = useConditionBulkDependencyManager({
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["conditions"] });
+      setSelectedConditionIds([]);
+      setTableRowSelection({});
+      const count = data?.deleted?.length ?? 0;
+      toast.success(`Deleted ${count} conditions successfully`);
+    },
+    onError: (message) => {
+      toast.error(message || "Bulk delete failed");
+    },
+  });
+
+  useEffect(() => {
+    if (
+      bulkManagerOpen &&
+      selectedConditionIds.length > 0 &&
+      bulkManager.status === "idle"
+    ) {
+      bulkManager.startAnalysis(selectedConditionIds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
+  }, [bulkManagerOpen]);
 
   const handleClick = (id) => {
     navigate(`/products/list?filterType=condition&filter=${id}`);
@@ -326,6 +354,7 @@ const Conditions = () => {
   const handleClearForm = () => {
     setName("");
     setImage(null);
+    setImageMediaId(null);
     setPreview(null);
     setEditingId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -381,7 +410,11 @@ const Conditions = () => {
 
     const formData = new FormData();
     formData.append("name", trimmedName);
-    if (image) formData.append("image", image);
+    if (imageMediaId) {
+      formData.append("image", String(imageMediaId));
+    } else if (image) {
+      formData.append("image", image);
+    }
 
     if (editingId) {
       await updateMutation.mutateAsync({ id: editingId, formData });
@@ -393,7 +426,15 @@ const Conditions = () => {
   const handleEdit = (cond) => {
     setName(cond.name);
     setEditingId(cond._id);
-    setPreview(cond.image ? resolveImageUrl(cond.image) : null);
+    const imageUrl = cond.imageUrl || (cond.imageRef?.url) || (cond.image && resolveImageUrl(cond.image));
+    setPreview(imageUrl || null);
+    setImageMediaId(
+      cond.imageRef?._id != null
+        ? String(cond.imageRef._id)
+        : typeof cond.imageRef === "string" && cond.imageRef
+          ? String(cond.imageRef)
+          : null
+    );
     setImage(null);
     setConditionDrawerOpen(true);
     toast.info(`Editing condition: ${cond.name}`);
@@ -487,27 +528,6 @@ const Conditions = () => {
     deleteMutation.mutate(deleteId);
   };
 
-  const handleBulkDeleteConfirmed = async () => {
-    if (!selectedConditionIds.length) {
-      setBulkDeleteOpen(false);
-      return;
-    }
-    setBulkDeleteOpen(false);
-    for (const id of selectedConditionIds) {
-      try {
-        await api.delete(`/conditions/delete/${id}`);
-      } catch (err) {
-        const msg = err?.response?.data?.message || err?.message;
-        toast.error(`Failed to delete one condition: ${msg}`);
-      }
-    }
-    queryClient.invalidateQueries({ queryKey: ["conditions"] });
-    const count = selectedConditionIds.length;
-    setSelectedConditionIds([]);
-    setTableRowSelection({});
-    toast.success(`Deleted ${count} conditions`);
-  };
-
   const handleDropFile = (file) => {
     if (!file) return;
 
@@ -523,6 +543,7 @@ const Conditions = () => {
     }
 
     setImage(file);
+    setImageMediaId(null);
     setPreview(URL.createObjectURL(file));
   };
 
@@ -542,6 +563,7 @@ const Conditions = () => {
     }
 
     setImage(file);
+    setImageMediaId(null);
     setPreview(URL.createObjectURL(file));
   };
 
@@ -1057,7 +1079,7 @@ const Conditions = () => {
     const worksheet = XLSX.utils.json_to_sheet(
       filteredConditions.map((c) => ({
         Name: c.name,
-        Image: c.image ? resolveImageUrl(c.image) : "",
+        Image: c.imageUrl || (c.image ? resolveImageUrl(c.image) : ""),
         "Product Count": c.productCount ?? 0,
         "Created At": c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "",
         "Updated At": c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : "",
@@ -1082,15 +1104,16 @@ const Conditions = () => {
         accessorKey: "image",
         cell: ({ row }) => {
           const cond = row.original;
-          if (!cond.image) {
+          if (!cond.imageUrl && !cond.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
+          const src = cond.imageUrl || resolveImageUrl(cond.image);
           return (
             <div className="flex items-center">
               <img
-                src={resolveImageUrl(cond.image)}
+                src={src}
                 alt={cond.name}
-                onClick={() => openImageModal(resolveImageUrl(cond.image))}
+                onClick={() => openImageModal(src)}
                 className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
               />
             </div>
@@ -1229,7 +1252,7 @@ const Conditions = () => {
                           if (selectedConditionIds.length === 1) {
                             confirmDelete(selectedConditionIds[0]);
                           } else {
-                            setBulkDeleteOpen(true);
+                            setBulkManagerOpen(true);
                           }
                         }
                       }}
@@ -1468,6 +1491,16 @@ const Conditions = () => {
                   </Field>
                   <Field>
                     <FieldLabel>Image</FieldLabel>
+                    <div className="flex flex-wrap gap-2 items-center mt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMediaGalleryOpen(true)}
+                      >
+                        Select from gallery
+                      </Button>
+                    </div>
                     <ImageUploadDropzone
                       onFileSelect={handleDropFile}
                       previewUrl={preview}
@@ -1475,15 +1508,41 @@ const Conditions = () => {
                       accept="image/*"
                     />
                     {preview && (
-                      <div className="mt-2">
+                      <div className="mt-2 relative inline-block">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreview(null);
+                            setImage(null);
+                            setImageMediaId(null);
+                          }}
+                          className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white text-[10px] hover:bg-black"
+                          aria-label="Remove image"
+                        >
+                          ×
+                        </button>
                         <img
                           src={preview}
                           alt="Preview"
-                          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd]"
+                          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd] bg-white"
                         />
                       </div>
                     )}
                   </Field>
+                  <MediaGalleryModal
+                    open={mediaGalleryOpen}
+                    onOpenChange={setMediaGalleryOpen}
+                    multiple={false}
+                    title="Select condition image"
+                    onConfirm={(media) => {
+                      if (media) {
+                        setImageMediaId(media._id != null ? String(media._id) : null);
+                        setPreview(media.url);
+                        setImage(null);
+                      }
+                      setMediaGalleryOpen(false);
+                    }}
+                  />
                   <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
                     <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
                       {loading
@@ -1642,13 +1701,15 @@ const Conditions = () => {
         loading={cascadeDeleteLoading}
       />
 
-      <DeleteModel
-        title="Delete conditions?"
-        description="This action cannot be undone. This will permanently delete the selected conditions."
-        onDelete={handleBulkDeleteConfirmed}
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        loading={loading}
+      <BulkDependencyManagerModal
+        open={bulkManagerOpen}
+        onOpenChange={setBulkManagerOpen}
+        manager={bulkManager}
+        itemsSource={conditions || []}
+        mode="condition"
+        onComplete={() => {
+          setBulkManagerOpen(false);
+        }}
       />
     </div>
   );

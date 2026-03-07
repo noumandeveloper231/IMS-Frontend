@@ -1,6 +1,7 @@
 /**
  * BulkDependencyManagerModal
- * Full-width modal for bulk category deletion: dependency rows, per-item resolve, batch resolve, preview, execute.
+ * Generic full-width modal for bulk deletion with dependency resolution.
+ * Used for both categories and subcategories: dependency rows, per-item resolve, batch resolve, preview, execute.
  * Uses existing ResolveDependenciesDialog and TransferDependenciesDialog for single-item resolution.
  */
 
@@ -24,21 +25,18 @@ import {
   SelectValue,
 } from "@/components/UI/select";
 import { Check, AlertCircle, Loader2 } from "lucide-react";
-import { ResolveDependenciesDialog, TransferDependenciesDialog } from "@/components/ResolveDependenciesDialog";
-import { useBulkDependencyManager } from "@/hooks/useBulkDependencyManager";
-
-const ITEM_STATUS = {
-  NO_DEPS: "no_deps",
-  NEEDS_RESOLUTION: "needs_resolution",
-  RESOLVING: "resolving",
-  RESOLVED: "resolved",
-};
+import {
+  ResolveDependenciesDialog,
+  TransferDependenciesDialog,
+} from "@/components/ResolveDependenciesDialog";
 
 export function BulkDependencyManagerModal({
   open,
   onOpenChange,
   manager,
   categories = [],
+  itemsSource,
+  mode = "category", // "category" | "subcategory" | "brand" | "condition"
   onComplete,
 }) {
   const {
@@ -49,6 +47,9 @@ export function BulkDependencyManagerModal({
     preview,
     error,
     selectedCategoryIds,
+    selectedSubcategoryIds,
+    selectedBrandIds,
+    selectedConditionIds,
     resolvedCount,
     totalCount,
     canProceed,
@@ -70,19 +71,44 @@ export function BulkDependencyManagerModal({
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const selectedSet = useMemo(() => new Set(selectedCategoryIds || []), [selectedCategoryIds]);
+  const selectedIds =
+    selectedCategoryIds ||
+    selectedSubcategoryIds ||
+    selectedBrandIds ||
+    selectedConditionIds ||
+    [];
+
+  const selectedSet = useMemo(() => new Set(selectedIds || []), [selectedIds]);
 
   const resolvingItem = useMemo(
     () => items.find((i) => i.id === resolvingItemId),
     [items, resolvingItemId]
   );
 
+  const entityLabelMap = {
+    category: "category",
+    subcategory: "subcategory",
+    brand: "brand",
+    condition: "condition",
+  };
+  const entityLabelPluralMap = {
+    category: "categories",
+    subcategory: "subcategories",
+    brand: "brands",
+    condition: "conditions",
+  };
+
+  const entityLabel = entityLabelMap[mode] || "item";
+  const entityLabelPlural = entityLabelPluralMap[mode] || "items";
+
+  const sourceItems = itemsSource ?? categories ?? [];
+
   const transferTargetOptions = useMemo(
     () =>
-      (categories || [])
+      (sourceItems || [])
         .filter((c) => c._id && !selectedSet.has(c._id))
         .map((c) => ({ value: c._id, label: c.name })),
-    [categories, selectedSet]
+    [sourceItems, selectedSet]
   );
 
   const handleClose = (open) => {
@@ -152,13 +178,20 @@ export function BulkDependencyManagerModal({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Bulk delete categories</DialogTitle>
+            <DialogTitle>{`Bulk delete ${entityLabelPlural}`}</DialogTitle>
             <DialogDescription>
-              {isAnalyzing && "Checking dependencies for selected categories…"}
-              {isResolving && `Resolve dependencies for each category (${resolvedCount} / ${totalCount} resolved).`}
-              {isReady && !showPreview && "All categories are ready. Proceed to preview or run batch actions."}
+              {isAnalyzing &&
+                `Checking dependencies for selected ${entityLabelPlural}…`}
+              {!isAnalyzing &&
+                !showPreview &&
+                status === STATUS.RESOLVING &&
+                `Resolve dependencies for each ${entityLabel} (${resolvedCount} / ${totalCount} resolved).`}
+              {!isAnalyzing &&
+                !showPreview &&
+                status === STATUS.READY &&
+                `All ${entityLabelPlural} are ready. Proceed to preview.`}
               {showPreview && "Review the summary below before executing."}
-              {isExecuting && "Deleting categories…"}
+              {isExecuting && `Deleting ${entityLabelPlural}…`}
               {isCompleted && "Bulk delete completed."}
             </DialogDescription>
           </DialogHeader>
@@ -181,33 +214,6 @@ export function BulkDependencyManagerModal({
                 <span className="text-sm text-muted-foreground">
                   Progress: <strong>{resolvedCount}</strong> / <strong>{totalCount}</strong> resolved
                 </span>
-                {summary.needsResolution > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={resolveAllWithCascade}>
-                      Resolve all with cascade
-                    </Button>
-                    <UiSelect
-                      value=""
-                      onValueChange={(value) => {
-                        if (value) resolveAllWithTransfer(value);
-                      }}
-                    >
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Resolve all with transfer…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>Transfer to</SelectLabel>
-                          {transferTargetOptions.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </UiSelect>
-                  </div>
-                )}
               </div>
 
               <div className="flex-1 overflow-y-auto min-h-0 space-y-2 py-4">
@@ -235,12 +241,26 @@ export function BulkDependencyManagerModal({
                       <div>
                         <p className="font-medium text-sm">{item.name}</p>
                         {item.status === ITEM_STATUS_ENUM.NO_DEPS && (
-                          <p className="text-xs text-muted-foreground">Category will be deleted.</p>
+                          <p className="text-xs text-muted-foreground">
+                            {mode === "category"
+                              ? "Category will be deleted."
+                              : "Subcategory will be deleted."}
+                          </p>
                         )}
                         {item.status === ITEM_STATUS_ENUM.NEEDS_RESOLUTION && (
                           <p className="text-xs text-muted-foreground">
-                            Has {item.dependenciesCount} dependencies
-                            ({item.subcategoriesCount} subcategories, {item.productsCount} products).
+                            {mode === "category" ? (
+                              <>
+                                Has {item.dependenciesCount} dependencies (
+                                {item.subcategoriesCount} subcategories,{" "}
+                                {item.productsCount} products).
+                              </>
+                            ) : (
+                              <>
+                                Has {item.dependenciesCount} dependencies (
+                                {item.productsCount} products).
+                              </>
+                            )}
                           </p>
                         )}
                         {item.resolutionAction === "cascade" && (
@@ -248,7 +268,12 @@ export function BulkDependencyManagerModal({
                         )}
                         {item.resolutionAction === "transfer" && item.transferTarget && (
                           <p className="text-xs text-emerald-600">
-                            Resolved (Transfer to {transferTargetOptions.find((o) => o.value === item.transferTarget)?.label ?? "category"}).
+                            Resolved (Transfer to{" "}
+                            {transferTargetOptions.find(
+                              (o) => o.value === item.transferTarget
+                            )?.label ??
+                              (mode === "category" ? "category" : "subcategory")}
+                            ).
                           </p>
                         )}
                       </div>
@@ -284,17 +309,60 @@ export function BulkDependencyManagerModal({
                 <div className="rounded-lg border bg-muted/30 p-4 border-gray-300">
                   <h4 className="text-sm font-semibold mb-2">Preview summary</h4>
                   <ul className="text-sm space-y-1">
-                    <li>Categories to delete: <strong>{preview.summary?.categoriesToDelete ?? 0}</strong></li>
-                    <li>Total subcategories affected: <strong>{preview.summary?.totalSubcategoriesAffected ?? 0}</strong></li>
-                    <li>Total products affected: <strong>{preview.summary?.totalProductsAffected ?? 0}</strong></li>
+                    <li>
+                      {(() => {
+                        const summary = preview.summary || {};
+                        let count = 0;
+                        if (mode === "category") count = summary.categoriesToDelete ?? 0;
+                        else if (mode === "subcategory")
+                          count = summary.subcategoriesToDelete ?? 0;
+                        else if (mode === "brand")
+                          count = summary.brandsToDelete ?? 0;
+                        else if (mode === "condition")
+                          count = summary.conditionsToDelete ?? 0;
+                        return (
+                          <>
+                            {`${entityLabelPlural.charAt(0).toUpperCase()}${entityLabelPlural.slice(
+                              1
+                            )} to delete:`}{" "}
+                            <strong>{count}</strong>
+                          </>
+                        );
+                      })()}
+                    </li>
+                    {mode === "category" && (
+                      <li>
+                        Total subcategories affected:{" "}
+                        <strong>
+                          {preview.summary?.totalSubcategoriesAffected ?? 0}
+                        </strong>
+                      </li>
+                    )}
+                    <li>
+                      Total products affected:{" "}
+                      <strong>{preview.summary?.totalProductsAffected ?? 0}</strong>
+                    </li>
                   </ul>
                 </div>
-                {preview.categories?.length > 0 && (
-                  <div className="rounded-lg border p-3 border-gray-300">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Categories</p>
-                    <p className="text-sm">{preview.categories.map((c) => c.name).join(", ")}</p>
-                  </div>
-                )}
+                {(() => {
+                  let list = [];
+                  if (mode === "category") list = preview.categories || [];
+                  else if (mode === "subcategory") list = preview.subcategories || [];
+                  else if (mode === "brand") list = preview.brands || [];
+                  else if (mode === "condition") list = preview.conditions || [];
+                  if (!list.length) return null;
+                  return (
+                    <div className="rounded-lg border p-3 border-gray-300">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
+                        {entityLabelPlural.charAt(0).toUpperCase() +
+                          entityLabelPlural.slice(1)}
+                      </p>
+                      <p className="text-sm">
+                        {list.map((c) => c.name).join(", ")}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
               <DialogFooter className="border-t pt-4 border-gray-300">
                 <Button type="button" variant="outline" onClick={() => setShowPreview(false)}>
@@ -324,36 +392,77 @@ export function BulkDependencyManagerModal({
       <ResolveDependenciesDialog
         open={singleResolveOpen}
         onOpenChange={setSingleResolveOpen}
-        title="Resolve category dependencies"
+        title={
+          mode === "category"
+            ? "Resolve Category Dependencies"
+            : mode === "subcategory"
+            ? "Resolve Subcategory Dependencies"
+            : mode === "brand"
+            ? "Resolve Brand Dependencies"
+            : "Resolve Condition Dependencies"
+        }
         dependencyData={
           resolvingItem
             ? {
                 id: resolvingItem.id,
                 name: resolvingItem.name,
-                subcategoriesCount: resolvingItem.subcategoriesCount ?? 0,
+                subcategoriesCount:
+                  mode === "category" ? resolvingItem.subcategoriesCount ?? 0 : 0,
                 productsCount: resolvingItem.productsCount ?? 0,
               }
             : null
         }
-        childLabel="subcategories"
+        childLabel={mode === "category" ? "subcategories" : ""}
         linkedLabel="linked products"
-        transferDescription="Move all subcategories and product links to another category before deleting this one."
-        cascadeDescription="This will permanently delete this category and all its subcategories. This action cannot be undone."
+        transferDescription={
+          mode === "category"
+            ? "Move all subcategories and product links to another category before deleting this one."
+            : mode === "subcategory"
+            ? "Move all product links to another subcategory before deleting this one."
+            : mode === "brand"
+            ? "Move all product links to another brand before deleting this one."
+            : "Move all product links to another condition before deleting this one."
+        }
+        cascadeDescription={
+          mode === "category"
+            ? "This will permanently delete this category and all its subcategories. This action cannot be undone."
+            : mode === "subcategory"
+            ? "This will permanently unlink this subcategory from all products and delete the subcategory. This action cannot be undone."
+            : mode === "brand"
+            ? "This will permanently unlink this brand from all products and delete the brand. This action cannot be undone."
+            : "This will permanently unlink this condition from all products and delete the condition. This action cannot be undone."
+        }
         onChooseTransfer={handleChooseTransfer}
         onChooseCascade={handleChooseCascade}
       />
 
       <TransferDependenciesDialog
         open={singleTransferOpen}
-        onOpenChange={(open) => {
-          if (!open) {
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
             setSingleTransferTargetId("");
             setResolvingItemId(null);
           }
-          setSingleTransferOpen(open);
+          setSingleTransferOpen(isOpen);
         }}
-        title="Transfer category dependencies"
-        description="Select the target category to move all subcategories and product links to."
+        title={
+          mode === "category"
+            ? "Transfer Category Dependencies"
+            : mode === "subcategory"
+            ? "Transfer Subcategory Dependencies"
+            : mode === "brand"
+            ? "Transfer Brand Dependencies"
+            : "Transfer Condition Dependencies"
+        }
+        description={
+          mode === "category"
+            ? "Select the target category to move all subcategories and product links to."
+            : mode === "subcategory"
+            ? "Select the target subcategory to move all product links to."
+            : mode === "brand"
+            ? "Select the target brand to move all product links to."
+            : "Select the target condition to move all product links to."
+        }
         targetOptions={transferTargetOptions}
         value={singleTransferTargetId}
         onValueChange={setSingleTransferTargetId}

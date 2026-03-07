@@ -17,7 +17,8 @@ import {
   PanelLeft,
   User,
   Smartphone,
-  UsersRound
+  UsersRound,
+  Images
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/UI/scroll-area";
@@ -78,29 +79,32 @@ const isManageProductsActive = (pathname) =>
   (pathname.startsWith("/products/") && !pathname.startsWith("/products/list"));
 
 // Single config object: sections with items; items can be links (to) or collapsibles (subItems)
+// permission: optional; if missing, item is visible to all authenticated users
 const SIDEBAR_CONFIG = [
   {
     label: "Overview",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { to: "/reports", label: "Reports", icon: BarChart3 },
+      { to: "/reports", label: "Reports", icon: BarChart3, permission: "report.read" },
     ],
   },
   {
     label: "Inventory Setup",
     items: [
-      { to: "/categories", label: "Categories", icon: Tag },
-      { to: "/subcategories", label: "Subcategories", icon: Layers },
-      { to: "/brands", label: "Brands", icon: ClipboardList },
-      { to: "/conditions", label: "Conditions", icon: ShoppingBasket },
+      { to: "/categories", label: "Categories", icon: Tag, permission: "category.manage" },
+      { to: "/subcategories", label: "Subcategories", icon: Layers, permission: "subcategory.manage" },
+      { to: "/brands", label: "Brands", icon: ClipboardList, permission: "brand.manage" },
+      { to: "/conditions", label: "Conditions", icon: ShoppingBasket, permission: "condition.manage" },
+      { to: "/gallery", label: "Gallery", icon: Images, exact: true },
       {
         key: "products",
         label: "Products",
         icon: Package,
         activeType: "products",
+        permission: "product.read",
         subItems: [
-          { to: "/products", label: "Manage Products", activeType: "manageProducts" },
-          { to: "/products/list", label: "Products list", exact: true },
+          { to: "/products", label: "Manage Products", activeType: "manageProducts", permission: "product.read" },
+          { to: "/products/list", label: "Products list", exact: true, permission: "product.read" },
         ],
       },
     ],
@@ -113,25 +117,28 @@ const SIDEBAR_CONFIG = [
         label: "Purchases",
         icon: ShoppingBasket,
         activeType: "purchases",
+        permission: "purchase.manage",
         subItems: [
-          { to: "/vendors", label: "Vendors", exact: true },
+          { to: "/vendors", label: "Vendors", exact: true, permission: "vendor.manage" },
           {
             key: "po",
             label: "PO",
+            permission: "purchase.manage",
             subItems: [
-              { to: "/purchase-orders", label: "Add PO", exact: true },
-              { to: "/purchaseorderslist", label: "List of PO", exact: true },
+              { to: "/purchase-orders", label: "Add PO", exact: true, permission: "purchase.manage" },
+              { to: "/purchaseorderslist", label: "List of PO", exact: true, permission: "purchase.manage" },
             ],
           },
           {
             key: "pr",
             label: "PR",
+            permission: "purchase.manage",
             subItems: [
-              { to: "/purchase-receives", label: "Add PR", exact: true },
-              { to: "/purchasereceiveslist", label: "List of PR", exact: true },
+              { to: "/purchase-receives", label: "Add PR", exact: true, permission: "purchase.manage" },
+              { to: "/purchasereceiveslist", label: "List of PR", exact: true, permission: "purchase.manage" },
             ],
           },
-          { to: "/bills", label: "Bills", exact: true },
+          { to: "/bills", label: "Bills", exact: true, permission: "purchase.manage" },
         ],
       },
     ],
@@ -139,23 +146,23 @@ const SIDEBAR_CONFIG = [
   {
     label: "Sales",
     items: [
-      { to: "/sales", label: "POS", icon: ShoppingCart },
-      { to: "/orders", label: "Orders", icon: ClipboardList },
+      { to: "/sales", label: "POS", icon: ShoppingCart, permission: "order.create" },
+      { to: "/orders", label: "Orders", icon: ClipboardList, permission: "order.read" },
     ],
   },
   {
     label: "People / Management",
     items: [
-      { to: "/employees", label: "Employees", icon: Users },
-      { to: "/customers", label: "Customers", icon: UsersRound },
-      { to: "/expenses", label: "Expenses", icon: UsersRound },
-      { to: "/expensecategories", label: "Expense Categories", icon: UsersRound },  
+      { to: "/employees", label: "Employees", icon: Users, permission: "employee.manage" },
+      { to: "/customers", label: "Customers", icon: UsersRound, permission: "customer.manage" },
+      { to: "/expenses", label: "Expenses", icon: UsersRound, permission: "expense.manage" },
+      { to: "/expensecategories", label: "Expense Categories", icon: UsersRound, permission: "expense.manage" },
     ],
   },
   {
     label: "Hardware",
     items: [
-      { to: "/connected-devices", label: "Connected Devices", icon: Smartphone },
+      { to: "/connected-devices", label: "Connected Devices", icon: Smartphone, permission: "device.manage" },
     ],
   },
 ];
@@ -163,6 +170,25 @@ const SIDEBAR_CONFIG = [
 const Sidebar = ({ onCollapseToggle }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useContext(AuthContext);
+
+  const canSee = (item) =>
+    !item.permission || (user?.permissions && user.permissions.includes(item.permission));
+
+  const filterItem = (item) => {
+    if (item.subItems) {
+      const filteredSubs = item.subItems.map((sub) => filterItem(sub)).filter(Boolean);
+      if (filteredSubs.length === 0 && !canSee(item)) return null;
+      return { ...item, subItems: filteredSubs };
+    }
+    return canSee(item) ? item : null;
+  };
+
+  const visibleSections = SIDEBAR_CONFIG.map((section) => {
+    const filteredItems = section.items.map(filterItem).filter(Boolean);
+    return filteredItems.length > 0 ? { ...section, items: filteredItems } : null;
+  }).filter(Boolean);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [openMenus, setOpenMenus] = useState({
     products: false,
@@ -206,7 +232,6 @@ const Sidebar = ({ onCollapseToggle }) => {
     });
   };
 
-  const { user, logout } = useContext(AuthContext);
   const handleLogout = () => {
     setIsCollapsed(false);
     logout();
@@ -417,7 +442,7 @@ const Sidebar = ({ onCollapseToggle }) => {
       <ScrollArea className={`flex-1 py-4 overflow-y-auto no-scrollbar min-h-0 ${isCollapsed ? "px-2" : "px-3"}`}>
         <nav className="space-y-1">
           <div className="font-medium space-y-1">
-            {SIDEBAR_CONFIG.map((section) => (
+            {visibleSections.map((section) => (
               <React.Fragment key={section.label}>
                 <SectionLabel collapsed={isCollapsed}>{section.label}</SectionLabel>
                 {section.items.map((item) => {
@@ -488,7 +513,7 @@ const Sidebar = ({ onCollapseToggle }) => {
 
             {/* Collapsed floating menus */}
             {isCollapsed &&
-              SIDEBAR_CONFIG.flatMap((section) => section.items)
+              visibleSections.flatMap((section) => section.items)
                 .filter((item) => item.subItems && item.key)
                 .map((item) =>
                   openMenus[item.key] && anchorRects[item.key]
@@ -575,11 +600,15 @@ const Sidebar = ({ onCollapseToggle }) => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-gray-300!" />
-              <DropdownMenuItem onClick={() => navigate("/settings")}>
-                <User className="h-4 w-4" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-gray-300!" />
+              {user?.permissions?.includes("settings.manage") && (
+                <>
+                  <DropdownMenuItem onClick={() => navigate("/settings")}>
+                    <User className="h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-gray-300!" />
+                </>
+              )}
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
                 Log out

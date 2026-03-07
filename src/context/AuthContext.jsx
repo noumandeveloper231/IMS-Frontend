@@ -9,7 +9,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
     localStorage.setItem("token", data.token);
-    setUser(data.user || data);
+    const u = data.user || data;
+    setUser(u ? { ...u, permissions: Array.isArray(u.permissions) ? u.permissions : [] } : null);
   };
 
   const logout = () => {
@@ -20,7 +21,8 @@ export const AuthProvider = ({ children }) => {
   const loadUser = async () => {
     try {
       const { data } = await api.get("/auth/me");
-      setUser(data.user || data);
+      const u = data.user || data;
+      setUser(u ? { ...u, permissions: Array.isArray(u.permissions) ? u.permissions : [] } : null);
     } catch {
       logout();
     }

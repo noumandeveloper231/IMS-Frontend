@@ -2023,7 +2023,15 @@ const Products = () => {
                 </div>
               </div>
             </div>
-            <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
+            <DrawerContent
+              className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl"
+              onInteractOutside={(e) => {
+                if (e.target instanceof Element && e.target.closest(".tox-dialog")) e.preventDefault();
+              }}
+              onPointerDownOutside={(e) => {
+                if (e.target instanceof Element && e.target.closest(".tox-dialog")) e.preventDefault();
+              }}
+            >
               <DrawerHeader className="px-4 sm:px-6">
                 <div className="flex items-start justify-between">
                   <div>

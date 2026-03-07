@@ -16,6 +16,8 @@ import {
   ResolveDependenciesDialog,
   TransferDependenciesDialog,
 } from "@/components/ResolveDependenciesDialog";
+import { BulkDependencyManagerModal } from "@/components/BulkDependencyManagerModal";
+import { useBrandBulkDependencyManager } from "@/hooks/useBrandBulkDependencyManager";
 import {
   Drawer,
   DrawerClose,
@@ -38,6 +40,7 @@ import {
 } from "@/components/UI/select";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+import { MediaGalleryModal } from "@/components/media";
 import { useImageModal } from "@/context/ImageModalContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
@@ -94,6 +97,7 @@ const Brands = () => {
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [image, setImage] = useState(null);
+  const [imageLogoId, setImageLogoId] = useState(null);
   const [preview, setPreview] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -112,7 +116,7 @@ const Brands = () => {
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedBrandIds, setSelectedBrandIds] = useState([]);
   const [tableRowSelection, setTableRowSelection] = useState({});
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkManagerOpen, setBulkManagerOpen] = useState(false);
   const [deleteWithDepsOpen, setDeleteWithDepsOpen] = useState(false);
   const [deleteWithDepsData, setDeleteWithDepsData] = useState(null);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
@@ -121,6 +125,7 @@ const Brands = () => {
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
   const [imageUploadState, setImageUploadState] = useState(null);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const imageUploadAbortRef = useRef(null);
   const brandsRef = useRef(EMPTY_ARRAY);
   const brandDrawerOpenRef = useRef(brandDrawerOpen);
@@ -201,11 +206,18 @@ const Brands = () => {
   const brands = brandsData ?? EMPTY_ARRAY;
   brandsRef.current = brands;
 
+  // #region agent log
+  React.useEffect(() => {
+    if (brands.length === 0) return;
+    const first = brands[0];
+    const withLogo = brands.find((b) => b.logo);
+    fetch('http://127.0.0.1:7822/ingest/e80cfdd2-dd48-4002-adf0-6ed47d0de637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7dec65'},body:JSON.stringify({sessionId:'7dec65',runId:'brands-list',hypothesisId:'H7',location:'Brands.jsx:brands-data',message:'Frontend brands image fields',data:{firstBrand:{name:first?.name,logo:first?.logo,imageUrl:first?.imageUrl,image:first?.image},withLogoBrand:withLogo?{name:withLogo.name,logo:withLogo.logo,imageUrl:withLogo.imageUrl,image:withLogo.image}:null,totalBrands:brands.length},timestamp:Date.now()})}).catch(()=>{});
+  }, [brands]);
+  // #endregion agent log
+
   const createMutation = useMutation({
     mutationFn: async (formData) => {
-      const res = await api.post("/brands/create", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post("/brands/create", formData);
       return res.data;
     },
     onSuccess: (data) => {
@@ -244,9 +256,7 @@ const Brands = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, formData }) => {
-      const res = await api.put(`/brands/update/${id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.put(`/brands/update/${id}`, formData);
       return res.data;
     },
     onSuccess: (data) => {
@@ -319,7 +329,34 @@ const Brands = () => {
     },
   });
 
-  const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const loading =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
+
+  const bulkManager = useBrandBulkDependencyManager({
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+      setSelectedBrandIds([]);
+      setTableRowSelection({});
+      const count = data?.deleted?.length ?? 0;
+      toast.success(`Deleted ${count} brands successfully`);
+    },
+    onError: (message) => {
+      toast.error(message || "Bulk delete failed");
+    },
+  });
+
+  useEffect(() => {
+    if (
+      bulkManagerOpen &&
+      selectedBrandIds.length > 0 &&
+      bulkManager.status === "idle"
+    ) {
+      bulkManager.startAnalysis(selectedBrandIds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
+  }, [bulkManagerOpen]);
 
   const handleClick = (id) => {
     navigate(`/products/list?filterType=brand&filter=${id}`);
@@ -328,6 +365,7 @@ const Brands = () => {
   const handleClearForm = () => {
     setName("");
     setImage(null);
+    setImageLogoId(null);
     setPreview(null);
     setEditingId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -383,8 +421,11 @@ const Brands = () => {
 
     const formData = new FormData();
     formData.append("name", trimmedName);
-    if (image) formData.append("image", image);
-
+    if (imageLogoId) {
+      formData.append("logo", String(imageLogoId));
+    } else if (image) {
+      formData.append("image", image);
+    }
     if (editingId) {
       await updateMutation.mutateAsync({ id: editingId, formData });
     } else {
@@ -395,7 +436,11 @@ const Brands = () => {
   const handleEdit = (brand) => {
     setName(brand.name);
     setEditingId(brand._id);
-    setPreview(brand.image ? resolveImageUrl(brand.image) : null);
+    const imageUrl = brand.imageUrl || (brand.logo?.url) || (brand.image && resolveImageUrl(brand.image));
+    setPreview(imageUrl || null);
+    setImageLogoId(
+      brand.logo?._id != null ? String(brand.logo._id) : typeof brand.logo === "string" && brand.logo ? String(brand.logo) : null
+    );
     setImage(null);
     setBrandDrawerOpen(true);
     toast.info(`Editing brand: ${brand.name}`);
@@ -489,27 +534,6 @@ const Brands = () => {
     deleteMutation.mutate(deleteId);
   };
 
-  const handleBulkDeleteConfirmed = async () => {
-    if (!selectedBrandIds.length) {
-      setBulkDeleteOpen(false);
-      return;
-    }
-    setBulkDeleteOpen(false);
-    for (const id of selectedBrandIds) {
-      try {
-        await api.delete(`/brands/delete/${id}`);
-      } catch (err) {
-        const msg = err?.response?.data?.message || err?.message;
-        toast.error(`Failed to delete one brand: ${msg}`);
-      }
-    }
-    queryClient.invalidateQueries({ queryKey: ["brands"] });
-    const count = selectedBrandIds.length;
-    setSelectedBrandIds([]);
-    setTableRowSelection({});
-    toast.success(`Deleted ${count} brands`);
-  };
-
   const handleDropFile = (file) => {
     if (!file) return;
 
@@ -525,6 +549,7 @@ const Brands = () => {
     }
 
     setImage(file);
+    setImageLogoId(null);
     setPreview(URL.createObjectURL(file));
   };
 
@@ -544,6 +569,7 @@ const Brands = () => {
     }
 
     setImage(file);
+    setImageLogoId(null);
     setPreview(URL.createObjectURL(file));
   };
 
@@ -1074,7 +1100,7 @@ const Brands = () => {
     const worksheet = XLSX.utils.json_to_sheet(
       filteredBrands.map((b) => ({
         Name: b.name,
-        Image: b.image ? resolveImageUrl(b.image) : "",
+        Image: b.imageUrl || (b.image ? resolveImageUrl(b.image) : ""),
         "Product Count": b.productCount ?? 0,
         "Created At": b.createdAt ? new Date(b.createdAt).toLocaleDateString() : "",
         "Updated At": b.updatedAt ? new Date(b.updatedAt).toLocaleDateString() : "",
@@ -1099,15 +1125,15 @@ const Brands = () => {
         accessorKey: "image",
         cell: ({ row }) => {
           const brand = row.original;
-          if (!brand.image) {
+          if (!brand.imageUrl && !brand.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
           return (
             <div className="flex items-center">
               <img
-                src={resolveImageUrl(brand.image)}
+                src={brand.imageUrl || resolveImageUrl(brand.image)}
                 alt={brand.name}
-                onClick={() => openImageModal(resolveImageUrl(brand.image))}
+                onClick={() => openImageModal(brand.imageUrl || resolveImageUrl(brand.image))}
                 className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
               />
             </div>
@@ -1246,7 +1272,7 @@ const Brands = () => {
                           if (selectedBrandIds.length === 1) {
                             confirmDelete(selectedBrandIds[0]);
                           } else {
-                            setBulkDeleteOpen(true);
+                            setBulkManagerOpen(true);
                           }
                         }
                       }}
@@ -1485,6 +1511,16 @@ const Brands = () => {
                   </Field>
                   <Field>
                     <FieldLabel>Image</FieldLabel>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMediaGalleryOpen(true)}
+                      >
+                        Select from gallery
+                      </Button>
+                    </div>
                     <ImageUploadDropzone
                       onFileSelect={handleDropFile}
                       previewUrl={preview}
@@ -1492,7 +1528,15 @@ const Brands = () => {
                       accept="image/*"
                     />
                     {preview && (
-                      <div className="mt-2">
+                      <div className="mt-2 relative inline-block">
+                        <button
+                          type="button"
+                          onClick={() => { setPreview(null); setImage(null); setImageLogoId(null); }}
+                          className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white text-[10px] hover:bg-black"
+                          aria-label="Remove image"
+                        >
+                          ×
+                        </button>
                         <img
                           src={preview}
                           alt="Preview"
@@ -1501,6 +1545,20 @@ const Brands = () => {
                       </div>
                     )}
                   </Field>
+                  <MediaGalleryModal
+                    open={mediaGalleryOpen}
+                    onOpenChange={setMediaGalleryOpen}
+                    multiple={false}
+                    title="Select brand logo"
+                    onConfirm={(media) => {
+                      if (media) {
+                        setImageLogoId(media._id != null ? String(media._id) : null);
+                        setPreview(media.url);
+                        setImage(null);
+                      }
+                      setMediaGalleryOpen(false);
+                    }}
+                  />
                   <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
                     <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
                       {loading
@@ -1659,13 +1717,15 @@ const Brands = () => {
         loading={cascadeDeleteLoading}
       />
 
-      <DeleteModel
-        title="Delete brands?"
-        description="This action cannot be undone. This will permanently delete the selected brands."
-        onDelete={handleBulkDeleteConfirmed}
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        loading={loading}
+      <BulkDependencyManagerModal
+        open={bulkManagerOpen}
+        onOpenChange={setBulkManagerOpen}
+        manager={bulkManager}
+        itemsSource={brands || []}
+        mode="brand"
+        onComplete={() => {
+          setBulkManagerOpen(false);
+        }}
       />
     </div>
   );

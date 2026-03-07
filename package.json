@@ -59,6 +59,7 @@
     "html5-qrcode": "^2.3.8",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
+    "jszip": "^3.10.1",
     "lexical": "^0.41.0",
     "lowlight": "^3.3.0",
     "lucide-react": "^0.542.0",

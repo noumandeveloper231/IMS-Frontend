@@ -4,6 +4,7 @@ import "./App.css";
 import { AuthProvider } from "./context/AuthContext";
 import { ScannerProvider } from "./context/ScannerContext";
 import { ImageModalProvider } from "./context/ImageModalContext";
+import { UploadQueueProvider, UploadQueueToast } from "./context/UploadQueueContext";
 import { ImageModal } from "./components/UI/ImageModal";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Categories from "./pages/Categories";
@@ -33,6 +34,7 @@ import Customers from "./pages/Customers";
 import Reports from "./pages/Reports";
 import ConnectedDevices from "./pages/ConnectedDevices";
 import Settings from "./pages/Settings";
+import Gallery from "./pages/Gallery";
 import Connect from "./pages/Connect";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -90,6 +92,7 @@ const ROUTE_CONFIG = [
   { path: "/reports", hideSidebar: false },
   { path: "/connected-devices", hideSidebar: false },
   { path: "/settings", hideSidebar: false },
+  { path: "/gallery", hideSidebar: false },
 ];
 
 function App() {
@@ -127,7 +130,9 @@ function App() {
             <ProtectedRoute>
               <ImageModalProvider>
                 <ScannerProvider>
+                  <UploadQueueProvider>
                   <div className="bg-[#f5f7fb]">
+                    <UploadQueueToast />
                     {hideSidebar ? (
                       <div className="flex w-full h-screen">
                         <ScrollArea className="flex-1 min-w-0 overflow-y-auto h-full lg:h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-white">
@@ -136,36 +141,37 @@ function App() {
                           <Routes>
                             <Route path="/" element={<Dashboard />} />
                             <Route path="/ecom" element={<EcommerceStore />} />
-                            <Route path="/categories" element={<Categories />} />
-                            <Route path="/categories/page/:page" element={<Categories />} />
-                            <Route path="/subcategories" element={<Subcategories />} />
-                            <Route path="/subcategories/page/:page" element={<Subcategories />} />
-                            <Route path="/brands" element={<Brands />} />
-                            <Route path="/brands/page/:page" element={<Brands />} />
-                            <Route path="/conditions" element={<Conditions />} />
-                            <Route path="/conditions/page/:page" element={<Conditions />} />
-                            <Route path="/vendors" element={<Vendors />} />
-                            <Route path="/expenses" element={<Expenses />} />
-                            <Route path="/expensecategories" element={<ExpenseCategories />} />
-                            <Route path="/products" element={<Products />} />
-                            <Route path="/products/page/:page" element={<Products />} />
-                            <Route path="/products/:id" element={<ProductDetail />} />
-                            <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
-                            <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
-                            <Route path="/purchasereceiveslist" element={<PurchaseReceiveList />} />
-                            <Route path="/purchase-receives" element={<PurchaseReceive />} />
-                            <Route path="/bills" element={<BillManagement />} />
-                            <Route path="/sales" element={<Sales />} />
-                            <Route path="/orders" element={<Orders />} />
-                            <Route path="/orders/page/:page" element={<Orders />} />
-                            <Route path="/employees" element={<Employees />} />
-                            <Route path="/employees/page/:page" element={<Employees />} />
-                            <Route path="/customers" element={<Customers />} />
-                            <Route path="/customers/page/:page" element={<Customers />} />
-                            <Route path="/reports" element={<Reports />} />
-                            <Route path="/connected-devices" element={<ConnectedDevices />} />
-                            <Route path="/settings" element={<Settings />} />
-                            <Route path="/products/list" element={<ProductList />} />
+                            <Route path="/categories" element={<ProtectedRoute permission="category.manage"><Categories /></ProtectedRoute>} />
+                            <Route path="/categories/page/:page" element={<ProtectedRoute permission="category.manage"><Categories /></ProtectedRoute>} />
+                            <Route path="/subcategories" element={<ProtectedRoute permission="subcategory.manage"><Subcategories /></ProtectedRoute>} />
+                            <Route path="/subcategories/page/:page" element={<ProtectedRoute permission="subcategory.manage"><Subcategories /></ProtectedRoute>} />
+                            <Route path="/brands" element={<ProtectedRoute permission="brand.manage"><Brands /></ProtectedRoute>} />
+                            <Route path="/brands/page/:page" element={<ProtectedRoute permission="brand.manage"><Brands /></ProtectedRoute>} />
+                            <Route path="/conditions" element={<ProtectedRoute permission="condition.manage"><Conditions /></ProtectedRoute>} />
+                            <Route path="/conditions/page/:page" element={<ProtectedRoute permission="condition.manage"><Conditions /></ProtectedRoute>} />
+                            <Route path="/vendors" element={<ProtectedRoute permission="vendor.manage"><Vendors /></ProtectedRoute>} />
+                            <Route path="/expenses" element={<ProtectedRoute permission="expense.manage"><Expenses /></ProtectedRoute>} />
+                            <Route path="/expensecategories" element={<ProtectedRoute permission="expense.manage"><ExpenseCategories /></ProtectedRoute>} />
+                            <Route path="/products" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
+                            <Route path="/products/page/:page" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
+                            <Route path="/products/:id" element={<ProtectedRoute permission="product.read"><ProductDetail /></ProtectedRoute>} />
+                            <Route path="/purchase-orders" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderForm /></ProtectedRoute>} />
+                            <Route path="/purchaseorderslist" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderList /></ProtectedRoute>} />
+                            <Route path="/purchasereceiveslist" element={<ProtectedRoute permission="purchase.manage"><PurchaseReceiveList /></ProtectedRoute>} />
+                            <Route path="/purchase-receives" element={<ProtectedRoute permission="purchase.manage"><PurchaseReceive /></ProtectedRoute>} />
+                            <Route path="/bills" element={<ProtectedRoute permission="purchase.manage"><BillManagement /></ProtectedRoute>} />
+                            <Route path="/sales" element={<ProtectedRoute permission="order.create"><Sales /></ProtectedRoute>} />
+                            <Route path="/orders" element={<ProtectedRoute permission="order.read"><Orders /></ProtectedRoute>} />
+                            <Route path="/orders/page/:page" element={<ProtectedRoute permission="order.read"><Orders /></ProtectedRoute>} />
+                            <Route path="/employees" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
+                            <Route path="/employees/page/:page" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
+                            <Route path="/customers" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
+                            <Route path="/customers/page/:page" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
+                            <Route path="/reports" element={<ProtectedRoute permission="report.read"><Reports /></ProtectedRoute>} />
+                            <Route path="/connected-devices" element={<ProtectedRoute permission="device.manage"><ConnectedDevices /></ProtectedRoute>} />
+                            <Route path="/settings" element={<ProtectedRoute permission="settings.manage"><Settings /></ProtectedRoute>} />
+                            <Route path="/gallery" element={<Gallery />} />
+                            <Route path="/products/list" element={<ProtectedRoute permission="product.read"><ProductList /></ProtectedRoute>} />
                             <Route path="*" element={<NotFound />} />
                           </Routes>
                         </ScrollArea>
@@ -194,38 +200,39 @@ function App() {
                           <Routes>
                             <Route path="/" element={<Dashboard />} />
                             <Route path="/ecom" element={<EcommerceStore />} />
-                            <Route path="/categories" element={<Categories />} />
-                            <Route path="/categories/page/:page" element={<Categories />} />
-                            <Route path="/subcategories" element={<Subcategories />} />
-                            <Route path="/subcategories/page/:page" element={<Subcategories />} />
-                            <Route path="/brands" element={<Brands />} />
-                            <Route path="/brands/page/:page" element={<Brands />} />
-                            <Route path="/conditions" element={<Conditions />} />
-                            <Route path="/conditions/page/:page" element={<Conditions />} />
-                            <Route path="/vendors" element={<Vendors />} />
-                            <Route path="/expenses" element={<Expenses />} />
-                            <Route path="/expensecategories" element={<ExpenseCategories />} />
-                            <Route path="/products" element={<Products />} />
-                            <Route path="/products/page/:page" element={<Products />} />
-                            <Route path="/products/:id" element={<ProductDetail />} />
-                            <Route path="/purchase-orders" element={<PurchaseOrderForm />} />
-                            <Route path="/purchaseorderslist" element={<PurchaseOrderList />} />
-                            <Route path="/purchasereceiveslist" element={<PurchaseReceiveList />} />
-                            <Route path="/purchase-receives" element={<PurchaseReceive />} />
-                            <Route path="/bills" element={<BillManagement />} />
-                            <Route path="/sales" element={<Sales />} />
-                            <Route path="/orders" element={<Orders />} />
-                            <Route path="/orders/page/:page" element={<Orders />} />
-                            <Route path="/employees" element={<Employees />} />
-                            <Route path="/employees/page/:page" element={<Employees />} />
-                            <Route path="/customers" element={<Customers />} />
-                            <Route path="/customers/page/:page" element={<Customers />} />
-                            <Route path="/reports" element={<Reports />} />
-                            <Route path="/connected-devices" element={<ConnectedDevices />} />
-                            <Route path="/settings" element={<Settings />} />
-                            <Route path="/products/list" element={<ProductList />} />
-                            <Route path="/products/filter/:type/:id" element={<ProductList />} />
-                            <Route path="/products/stock/:status" element={<ProductList />} />
+                            <Route path="/categories" element={<ProtectedRoute permission="category.manage"><Categories /></ProtectedRoute>} />
+                            <Route path="/categories/page/:page" element={<ProtectedRoute permission="category.manage"><Categories /></ProtectedRoute>} />
+                            <Route path="/subcategories" element={<ProtectedRoute permission="subcategory.manage"><Subcategories /></ProtectedRoute>} />
+                            <Route path="/subcategories/page/:page" element={<ProtectedRoute permission="subcategory.manage"><Subcategories /></ProtectedRoute>} />
+                            <Route path="/brands" element={<ProtectedRoute permission="brand.manage"><Brands /></ProtectedRoute>} />
+                            <Route path="/brands/page/:page" element={<ProtectedRoute permission="brand.manage"><Brands /></ProtectedRoute>} />
+                            <Route path="/conditions" element={<ProtectedRoute permission="condition.manage"><Conditions /></ProtectedRoute>} />
+                            <Route path="/conditions/page/:page" element={<ProtectedRoute permission="condition.manage"><Conditions /></ProtectedRoute>} />
+                            <Route path="/vendors" element={<ProtectedRoute permission="vendor.manage"><Vendors /></ProtectedRoute>} />
+                            <Route path="/expenses" element={<ProtectedRoute permission="expense.manage"><Expenses /></ProtectedRoute>} />
+                            <Route path="/expensecategories" element={<ProtectedRoute permission="expense.manage"><ExpenseCategories /></ProtectedRoute>} />
+                            <Route path="/products" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
+                            <Route path="/products/page/:page" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
+                            <Route path="/products/:id" element={<ProtectedRoute permission="product.read"><ProductDetail /></ProtectedRoute>} />
+                            <Route path="/purchase-orders" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderForm /></ProtectedRoute>} />
+                            <Route path="/purchaseorderslist" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderList /></ProtectedRoute>} />
+                            <Route path="/purchasereceiveslist" element={<ProtectedRoute permission="purchase.manage"><PurchaseReceiveList /></ProtectedRoute>} />
+                            <Route path="/purchase-receives" element={<ProtectedRoute permission="purchase.manage"><PurchaseReceive /></ProtectedRoute>} />
+                            <Route path="/bills" element={<ProtectedRoute permission="purchase.manage"><BillManagement /></ProtectedRoute>} />
+                            <Route path="/sales" element={<ProtectedRoute permission="order.create"><Sales /></ProtectedRoute>} />
+                            <Route path="/orders" element={<ProtectedRoute permission="order.read"><Orders /></ProtectedRoute>} />
+                            <Route path="/orders/page/:page" element={<ProtectedRoute permission="order.read"><Orders /></ProtectedRoute>} />
+                            <Route path="/employees" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
+                            <Route path="/employees/page/:page" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
+                            <Route path="/customers" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
+                            <Route path="/customers/page/:page" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
+                            <Route path="/reports" element={<ProtectedRoute permission="report.read"><Reports /></ProtectedRoute>} />
+                            <Route path="/connected-devices" element={<ProtectedRoute permission="device.manage"><ConnectedDevices /></ProtectedRoute>} />
+                            <Route path="/settings" element={<ProtectedRoute permission="settings.manage"><Settings /></ProtectedRoute>} />
+                            <Route path="/gallery" element={<Gallery />} />
+                            <Route path="/products/list" element={<ProtectedRoute permission="product.read"><ProductList /></ProtectedRoute>} />
+                            <Route path="/products/filter/:type/:id" element={<ProtectedRoute permission="product.read"><ProductList /></ProtectedRoute>} />
+                            <Route path="/products/stock/:status" element={<ProtectedRoute permission="product.read"><ProductList /></ProtectedRoute>} />
                             <Route path="*" element={<NotFound />} />
                           </Routes>
                           </ScrollArea>
@@ -233,6 +240,7 @@ function App() {
                       </ResizablePanelGroup>
                     )}
                   </div>
+                  </UploadQueueProvider>
                 </ScannerProvider>
               </ImageModalProvider>
             </ProtectedRoute>
