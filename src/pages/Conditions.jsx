@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
 import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
@@ -12,6 +12,8 @@ import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-inp
 import { Button } from "@/components/UI/button";
 import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
+import { Textarea } from "@/components/UI/textarea";
+import { Combobox } from "@/components/UI/combobox";
 import {
   ResolveDependenciesDialog,
   TransferDependenciesDialog,
@@ -83,15 +85,63 @@ const isValidImageUrl = (value) => {
 const normalizeKey = (key) =>
   key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
+/** Description textarea with local state so parent doesn't re-render on every keystroke. */
+const DescriptionField = forwardRef(function DescriptionField(
+  { initialValue = "", min: minChars, max: maxChars },
+  ref
+) {
+  const [value, setValue] = useState(initialValue);
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  useImperativeHandle(ref, () => ({
+    getValue: () => value,
+  }), [value]);
+
+  return (
+    <>
+      <Textarea
+        id="condition-description"
+        placeholder="Optional. If provided: 100–350 characters."
+        className="min-h-[80px]"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        maxLength={maxChars}
+      />
+      {value.length > 0 && (
+        <p
+          className={`mt-1 text-sm ${
+            value.length >= minChars && value.length <= maxChars
+              ? "text-green-600"
+              : "text-red-600"
+          }`}
+        >
+          {value.length} / {maxChars} characters
+          {value.length > 0 && value.length < minChars &&
+            ` — min ${minChars} required`}
+        </p>
+      )}
+    </>
+  );
+});
+
 const Conditions = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const nameInputRef = useRef(null);
+  const descriptionFieldRef = useRef(null);
   const navigate = useNavigate();
   const { page: pageParam } = useParams();
   const { openImageModal } = useImageModal();
 
+  const DESCRIPTION_MIN = 100;
+  const DESCRIPTION_MAX = 350;
+
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [tags, setTags] = useState([]);
+  const [exampleProductImages, setExampleProductImages] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [image, setImage] = useState(null);
@@ -100,6 +150,7 @@ const Conditions = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [conditionDrawerOpen, setConditionDrawerOpen] = useState(false);
+  const [showOptionalDetails, setShowOptionalDetails] = useState(false);
   const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [importRows, setImportRows] = useState([]);
   const [importColumns, setImportColumns] = useState([]);
@@ -356,6 +407,11 @@ const Conditions = () => {
     setImage(null);
     setImageMediaId(null);
     setPreview(null);
+    setDescription("");
+    setTags([]);
+    setExampleProductImages([]);
+    setExampleProductImagesPreview(null);
+    setShowOptionalDetails(false);
     setEditingId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -408,8 +464,24 @@ const Conditions = () => {
       }
     }
 
+    const desc = descriptionFieldRef.current?.getValue?.() ?? description ?? "";
+    const trimmedDesc = desc.trim();
+    if (trimmedDesc.length > 0) {
+      if (trimmedDesc.length < DESCRIPTION_MIN) {
+        toast.error(`Description must be at least ${DESCRIPTION_MIN} characters when provided ❌`);
+        return;
+      }
+      if (trimmedDesc.length > DESCRIPTION_MAX) {
+        toast.error(`Description must be at most ${DESCRIPTION_MAX} characters ❌`);
+        return;
+      }
+    }
+
     const formData = new FormData();
     formData.append("name", trimmedName);
+    formData.append("description", desc);
+    formData.append("tags", JSON.stringify(Array.isArray(tags) ? tags : []));
+    formData.append("exampleProductImages", JSON.stringify(Array.isArray(exampleProductImages) ? exampleProductImages : []));
     if (imageMediaId) {
       formData.append("image", String(imageMediaId));
     } else if (image) {
@@ -424,7 +496,15 @@ const Conditions = () => {
   };
 
   const handleEdit = (cond) => {
-    setName(cond.name);
+    setName(cond.name ?? "");
+    setDescription(cond.description ?? "");
+    setTags(Array.isArray(cond.tags) ? [...cond.tags] : []);
+    setExampleProductImages(Array.isArray(cond.exampleProductImages) ? [...cond.exampleProductImages] : []);
+    setShowOptionalDetails(Boolean(
+      (cond.description && cond.description.trim()) ||
+      (Array.isArray(cond.tags) && cond.tags.length > 0) ||
+      (Array.isArray(cond.exampleProductImages) && cond.exampleProductImages.length > 0)
+    ));
     setEditingId(cond._id);
     const imageUrl = cond.imageUrl || (cond.imageRef?.url) || (cond.image && resolveImageUrl(cond.image));
     setPreview(imageUrl || null);
@@ -1027,6 +1107,37 @@ const Conditions = () => {
     }
   };
 
+  const [exampleProductImagesPreview, setExampleProductImagesPreview] = useState(null);
+
+  const handleExampleProductImagesSelect = useCallback(async (files) => {
+    const fileList = Array.isArray(files) ? files : files ? [files] : [];
+    const toAdd = fileList.slice(0, Math.max(0, 2 - exampleProductImages.length));
+    if (!toAdd.length) {
+      if (fileList.length > 0) toast.error("Maximum 2 example product images allowed");
+      return;
+    }
+    for (const file of toAdd) {
+      if (!file?.type?.startsWith("image/")) {
+        toast.error("Please select valid image files");
+        continue;
+      }
+      try {
+        const fd = new FormData();
+        fd.append("image", file);
+        const res = await api.post("/conditions/upload-image", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        const url = res.data?.url;
+        if (url) {
+          setExampleProductImages((prev) => (prev.length >= 2 ? prev : [...prev, url].slice(0, 2)));
+          setExampleProductImagesPreview(url);
+        }
+      } catch (err) {
+        toast.error(err?.response?.data?.message || "Image upload failed");
+      }
+    }
+  }, [exampleProductImages.length]);
+
   const handleImportValidSubmit = async () => {
     const validRows = importRows.filter((row) => row.__status === "valid");
     if (!validRows.length) {
@@ -1543,6 +1654,74 @@ const Conditions = () => {
                       setMediaGalleryOpen(false);
                     }}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionalDetails((v) => !v)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline decoration-1"
+                  >
+                    {showOptionalDetails ? "Hide optional details" : "Add Optional Details"}
+                  </button>
+                  {showOptionalDetails && (
+                    <>
+                  <Field>
+                    <FieldLabel>Description</FieldLabel>
+                    <DescriptionField
+                      ref={descriptionFieldRef}
+                      key={editingId ?? "new"}
+                      initialValue={description}
+                      min={DESCRIPTION_MIN}
+                      max={DESCRIPTION_MAX}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Tags</FieldLabel>
+                    <Combobox
+                      placeholder="Type tags and press Enter, or select"
+                      value={Array.isArray(tags) ? tags : []}
+                      onChange={(val) => setTags(Array.isArray(val) ? val : [])}
+                      multiselect={true}
+                      maxItems={4}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Example Product Images (max 2)</FieldLabel>
+                    <ImageUploadDropzone
+                      onFileSelect={handleExampleProductImagesSelect}
+                      className="mt-1"
+                      accept="image/*"
+                      multiple
+                      limit={2}
+                      disabled={exampleProductImages.length >= 2}
+                      label={exampleProductImages.length >= 2 ? "Maximum 2 images" : "Add example image"}
+                      description={exampleProductImages.length >= 2 ? "" : "or click to browse"}
+                    />
+                    {exampleProductImages.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {exampleProductImages.map((url, idx) => (
+                          <div key={idx} className="relative inline-block">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExampleProductImages((prev) => prev.filter((_, i) => i !== idx));
+                                setExampleProductImagesPreview(null);
+                              }}
+                              className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white text-[10px] hover:bg-black"
+                              aria-label="Remove image"
+                            >
+                              ×
+                            </button>
+                            <img
+                              src={url}
+                              alt={`Example ${idx + 1}`}
+                              className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd] bg-white"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Field>
+                    </>
+                  )}
                   <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
                     <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
                       {loading

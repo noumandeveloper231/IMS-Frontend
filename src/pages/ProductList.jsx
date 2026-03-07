@@ -541,10 +541,12 @@ const ProductList = () => {
           {/* Brands */}
           <Collapsible defaultOpen className="group border-b border-gray-100 pb-3">
             <div className="flex items-center gap-2">
-              <CollapsibleTrigger className="flex items-center gap-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
-                <span className="w-15 sm:w-20 lg:w-25">Brands</span>
+              <CollapsibleTrigger className="w-full flex items-center justify-between gap-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
+                <span className="">Brands</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent className="pt-2 space-y-2 px-2">
               <Input
                 type="text"
                 placeholder="Search..."
@@ -552,48 +554,50 @@ const ProductList = () => {
                 onChange={(e) => setBrandSearch(e.target.value)}
                 className="h-8 flex-1 text-xs"
               />
-            </div>
-            <CollapsibleContent className="pt-2 space-y-2 max-h-48 overflow-y-auto">
-              {brands
-                .filter((b) => {
-                  const term = brandSearch.toLowerCase().trim();
-                  if (!term) return true;
-                  return b.name?.toLowerCase().includes(term);
-                })
-                .map((b) => {
-                  const count = brandCounts[b._id] ?? 0;
-                  const checked = filterBrandIds.includes(b._id);
-                  if (count === 0) return null;
-                  return (
-                    <label
-                      key={b._id}
-                      className="flex cursor-pointer items-center gap-3 rounded-md py-1.5 hover:bg-gray-50"
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(checked) => {
-                          setFilterBrandIds((prev) =>
-                            checked ? [...prev, b._id] : prev.filter((id) => id !== b._id)
-                          );
-                        }}
-                      />
-                      <span className="text-sm text-gray-700">{b.name} ({count})</span>
-                    </label>
-                  );
-                })}
-              {brands.length === 0 && (
-                <p className="text-xs text-gray-500 py-1">No brands</p>
-              )}
+              <div className="overflow-y-auto max-h-48">
+                {brands
+                  .filter((b) => {
+                    const term = brandSearch.toLowerCase().trim();
+                    if (!term) return true;
+                    return b.name?.toLowerCase().includes(term);
+                  })
+                  .map((b) => {
+                    const count = brandCounts[b._id] ?? 0;
+                    const checked = filterBrandIds.includes(b._id);
+                    if (count === 0) return null;
+                    return (
+                      <label
+                        key={b._id}
+                        className="flex cursor-pointer items-center gap-3 rounded-md py-1.5 hover:bg-gray-50"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(checked) => {
+                            setFilterBrandIds((prev) =>
+                              checked ? [...prev, b._id] : prev.filter((id) => id !== b._id)
+                            );
+                          }}
+                        />
+                        <span className="text-sm text-gray-700">{b.name} ({count})</span>
+                      </label>
+                    );
+                  })}
+                {brands.length === 0 && (
+                  <p className="text-xs text-gray-500 py-1">No brands</p>
+                )}
+              </div>
             </CollapsibleContent>
           </Collapsible>
 
           {/* Conditions */}
           <Collapsible defaultOpen className="group pb-2">
             <div className="flex items-center gap-2">
-              <CollapsibleTrigger className="flex items-center gap-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
-                <span className="w-15 sm:w-20 lg:w-25">Condition</span>
+              <CollapsibleTrigger className="w-full flex items-center justify-between gap-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-gray-700">
+                <span className="">Condition</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent className="pt-2 space-y-2 px-2">
               <Input
                 type="text"
                 placeholder="Search..."
@@ -601,8 +605,7 @@ const ProductList = () => {
                 onChange={(e) => setConditionSearch(e.target.value)}
                 className="h-8 flex-1 text-xs"
               />
-            </div>
-            <CollapsibleContent className="pt-2 space-y-2 max-h-48 overflow-y-auto">
+              <div className="overflow-y-auto max-h-48">
               {conditions
                 .filter((c) => {
                   const term = conditionSearch.toLowerCase().trim();
@@ -628,8 +631,9 @@ const ProductList = () => {
                       />
                       <span className="text-sm text-gray-700">{c.name} ({count})</span>
                     </label>
-                  );
-                })}
+                    );
+                  })}
+              </div>
               {conditions.length === 0 && (
                 <p className="text-xs text-gray-500 py-1">No conditions</p>
               )}

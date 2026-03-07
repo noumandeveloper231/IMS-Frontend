@@ -53,7 +53,7 @@ export default function Gallery() {
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false);
-  const [gridColumns, setGridColumns] = React.useState(4);
+  const [gridColumns, setGridColumns] = React.useState(localStorage.getItem("galleryGridColumns") ? Number(localStorage.getItem("galleryGridColumns")) : 4);
   const [sortOrder, setSortOrder] = React.useState("newest");
   const [monthFilter, setMonthFilter] = React.useState("all");
   const loadMoreRef = React.useRef(null);
@@ -61,6 +61,11 @@ export default function Gallery() {
   const [isDragOver, setIsDragOver] = React.useState(false);
   const dragCounterRef = React.useRef(0);
   const dropZoneRef = React.useRef(null);
+  
+  const handleGridColumnsChange = React.useCallback((value) => {
+    setGridColumns(value);
+    localStorage.setItem("galleryGridColumns", value);
+  }, []);
 
   const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
   const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : "";
@@ -422,9 +427,14 @@ export default function Gallery() {
               </SelectContent>
             </Select>
             <Button
+              type="button"
               variant={selectionMode ? "default" : "outline"}
               // size="sm"
-              onClick={() => setSelectionMode((m) => !m)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectionMode((m) => !m);
+              }}
             >
               <MousePointerClick className="mr-2 h-4 w-4" />
               {selectionMode ? "Select: ON" : "Select"}
@@ -432,7 +442,7 @@ export default function Gallery() {
           </div>
           <Select
             value={String(gridColumns)}
-            onValueChange={(v) => setGridColumns(Number(v))}
+            onValueChange={(v) => handleGridColumnsChange(Number(v))}
           >
             <SelectTrigger className="w-[100px] md:w-[110px] lg:w-[125px] whitespace-nowrap bg-white">
               <span className="flex items-center gap-1.5">
@@ -574,7 +584,7 @@ export default function Gallery() {
                     onViewImage={openImageModal}
                     multiple
                     selectionMode={selectionMode}
-                    selectOnCardClick={false}
+                    selectOnCardClick={selectionMode}
                     columns={gridColumns}
                     className="min-h-[280px]"
                   />

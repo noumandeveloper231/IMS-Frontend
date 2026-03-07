@@ -35,7 +35,6 @@ export function SubcategoryBulkDependencyManagerModal({
     status,
     summary,
     items,
-    preview,
     error,
     selectedSubcategoryIds,
     resolvedCount,
@@ -45,7 +44,6 @@ export function SubcategoryBulkDependencyManagerModal({
     setResolvingItem,
     resolveAllWithCascade,
     resolveAllWithTransfer,
-    fetchPreview,
     executeBulkDelete,
     reset,
     STATUS,
@@ -56,8 +54,6 @@ export function SubcategoryBulkDependencyManagerModal({
   const [singleTransferOpen, setSingleTransferOpen] = useState(false);
   const [singleTransferTargetId, setSingleTransferTargetId] = useState("");
   const [resolvingItemId, setResolvingItemId] = useState(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
 
   const selectedSet = useMemo(
     () => new Set(selectedSubcategoryIds || []),
@@ -83,7 +79,6 @@ export function SubcategoryBulkDependencyManagerModal({
       setSingleResolveOpen(false);
       setSingleTransferOpen(false);
       setResolvingItemId(null);
-      setShowPreview(false);
       onOpenChange?.(false);
     }
   };
@@ -116,18 +111,9 @@ export function SubcategoryBulkDependencyManagerModal({
     setResolvingItemId(null);
   };
 
-  const handleProceedToPreview = async () => {
-    if (!canProceed) return;
-    setPreviewLoading(true);
-    const data = await fetchPreview();
-    setPreviewLoading(false);
-    if (data) setShowPreview(true);
-  };
-
   const handleExecute = async () => {
     const success = await executeBulkDelete();
     if (success) {
-      setShowPreview(false);
       onComplete?.();
       handleClose(false);
     }
@@ -145,10 +131,7 @@ export function SubcategoryBulkDependencyManagerModal({
             <DialogDescription>
               {isAnalyzing && "Checking dependencies for selected subcategories…"}
               {!isAnalyzing &&
-                !showPreview &&
                 `Resolve dependencies for each subcategory (${resolvedCount} / ${totalCount} resolved).`}
-              {showPreview &&
-                "Review the summary below before executing."}
               {isExecuting && "Deleting subcategories…"}
             </DialogDescription>
           </DialogHeader>
@@ -165,7 +148,7 @@ export function SubcategoryBulkDependencyManagerModal({
             </div>
           )}
 
-          {!isAnalyzing && items.length > 0 && !showPreview && (
+          {!isAnalyzing && items.length > 0 && (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-gray-300">
                 <span className="text-sm text-muted-foreground">
@@ -284,58 +267,7 @@ export function SubcategoryBulkDependencyManagerModal({
                 <Button
                   type="button"
                   variant="destructive"
-                  disabled={!canProceed || previewLoading}
-                  onClick={handleProceedToPreview}
-                >
-                  {previewLoading ? "Loading…" : "Proceed to preview"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-
-          {showPreview && preview && (
-            <>
-              <div className="space-y-4 py-4 overflow-y-auto">
-                <div className="rounded-lg border bg-muted/30 p-4 border-gray-300">
-                  <h4 className="text-sm font-semibold mb-2">Preview summary</h4>
-                  <ul className="text-sm space-y-1">
-                    <li>
-                      Subcategories to delete:{" "}
-                      <strong>
-                        {preview.summary?.subcategoriesToDelete ?? 0}
-                      </strong>
-                    </li>
-                    <li>
-                      Total products affected:{" "}
-                      <strong>
-                        {preview.summary?.totalProductsAffected ?? 0}
-                      </strong>
-                    </li>
-                  </ul>
-                </div>
-                {preview.subcategories?.length > 0 && (
-                  <div className="rounded-lg border p-3 border-gray-300">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Subcategories
-                    </p>
-                    <p className="text-sm">
-                      {preview.subcategories.map((c) => c.name).join(", ")}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <DialogFooter className="border-t pt-4 border-gray-300">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowPreview(false)}
-                >
-                  Back
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={isExecuting}
+                  disabled={!canProceed || isExecuting}
                   onClick={handleExecute}
                 >
                   {isExecuting ? (

@@ -205,16 +205,7 @@ const Brands = () => {
   });
   const brands = brandsData ?? EMPTY_ARRAY;
   brandsRef.current = brands;
-
-  // #region agent log
-  React.useEffect(() => {
-    if (brands.length === 0) return;
-    const first = brands[0];
-    const withLogo = brands.find((b) => b.logo);
-    fetch('http://127.0.0.1:7822/ingest/e80cfdd2-dd48-4002-adf0-6ed47d0de637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7dec65'},body:JSON.stringify({sessionId:'7dec65',runId:'brands-list',hypothesisId:'H7',location:'Brands.jsx:brands-data',message:'Frontend brands image fields',data:{firstBrand:{name:first?.name,logo:first?.logo,imageUrl:first?.imageUrl,image:first?.image},withLogoBrand:withLogo?{name:withLogo.name,logo:withLogo.logo,imageUrl:withLogo.imageUrl,image:withLogo.image}:null,totalBrands:brands.length},timestamp:Date.now()})}).catch(()=>{});
-  }, [brands]);
-  // #endregion agent log
-
+  
   const createMutation = useMutation({
     mutationFn: async (formData) => {
       const res = await api.post("/brands/create", formData);

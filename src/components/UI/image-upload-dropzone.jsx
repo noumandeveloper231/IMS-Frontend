@@ -11,6 +11,8 @@ export function ImageUploadDropzone({
   secondaryLabel = "or click to browse",
   disabled = false,
   multiple = false,
+  /** Max number of files when multiple is true. Default 6. Ignored when multiple is false. */
+  limit = 6,
   onReorderFrontFromIndex,
   // enhanced props for non-image uploads (e.g. excel/csv)
   label,
@@ -34,10 +36,15 @@ export function ImageUploadDropzone({
 
     if (!limitedFiles.length) return
 
+    const capped =
+      multiple && typeof limit === "number" && limit > 0
+        ? limitedFiles.slice(0, limit)
+        : limitedFiles
+
     if (multiple) {
-      onFileSelect(limitedFiles)
+      onFileSelect(capped)
     } else {
-      onFileSelect(limitedFiles[0])
+      onFileSelect(capped[0])
     }
   }
 

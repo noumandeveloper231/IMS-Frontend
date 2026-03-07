@@ -44,7 +44,6 @@ export function BulkDependencyManagerModal({
     status,
     summary,
     items,
-    preview,
     error,
     selectedCategoryIds,
     selectedSubcategoryIds,
@@ -57,7 +56,6 @@ export function BulkDependencyManagerModal({
     setResolvingItem,
     resolveAllWithCascade,
     resolveAllWithTransfer,
-    fetchPreview,
     executeBulkDelete,
     reset,
     STATUS,
@@ -68,8 +66,6 @@ export function BulkDependencyManagerModal({
   const [singleTransferOpen, setSingleTransferOpen] = useState(false);
   const [singleTransferTargetId, setSingleTransferTargetId] = useState("");
   const [resolvingItemId, setResolvingItemId] = useState(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
 
   const selectedIds =
     selectedCategoryIds ||
@@ -117,7 +113,6 @@ export function BulkDependencyManagerModal({
       setSingleResolveOpen(false);
       setSingleTransferOpen(false);
       setResolvingItemId(null);
-      setShowPreview(false);
       onOpenChange?.(false);
     }
   };
@@ -150,18 +145,9 @@ export function BulkDependencyManagerModal({
     setResolvingItemId(null);
   };
 
-  const handleProceedToPreview = async () => {
-    if (!canProceed) return;
-    setPreviewLoading(true);
-    const data = await fetchPreview();
-    setPreviewLoading(false);
-    if (data) setShowPreview(true);
-  };
-
   const handleExecute = async () => {
     const success = await executeBulkDelete();
     if (success) {
-      setShowPreview(false);
       onComplete?.();
       handleClose(false);
     }
@@ -183,14 +169,11 @@ export function BulkDependencyManagerModal({
               {isAnalyzing &&
                 `Checking dependencies for selected ${entityLabelPlural}…`}
               {!isAnalyzing &&
-                !showPreview &&
                 status === STATUS.RESOLVING &&
                 `Resolve dependencies for each ${entityLabel} (${resolvedCount} / ${totalCount} resolved).`}
               {!isAnalyzing &&
-                !showPreview &&
                 status === STATUS.READY &&
-                `All ${entityLabelPlural} are ready. Proceed to preview.`}
-              {showPreview && "Review the summary below before executing."}
+                `All ${entityLabelPlural} are ready. Click Delete all to confirm.`}
               {isExecuting && `Deleting ${entityLabelPlural}…`}
               {isCompleted && "Bulk delete completed."}
             </DialogDescription>
@@ -208,7 +191,7 @@ export function BulkDependencyManagerModal({
             </div>
           )}
 
-          {!isAnalyzing && items.length > 0 && !showPreview && (
+          {!isAnalyzing && items.length > 0 && (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-gray-300">
                 <span className="text-sm text-muted-foreground">
@@ -294,84 +277,7 @@ export function BulkDependencyManagerModal({
                 <Button
                   type="button"
                   variant="destructive"
-                  disabled={!canProceed || previewLoading}
-                  onClick={handleProceedToPreview}
-                >
-                  {previewLoading ? "Loading…" : "Proceed to preview"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-
-          {showPreview && preview && (
-            <>
-              <div className="space-y-4 py-4 overflow-y-auto">
-                <div className="rounded-lg border bg-muted/30 p-4 border-gray-300">
-                  <h4 className="text-sm font-semibold mb-2">Preview summary</h4>
-                  <ul className="text-sm space-y-1">
-                    <li>
-                      {(() => {
-                        const summary = preview.summary || {};
-                        let count = 0;
-                        if (mode === "category") count = summary.categoriesToDelete ?? 0;
-                        else if (mode === "subcategory")
-                          count = summary.subcategoriesToDelete ?? 0;
-                        else if (mode === "brand")
-                          count = summary.brandsToDelete ?? 0;
-                        else if (mode === "condition")
-                          count = summary.conditionsToDelete ?? 0;
-                        return (
-                          <>
-                            {`${entityLabelPlural.charAt(0).toUpperCase()}${entityLabelPlural.slice(
-                              1
-                            )} to delete:`}{" "}
-                            <strong>{count}</strong>
-                          </>
-                        );
-                      })()}
-                    </li>
-                    {mode === "category" && (
-                      <li>
-                        Total subcategories affected:{" "}
-                        <strong>
-                          {preview.summary?.totalSubcategoriesAffected ?? 0}
-                        </strong>
-                      </li>
-                    )}
-                    <li>
-                      Total products affected:{" "}
-                      <strong>{preview.summary?.totalProductsAffected ?? 0}</strong>
-                    </li>
-                  </ul>
-                </div>
-                {(() => {
-                  let list = [];
-                  if (mode === "category") list = preview.categories || [];
-                  else if (mode === "subcategory") list = preview.subcategories || [];
-                  else if (mode === "brand") list = preview.brands || [];
-                  else if (mode === "condition") list = preview.conditions || [];
-                  if (!list.length) return null;
-                  return (
-                    <div className="rounded-lg border p-3 border-gray-300">
-                      <p className="text-xs font-medium text-muted-foreground mb-2">
-                        {entityLabelPlural.charAt(0).toUpperCase() +
-                          entityLabelPlural.slice(1)}
-                      </p>
-                      <p className="text-sm">
-                        {list.map((c) => c.name).join(", ")}
-                      </p>
-                    </div>
-                  );
-                })()}
-              </div>
-              <DialogFooter className="border-t pt-4 border-gray-300">
-                <Button type="button" variant="outline" onClick={() => setShowPreview(false)}>
-                  Back
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={isExecuting}
+                  disabled={!canProceed || isExecuting}
                   onClick={handleExecute}
                 >
                   {isExecuting ? (

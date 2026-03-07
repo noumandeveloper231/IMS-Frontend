@@ -440,10 +440,10 @@ const Products = () => {
 
   const loading = deleteMutation.isPending;
 
-  const handleEdit = (p) => {
+  const handleEdit = React.useCallback((p) => {
     setEditingProduct(p);
     setProductDrawerOpen(true);
-  };
+  }, [setEditingProduct, setProductDrawerOpen]);
 
   const filteredProducts = (products || []).filter((p) => {
     const query = search.toLowerCase();
@@ -537,9 +537,9 @@ const Products = () => {
           }
           return (
             <img
-              src={resolveImageUrl(primaryImage)}
+              src={p.imageUrl || resolveImageUrl(primaryImage)}
               alt={p.title}
-              onClick={() => openImageModal(resolveImageUrl(primaryImage))}
+              onClick={() => openImageModal(p.imageUrl || resolveImageUrl(primaryImage))}
               className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
             />
           );

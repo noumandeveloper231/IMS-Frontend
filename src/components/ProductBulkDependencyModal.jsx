@@ -4,7 +4,7 @@
  * and which are linked to orders (blocked). No transfer/cascade - only delete no_deps.
  */
 
-import React, { useState } from "react";
+import React from "react";
 import {
   Dialog,
   DialogContent,
@@ -32,41 +32,26 @@ export function ProductBulkDependencyModal({
     status,
     summary,
     items,
-    preview,
     error,
     noDepsCount,
     totalCount,
     canProceed,
-    fetchPreview,
     executeBulkDelete,
     reset,
     STATUS,
     ITEM_STATUS: ITEM_STATUS_ENUM,
   } = manager;
 
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
-
   const handleClose = (isOpen) => {
     if (!isOpen) {
       reset();
-      setShowPreview(false);
       onOpenChange?.(false);
     }
-  };
-
-  const handleProceedToPreview = async () => {
-    if (!canProceed) return;
-    setPreviewLoading(true);
-    const data = await fetchPreview();
-    setPreviewLoading(false);
-    if (data) setShowPreview(true);
   };
 
   const handleExecute = async () => {
     const success = await executeBulkDelete();
     if (success) {
-      setShowPreview(false);
       onComplete?.();
       handleClose(false);
     }
@@ -84,9 +69,8 @@ export function ProductBulkDependencyModal({
           <DialogTitle>Bulk delete products</DialogTitle>
           <DialogDescription>
             {isAnalyzing && "Checking order dependencies for selected products…"}
-            {isReady && !showPreview &&
-              `${noDepsCount} product(s) can be deleted, ${summary.needsResolution ?? 0} are linked to orders and cannot be deleted.`}
-            {showPreview && "Review the summary below before executing."}
+            {isReady &&
+              `${noDepsCount} product(s) can be deleted, ${summary.needsResolution ?? 0} are linked to orders and cannot be deleted. Click Delete to confirm.`}
             {isExecuting && "Deleting products…"}
             {isCompleted && "Bulk delete completed."}
           </DialogDescription>
@@ -104,7 +88,7 @@ export function ProductBulkDependencyModal({
           </div>
         )}
 
-        {!isAnalyzing && items.length > 0 && !showPreview && (
+        {!isAnalyzing && items.length > 0 && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-gray-300">
               <span className="text-sm text-muted-foreground">
@@ -155,46 +139,7 @@ export function ProductBulkDependencyModal({
               <Button
                 type="button"
                 variant="destructive"
-                disabled={!canProceed || previewLoading}
-                onClick={handleProceedToPreview}
-              >
-                {previewLoading ? "Loading…" : "Proceed to preview"}
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-
-        {showPreview && preview && (
-          <>
-            <div className="space-y-4 py-4 overflow-y-auto">
-              <div className="rounded-lg border bg-muted/30 p-4 border-gray-300">
-                <h4 className="text-sm font-semibold mb-2">Preview summary</h4>
-                <ul className="text-sm space-y-1">
-                  <li>
-                    Products to delete: <strong>{preview.summary?.toDelete ?? 0}</strong>
-                  </li>
-                  {preview.summary?.blocked > 0 && (
-                    <li>
-                      Products linked to orders (skipped): <strong>{preview.summary.blocked}</strong>
-                    </li>
-                  )}
-                </ul>
-              </div>
-              {preview.toDelete?.length > 0 && (
-                <div className="rounded-lg border p-3 border-gray-300">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Products to delete</p>
-                  <p className="text-sm">{preview.toDelete.map((p) => p.name).join(", ")}</p>
-                </div>
-              )}
-            </div>
-            <DialogFooter className="border-t pt-4 border-gray-300">
-              <Button type="button" variant="outline" onClick={() => setShowPreview(false)}>
-                Back
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={isExecuting || (preview.summary?.toDelete ?? 0) === 0}
+                disabled={!canProceed || isExecuting}
                 onClick={handleExecute}
               >
                 {isExecuting ? (

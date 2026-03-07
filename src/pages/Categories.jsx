@@ -542,26 +542,6 @@ const Categories = () => {
     setPreview(URL.createObjectURL(file));
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.type?.startsWith("image/")) {
-      toast.error("Please upload a valid image file ❌");
-      return;
-    }
-
-    const maxSizeInMB = 2;
-    if (file.size > maxSizeInMB * 1024 * 1024) {
-      toast.error(`Image must be smaller than ${maxSizeInMB} MB ❌`);
-      return;
-    }
-
-    setImage(file);
-    setImageMediaId(null);
-    setPreview(URL.createObjectURL(file));
-  };
-
   const filteredCategories = useMemo(
     () =>
       (categories || []).filter((c) =>
@@ -851,17 +831,6 @@ const Categories = () => {
             );
           }
           if (isImageCol) {
-            const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "").toString().trim();
-            const imgErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "image");
-            const imgError = Boolean(imgErrorKey);
-            const imgFulfilled = !imgError;
-            const imgErrorMsg = imgErrorKey
-              ? (rowData.__errors[imgErrorKey] === "Invalid URL"
-                ? "Invalid URL"
-                : rowData.__errors[imgErrorKey] === "Required"
-                  ? "Field is required"
-                  : rowData.__errors[imgErrorKey])
-              : "Field is required";
             return (
               <div className="flex gap-1.5 min-w-[200px] items-center justify-center w-full">
                 <div className="flex flex-1 items-center gap-1.5 min-w-0">
@@ -1125,7 +1094,6 @@ const Categories = () => {
         accessorKey: "image",
         cell: ({ row }) => {
           const cat = row.original;
-          console.log("cat", cat)
           if (!cat.imageUrl && !cat.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }

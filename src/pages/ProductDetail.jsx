@@ -28,6 +28,12 @@ import {
 import { Separator } from "@/components/UI/separator";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { Check, ExternalLink, Store } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/UI/sheet";
 
 
 const resolveImageUrl = (src) => {
@@ -42,6 +48,7 @@ const ProductDetail = () => {
   const { openImageModal } = useImageModal();
   const [activeIndex, setActiveIndex] = useState(0);
   const [carouselApi, setCarouselApi] = useState(null);
+  const [conditionSheetOpen, setConditionSheetOpen] = useState(false);
 
   const {
     data,
@@ -76,6 +83,17 @@ const ProductDetail = () => {
   const conditionName = product?.condition
     ? (typeof product.condition === "object" ? product.condition.name : product.condition)
     : null;
+
+  const conditionDetail = useMemo(() => {
+    const c = product?.condition;
+    if (!c || typeof c !== "object") return null;
+    return {
+      name: c.name ?? conditionName ?? "Condition",
+      description: c.description ?? "",
+      tags: Array.isArray(c.tags) ? c.tags : [],
+      exampleProductImages: Array.isArray(c.exampleProductImages) ? c.exampleProductImages : [],
+    };
+  }, [product?.condition, conditionName]);
 
   const ourMarketplaceList = useMemo(() => {
     const p = product;
@@ -341,9 +359,16 @@ const ProductDetail = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm text-muted-foreground">Condition:</span>
                       <span className="text-sm font-medium">{conditionName || "—"}</span>
-                      <span className="text-sm underline decoration-primary underline-offset-2 text-primary cursor-pointer">
-                        Details
-                      </span>
+                      {conditionDetail && (
+                        <button
+                          type="button"
+                          onClick={() => setConditionSheetOpen(true)}
+                          className="text-sm underline decoration-primary underline-offset-2 text-primary cursor-pointer hover:no-underline"
+                          aria-label={`View details for ${conditionName}`}
+                        >
+                          Details
+                        </button>
+                      )}
                       <span className="inline-flex items-center gap-1 text-sm text-emerald-600 font-medium">
                         <Check className="h-4 w-4" aria-hidden />
                         Phone Check
@@ -584,6 +609,70 @@ const ProductDetail = () => {
           titleClassName="text-xl font-semibold text-center"
         />
       </div>
+
+      {/* Condition details sheet */}
+      <Sheet open={conditionSheetOpen} onOpenChange={setConditionSheetOpen}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-lg overflow-y-auto rounded-tl-2xl rounded-bl-2xl p-0 flex flex-col"
+        >
+          <div className="p-6 sm:p-8 flex flex-col gap-6">
+            <SheetHeader className="text-left space-y-1 pr-8">
+              <SheetTitle className="text-xl sm:text-2xl font-bold text-foreground">
+                {conditionDetail?.name ?? "Condition"}
+              </SheetTitle>
+            </SheetHeader>
+
+            {conditionDetail?.description && (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {conditionDetail.description}
+              </p>
+            )}
+
+            {conditionDetail?.tags && conditionDetail.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {conditionDetail.tags.map((tag, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="secondary"
+                    className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-foreground"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {conditionDetail?.exampleProductImages && conditionDetail.exampleProductImages.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-foreground">Example product images</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {conditionDetail.exampleProductImages.map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => openImageModal(resolveImageUrl(url))}
+                      className="relative aspect-square rounded-xl overflow-hidden border border-border bg-muted/30 hover:opacity-95 transition-opacity"
+                    >
+                      <img
+                        src={resolveImageUrl(url)}
+                        alt={`Example ${idx + 1}`}
+                        className="w-full h-full object-contain p-2"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!conditionDetail?.description &&
+              (!conditionDetail?.tags || conditionDetail.tags.length === 0) &&
+              (!conditionDetail?.exampleProductImages || conditionDetail.exampleProductImages.length === 0) && (
+                <p className="text-sm text-muted-foreground">No additional details for this condition.</p>
+              )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
