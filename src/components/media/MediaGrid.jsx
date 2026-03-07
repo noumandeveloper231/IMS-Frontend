@@ -31,6 +31,8 @@ export function MediaGrid({
   onViewImage,
   multiple = false,
   selectionMode = false,
+  /** When true, clicking the card toggles selection (e.g. import modal). When false, only checkbox toggles (e.g. Gallery page). */
+  selectOnCardClick = true,
   thumbnailTransform = "w_200,h_200,c_fill",
   columns,
   className,
@@ -57,13 +59,15 @@ export function MediaGrid({
   const handleCardClick = (id, e) => {
     if (!onSelect) return;
     if (e.detail === 2) return;
-    if (selectionMode) toggle(id, e);
+    if (selectOnCardClick) toggle(id, e);
   };
 
   const handleCardDoubleClick = (id, e) => {
-    if (!onSelect) return;
     e.preventDefault();
-    if (!selectionMode) toggle(id, e);
+    if (!selectOnCardClick && onViewImage) {
+      const item = items.find((i) => i._id === id);
+      if (item) onViewImage(item.url || getMediaUrl(item.url, thumbnailTransform));
+    }
   };
 
   const cardClass = cn(
@@ -74,7 +78,7 @@ export function MediaGrid({
   return (
     <div
       className={cn(
-        "grid gap-2 overflow-auto p-2 min-h-[200px]",
+        "grid gap-x-2 gap-y-10 overflow-auto p-2 min-h-[200px]",
         gridClass,
         className
       )}
@@ -110,7 +114,7 @@ export function MediaGrid({
       {items.map((item) => {
         const id = item._id;
         const isSelected = onSelect && selectedIds.includes(id);
-        const showCheckbox = onSelect && (hoveredId === id || isSelected);
+        const showCheckbox = onSelect && (hoveredId === id || isSelected) && (!selectOnCardClick || selectionMode);
         const src = getMediaUrl(item.url, thumbnailTransform);
         const fullUrl = item.url || src;
         const inUse = item.inUse === true;
@@ -121,7 +125,7 @@ export function MediaGrid({
             className={cn(
               cardClass,
               isSelected && "border-primary ring-2 ring-primary",
-              onSelect && "cursor-pointer"
+              onSelect && (selectOnCardClick ? "cursor-pointer" : "cursor-default")
             )}
             onClick={(e) => handleCardClick(id, e)}
             onDoubleClick={(e) => handleCardDoubleClick(id, e)}
@@ -134,6 +138,10 @@ export function MediaGrid({
               className="w-full h-full object-cover"
               loading="lazy"
             />
+            {/* Subtle black overlay only in modal (selectOnCardClick) mode */}
+            {isSelected && selectOnCardClick && (
+              <div className="absolute inset-0 bg-black/30 z-[1]" aria-hidden />
+            )}
             {showCheckbox && (
               <div
                 className="absolute top-1.5 left-1.5 z-10 flex h-5 w-5 items-center justify-center rounded border-0 bg-background/90 shadow"
@@ -179,9 +187,15 @@ export function MediaGrid({
                 </button>
               )}
             </div>
-            {isSelected && !showCheckbox && (
-              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-primary p-0.5">
-                <Check className="h-3 w-3 text-primary-foreground" />
+            {/* Black circle tick in center when selected */}
+            {isSelected && (
+              <span
+                className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
+                aria-hidden
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/80 text-white shadow-lg">
+                  <Check className="h-5 w-5" strokeWidth={2.5} />
+                </span>
               </span>
             )}
           </div>

@@ -32,6 +32,7 @@ import Employees from "./pages/Employees";
 import ExpenseCategories from "./pages/ExpenseCategories";
 import Customers from "./pages/Customers";
 import Reports from "./pages/Reports";
+import UserManagement from "./pages/UserManagement";
 import ConnectedDevices from "./pages/ConnectedDevices";
 import Settings from "./pages/Settings";
 import Gallery from "./pages/Gallery";
@@ -89,6 +90,8 @@ const ROUTE_CONFIG = [
   { path: "/employees/page/:page", hideSidebar: false },
   { path: "/customers", hideSidebar: false },
   { path: "/customers/page/:page", hideSidebar: false },
+  { path: "/users", hideSidebar: false },
+  { path: "/users/page/:page", hideSidebar: false },
   { path: "/reports", hideSidebar: false },
   { path: "/connected-devices", hideSidebar: false },
   { path: "/settings", hideSidebar: false },
@@ -167,6 +170,8 @@ function App() {
                             <Route path="/employees/page/:page" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
                             <Route path="/customers" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
                             <Route path="/customers/page/:page" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
+                            <Route path="/users" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
+                            <Route path="/users/page/:page" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
                             <Route path="/reports" element={<ProtectedRoute permission="report.read"><Reports /></ProtectedRoute>} />
                             <Route path="/connected-devices" element={<ProtectedRoute permission="device.manage"><ConnectedDevices /></ProtectedRoute>} />
                             <Route path="/settings" element={<ProtectedRoute permission="settings.manage"><Settings /></ProtectedRoute>} />
@@ -226,6 +231,8 @@ function App() {
                             <Route path="/employees/page/:page" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
                             <Route path="/customers" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
                             <Route path="/customers/page/:page" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
+                            <Route path="/users" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
+                            <Route path="/users/page/:page" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
                             <Route path="/reports" element={<ProtectedRoute permission="report.read"><Reports /></ProtectedRoute>} />
                             <Route path="/connected-devices" element={<ProtectedRoute permission="device.manage"><ConnectedDevices /></ProtectedRoute>} />
                             <Route path="/settings" element={<ProtectedRoute permission="settings.manage"><Settings /></ProtectedRoute>} />

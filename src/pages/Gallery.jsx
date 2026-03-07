@@ -546,6 +546,7 @@ export default function Gallery() {
                     onViewImage={openImageModal}
                     multiple
                     selectionMode={selectionMode}
+                    selectOnCardClick={false}
                     columns={gridColumns}
                     className="min-h-[280px]"
                   />
