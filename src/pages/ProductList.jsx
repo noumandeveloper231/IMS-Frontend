@@ -55,10 +55,11 @@ const ProductList = () => {
 
   // TanStack Query: filter options
   const { data: categoriesData } = useQuery({
-    queryKey: ["categories-list"],
+    queryKey: ["categories"],
     queryFn: async () => {
-      const res = await api.get("/categories/getall");
-      return res.data?.categories ?? res.data ?? [];
+      const res = await api.get("/categories/getallcount");
+      const raw = res.data?.categories ?? res.data?.data ?? res.data;
+      return Array.isArray(raw) ? raw : [];
     },
   });
   const categories = categoriesData ?? [];

@@ -204,7 +204,6 @@ const Categories = () => {
     },
   });
   const categories = categoriesData ?? EMPTY_ARRAY;
-  console.log("categories", categories)
   categoriesRef.current = categories;
 
   const createMutation = useMutation({
@@ -216,6 +215,7 @@ const Categories = () => {
       if (data?.success) {
         toast.success("Category created successfully ✅");
         queryClient.invalidateQueries({ queryKey: ["categories"] });
+        queryClient.invalidateQueries({ queryKey: ["categories-list"] });
         setCategoryDrawerOpen(false);
         handleClearForm();
       } else {
@@ -255,6 +255,7 @@ const Categories = () => {
       if (data?.success) {
         toast.success("Category updated successfully ✅");
         queryClient.invalidateQueries({ queryKey: ["categories"] });
+        queryClient.invalidateQueries({ queryKey: ["categories-list"] });
         setCategoryDrawerOpen(false);
         handleClearForm();
       } else {
@@ -294,6 +295,7 @@ const Categories = () => {
       if (data?.success) {
         toast.success("Category has been deleted successfully ✅");
         queryClient.invalidateQueries({ queryKey: ["categories"] });
+        queryClient.invalidateQueries({ queryKey: ["categories-list"] });
       } else {
         toast.error("Failed to delete category ❌");
       }
@@ -326,6 +328,7 @@ const Categories = () => {
   const bulkManager = useBulkDependencyManager({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["categories-list"] });
       setSelectedCategoryIds([]);
       setTableRowSelection({});
       const count = data?.deleted?.length ?? 0;
@@ -469,6 +472,7 @@ const Categories = () => {
       if (res.data?.success) {
         toast.success("Category and its dependencies have been deleted successfully ✅");
         queryClient.invalidateQueries({ queryKey: ["categories"] });
+        queryClient.invalidateQueries({ queryKey: ["categories-list"] });
       } else {
         toast.error("Failed to delete category ❌");
       }
@@ -496,6 +500,7 @@ const Categories = () => {
       );
       if (data?.success) {
         queryClient.invalidateQueries({ queryKey: ["categories"] });
+        queryClient.invalidateQueries({ queryKey: ["categories-list"] });
         toast.success("Dependencies transferred and category deleted successfully");
         setDeleteWithDepsOpen(false);
         setTransferDialogOpen(false);
@@ -1056,6 +1061,7 @@ const Categories = () => {
       }));
       await api.post("/categories/createbulk", payload);
       queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["categories-list"] });
       toast.success(`Imported ${payload.length} categories ✅`);
       setImportDrawerOpen(false);
       setImportRows([]);

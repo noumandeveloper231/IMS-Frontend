@@ -8,6 +8,7 @@ import {
   Pencil,
   Trash2,
   CloudUpload,
+  Wand2,
 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
@@ -75,7 +76,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { InfoIcon } from "lucide-react";
 import { useImageModal } from "@/context/ImageModalContext";
 import axios from "axios";
-import { Combobox } from "@/components/UI/combobox";
+import { ProductFormDrawer } from "@/components/ProductFormDrawer";
 import { RichTextEditor } from "@/components/UI/RichTextEditor";
 
 const resolveImageUrl = (src) => {
@@ -218,19 +219,14 @@ function ProductCombobox({
 
 const Products = () => {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef(null);
-  const titleInputRef = useRef(null);
-  const descriptionTextareaRef = useRef(null);
   const { openImageModal } = useImageModal();
   const { page: pageParam } = useParams();
   const navigate = useNavigate();
 
-  const [editingId, setEditingId] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
   const [search, setSearch] = useState("");
-  const [productImages, setProductImages] = useState([]);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [dragImageIndex, setDragImageIndex] = useState(null);
   const [stockFilter, setStockFilter] = useState("all");
   const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
@@ -308,24 +304,6 @@ const Products = () => {
   const [cascadeConfirmOpen, setCascadeConfirmOpen] = useState(false);
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
 
-  const [form, setForm] = useState({
-    title: "",
-    sku: "",
-    asin: "",
-    purchasePrice: "",
-    salePrice: "",
-    quantity: "",
-    description: "",
-    specification: "",
-    competitors: [],
-    modelno: "",
-    category: "",
-    subcategory: "",
-    brand: "",
-    condition: "",
-    refundable: true,
-  });
-
   const effectiveItemsPerPage = useMemo(() => {
     const custom = parseInt(customItemsPerPage, 10);
     if (!isNaN(custom) && custom >= 1 && custom <= 500) return custom;
@@ -360,10 +338,11 @@ const Products = () => {
   const products = productsData ?? EMPTY_ARRAY;
 
   const { data: categoriesData } = useQuery({
-    queryKey: ["categories-list"],
+    queryKey: ["categories"],
     queryFn: async () => {
-      const res = await api.get("/categories/getall");
-      return res.data?.categories ?? res.data ?? [];
+      const res = await api.get("/categories/getallcount");
+      const raw = res.data?.categories ?? res.data?.data ?? res.data;
+      return Array.isArray(raw) ? raw : [];
     },
   });
   const categories = categoriesData ?? [];
@@ -395,105 +374,13 @@ const Products = () => {
   });
   const conditions = conditionsData ?? [];
 
-  // Handle input change
-  const handleChange = (e) => {
-    // e.stopPropagation();
-    // e.preventDefault();
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  useEffect(() => {
-    const asin = form.asin?.trim();
-    const selectedCondition = conditions.find((c) => c._id === form.condition);
-    const conditionName = selectedCondition?.name;
-    const conditionCode = conditionName
-      ? conditionName
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean)
-        .map(word => word.charAt(0).toUpperCase())
-        .join("")
-      : "";
-
-    if (!asin) {
-      setForm((prev) => (prev.sku === "" ? prev : { ...prev, sku: "" }));
-      return;
-    }
-
-    const nextSku = conditionCode ? `AR-${asin}-${conditionCode}` : `AR-${asin}`;
-
-    setForm((prev) => (prev.sku === nextSku ? prev : { ...prev, sku: nextSku }));
-  }, [form.asin, form.condition, conditions]);
-
-  // Options for searchable dropdowns
-  const categoryOptions = categories.map((c) => ({ value: c._id, label: c.name }));
+  // Options for searchable dropdowns (used by table/export only; form has its own in ProductFormDrawer)
+  const categoryOptions = (categories || []).map((c) => ({
+    value: c._id ?? c.id,
+    label: c.name ?? "",
+  }));
   const brandOptions = brands.map((b) => ({ value: b._id, label: b.name }));
   const conditionOptions = conditions.map((c) => ({ value: c._id, label: c.name }));
-
-  // Subcategory options: only those under selected category (or all if none selected)
-  const subcategoryOptionsAll = (subcategories || []).map((s) => ({
-    value: s._id,
-    label: `${s.name} (${s.category?.name ?? ""})`,
-    categoryId: s.category?._id ?? s.category,
-  }));
-  const subcategoryOptions = form.category
-    ? subcategoryOptionsAll.filter((opt) => opt.categoryId === form.category)
-    : subcategoryOptionsAll;
-
-  const handleSingleSelect = (field, selected) => {
-    const value = selected?.value ?? "";
-    setForm((prev) => {
-      const next = { ...prev, [field]: value };
-      if (field === "category") {
-        const sub = subcategories.find((s) => s._id === prev.subcategory);
-        if (sub && (sub.category?._id ?? sub.category) !== value) next.subcategory = "";
-      }
-      return next;
-    });
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async (formData) => {
-      const res = await api.post("/products/create", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      return res.data;
-    },
-    onSuccess: (data) => {
-      if (data?.success) {
-        toast.success("Product added ✅");
-        queryClient.invalidateQueries({ queryKey: ["products"] });
-        setProductDrawerOpen(false);
-        handleClear();
-      } else {
-        toast.error(data?.message || "Error saving product ❌");
-      }
-    },
-    onError: (err) =>
-      toast.error(err.response?.data?.message || "Error saving product ❌"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, formData }) => {
-      const res = await api.put(`/products/update/${id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      return res.data;
-    },
-    onSuccess: (data) => {
-      if (data?.success) {
-        toast.success("Product updated ✅");
-        queryClient.invalidateQueries({ queryKey: ["products"] });
-        setProductDrawerOpen(false);
-        handleClear();
-      } else {
-        toast.error(data?.message || "Error updating product ❌");
-      }
-    },
-    onError: (err) =>
-      toast.error(err.response?.data?.message || "Error updating product ❌"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
@@ -551,141 +438,11 @@ const Products = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
   }, [bulkManagerOpen]);
 
-  const loading = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.title || !form.sku) return toast.error("Title and SKU required ❌");
-
-    const formData = new FormData();
-    const { category, subcategory, brand, condition, competitors, ...rest } = form;
-    if (category) formData.append("category", category);
-    if (subcategory) formData.append("subcategory", subcategory);
-    if (brand) formData.append("brand", brand);
-    if (condition) formData.append("condition", condition);
-    const normalizedCompetitors = (competitors || [])
-      .filter((c) => c && c.label && c.url)
-      .slice(0, 8)
-      .map((c) => ({
-        label: c.label.trim(),
-        url: c.url.trim(),
-      }));
-    if (normalizedCompetitors.length) {
-      formData.append("competitors", JSON.stringify(normalizedCompetitors));
-    }
-    Object.entries(rest).forEach(([key, value]) => formData.append(key, value ?? ""));
-
-    const existingImages = productImages
-      .filter((img) => !img.isNew && img.url)
-      .map((img) => img.url);
-    const newImageFiles = productImages
-      .filter((img) => img.isNew && img.file)
-      .map((img) => img.file);
-
-    if (existingImages.length) {
-      formData.append("existingImages", JSON.stringify(existingImages));
-    }
-    newImageFiles.forEach((file) => formData.append("images", file));
-
-    if (editingId) {
-      await updateMutation.mutateAsync({ id: editingId, formData });
-    } else {
-      await createMutation.mutateAsync(formData);
-    }
-
-    setForm({
-      title: "",
-      sku: "",
-      asin: "",
-      purchasePrice: "",
-      salePrice: "",
-      quantity: "",
-      description: "",
-      specification: "",
-      amazonUrl: "",
-      noonUrl: "",
-      sharafdgUrl: "",
-      carrefourUrl: "",
-      modelno: "",
-      category: "",
-      subcategory: "",
-      brand: "",
-      condition: "",
-      refundable: true,
-    });
-    setEditingId(null);
-    setProductImages((prev) => {
-      prev.forEach((img) => {
-        if (img.isNew && img.previewUrl && img.previewUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(img.previewUrl);
-        }
-      });
-      return [];
-    });
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
+  const loading = deleteMutation.isPending;
 
   const handleEdit = (p) => {
-    // Normalize competitors into array of { label, url }
-    let existingCompetitors = [];
-
-    if (Array.isArray(p.competitors)) {
-      existingCompetitors = p.competitors;
-    } else if (typeof p.competitors === "string") {
-      try {
-        const parsed = JSON.parse(p.competitors);
-        if (Array.isArray(parsed)) {
-          existingCompetitors = parsed;
-        }
-      } catch {
-        existingCompetitors = [];
-      }
-    } else if (p.competitors && typeof p.competitors === "object") {
-      existingCompetitors = Object.entries(p.competitors)
-        .filter(([_, value]) => typeof value === "string" && value)
-        .map(([key, value]) => ({ label: key, url: value }));
-    }
-    setForm({
-      title: p.title,
-      sku: p.sku,
-      asin: p.asin || "",
-      purchasePrice: p.purchasePrice,
-      salePrice: p.salePrice,
-      quantity: p.quantity,
-      description: p.description,
-      specification: p.specification || "",
-      competitors: existingCompetitors,
-      modelno: p.modelno,
-      category: p.category?._id ?? p.category ?? "",
-      subcategory: p.subcategory?._id ?? p.subcategory ?? "",
-      brand: p.brand?._id ?? p.brand ?? "",
-      condition: p.condition?._id ?? p.condition ?? "",
-      refundable: p.refundable !== false,
-    });
-    setEditingId(p._id);
+    setEditingProduct(p);
     setProductDrawerOpen(true);
-    const existingImages = Array.isArray(p.images) && p.images.length
-      ? p.images
-      : p.image
-        ? [p.image]
-        : [];
-    const imageItems = existingImages.map((img, index) => ({
-      id: `existing-${p._id}-${index}`,
-      isNew: false,
-      url: img,
-      previewUrl: resolveImageUrl(img),
-    }));
-    setProductImages(imageItems);
-
-    // 🔹 Toast show
-    toast.info(`Editing product: ${p.title}`);
-
-    // 🔹 Auto-focus title input
-    setTimeout(() => {
-      if (titleInputRef.current) {
-        titleInputRef.current.focus();
-      }
-    }, 100);
   };
 
   const filteredProducts = (products || []).filter((p) => {
@@ -970,6 +727,29 @@ const Products = () => {
             const idx = index + 1;
             acc[`Competitor ${idx} Label`] = c.label || "";
             acc[`Competitor ${idx} URL`] = c.url || "";
+            return acc;
+          }, {});
+        })(),
+        ...(() => {
+          let ourMarketplace = [];
+          if (Array.isArray(p.ourMarketplace)) {
+            ourMarketplace = p.ourMarketplace;
+          } else if (typeof p.ourMarketplace === "string") {
+            try {
+              const parsed = JSON.parse(p.ourMarketplace);
+              if (Array.isArray(parsed)) ourMarketplace = parsed;
+            } catch {
+              ourMarketplace = [];
+            }
+          } else if (p.ourMarketplace && typeof p.ourMarketplace === "object") {
+            ourMarketplace = Object.entries(p.ourMarketplace)
+              .filter(([_, value]) => typeof value === "string" && value)
+              .map(([key, value]) => ({ label: key, url: value }));
+          }
+          return ourMarketplace.slice(0, 6).reduce((acc, c, index) => {
+            const idx = index + 1;
+            acc[`Our marketplace ${idx} Label`] = c.label || "";
+            acc[`Our marketplace ${idx} URL`] = c.url || "";
             return acc;
           }, {});
         })(),
@@ -1715,90 +1495,6 @@ const Products = () => {
     });
     setImageModalOpen(false);
   };
-  const handleProductImageSelect = (fileOrFiles) => {
-    if (!fileOrFiles) return;
-
-    const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
-    if (!filesArray.length) return;
-
-    const newItems = filesArray.map((file, index) => ({
-      id: `new-${Date.now()}-${index}`,
-      isNew: true,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-    setProductImages((prev) => [...prev, ...newItems]);
-  };
-
-  const handleRemoveImageAtIndex = (index) => {
-    setProductImages((prev) => {
-      const next = [...prev];
-      const [removed] = next.splice(index, 1);
-      if (removed && removed.isNew && removed.previewUrl && removed.previewUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(removed.previewUrl);
-      }
-      return next;
-    });
-  };
-
-  const moveItem = (array, from, to) => {
-    const updated = [...array];
-    const [item] = updated.splice(from, 1);
-    updated.splice(to, 0, item);
-    return updated;
-  };
-
-  const handleThumbnailDragStart = (index) => {
-    setDragImageIndex(index);
-  };
-
-  const handleThumbnailDragOver = (event) => {
-    event.preventDefault();
-  };
-
-  const handleThumbnailDrop = (index) => {
-    if (dragImageIndex === null || dragImageIndex === index) return;
-
-    setProductImages((prev) => moveItem(prev, dragImageIndex, index));
-    setDragImageIndex(null);
-  };
-  const handleClearProductImage = () => {
-    setProductImages((prev) => {
-      prev.forEach((img) => {
-        if (img.isNew && img.previewUrl && img.previewUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(img.previewUrl);
-        }
-      });
-      return [];
-    });
-  };
-
-  const handleClear = () => {
-    setForm({
-      title: "",
-      sku: "",
-      asin: "",
-      purchasePrice: "",
-      salePrice: "",
-      quantity: "",
-      description: "",
-      modelno: "",
-      category: "",
-      subcategory: "",
-      brand: "",
-      condition: "",
-      refundable: true,
-    });
-    setEditingId(null);
-    setProductImages((prev) => {
-      prev.forEach((img) => {
-        if (img.isNew && img.previewUrl && img.previewUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(img.previewUrl);
-        }
-      });
-      return [];
-    });
-  };
 
   return (
     <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
@@ -2013,7 +1709,7 @@ const Products = () => {
                     type="button"
                     variant="success"
                     onClick={() => {
-                      handleClear();
+                      setEditingProduct(null);
                       setProductDrawerOpen(true);
                     }}
                     className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
@@ -2023,435 +1719,22 @@ const Products = () => {
                 </div>
               </div>
             </div>
-            <DrawerContent
-              className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl"
-              onInteractOutside={(e) => {
-                if (e.target instanceof Element && e.target.closest(".tox-dialog")) e.preventDefault();
-              }}
-              onPointerDownOutside={(e) => {
-                if (e.target instanceof Element && e.target.closest(".tox-dialog")) e.preventDefault();
-              }}
-            >
-              <DrawerHeader className="px-4 sm:px-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <DrawerTitle>{editingId ? "Edit Product" : "Add New Product"}</DrawerTitle>
-                    <DrawerDescription>
-                      {editingId
-                        ? "Update the product details."
-                        : "Fill in the details below to add a new product."}
-                    </DrawerDescription>
-                  </div>
-                  <DrawerClose asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Close">
-                      ✕
-                    </Button>
-                  </DrawerClose>
-                </div>
-              </DrawerHeader>
-              <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 pb-6 sm:pb-8">
-                <form
-                  onSubmit={handleSubmit}
-                  className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                >
-                  {/* Form Fields */}
-                  <div className="col-span-1 md:col-span-2 w-full">
-                    <Field>
-                      <FieldLabel htmlFor="product-title">Product Title</FieldLabel>
-                    </Field>
-                    <Input
-                      id="product-title"
-                      type="text"
-                      name="title"
-                      placeholder="Product Title"
-                      ref={titleInputRef}
-                      value={form.title}
-                      onChange={handleChange}
-                      className="mt-1 w-full"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Field>
-                      <FieldLabel htmlFor="product-asin">ASIN</FieldLabel>
-                    </Field>
-                    <Input
-                      id="product-asin"
-                      type="text"
-                      name="asin"
-                      maxLength={10}
-                      placeholder="ASIN"
-                      value={form.asin}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          asin: e.target.value.toUpperCase(),
-                        }))
-                      }
-                      className="mt-1 w-full"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
-                    </Field>
-                    <Input
-                      id="product-sku"
-                      type="text"
-                      name="sku"
-                      placeholder="SKU"
-                      value={form.sku}
-                      className="mt-1 w-full"
-                      readOnly
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel htmlFor="product-modelno">Model No.</FieldLabel>
-                    </Field>
-                    <Input
-                      id="product-modelno"
-                      type="text"
-                      name="modelno"
-                      placeholder="Model No."
-                      value={form.modelno}
-                      onChange={handleChange}
-                      className="mt-1 w-full"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel htmlFor="product-purchasePrice">Purchase Price</FieldLabel>
-                    </Field>
-                    <Input
-                      id="product-purchasePrice"
-                      type="number"
-                      min="1"
-                      name="purchasePrice"
-                      placeholder="Purchase Price"
-                      value={form.purchasePrice}
-                      onChange={handleChange}
-                      className="mt-1 w-full"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel htmlFor="product-salePrice">Sale Price</FieldLabel>
-                    </Field>
-                    <Input
-                      id="product-salePrice"
-                      type="number"
-                      min="1"
-                      name="salePrice"
-                      placeholder="Sale Price"
-                      value={form.salePrice}
-                      onChange={handleChange}
-                      className="mt-1 w-full"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel htmlFor="product-quantity">Quantity</FieldLabel>
-                    </Field>
-                    <Input
-                      id="product-quantity"
-                      type="number"
-                      min="0"
-                      name="quantity"
-                      placeholder="Quantity"
-                      value={form.quantity}
-                      onChange={handleChange}
-                      className="mt-1 w-full"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Field>
-                      <FieldLabel className={"mb-1"}>Category</FieldLabel>
-                    </Field>
-                    <Combobox
-                      options={categoryOptions}
-                      value={form.category}
-                      onChange={(value) => {
-                        const selected =
-                          categoryOptions.find((o) => o.value === value) || null;
-                        handleSingleSelect("category", selected);
-                      }}
-                      placeholder="Select Category..."
-                    />
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel className={"mb-1"}>Subcategory</FieldLabel>
-                    </Field>
-                    <div className="flex items-center gap-3">
-                      <Combobox
-                        options={subcategoryOptions}
-                        value={form.subcategory}
-                        onChange={(value) => {
-                          const selected =
-                            subcategoryOptions.find((o) => o.value === value) || null;
-                          handleSingleSelect("subcategory", selected);
-                        }}
-                        placeholder={
-                          form.category ? "Select Subcategory..." : "Select category first"
-                        }
-                        disabled={!form.category}
-                      />
-                      {!form?.category && (
-                        <>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <InfoIcon className="w-6 h-6" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                Select a Category first to see the subcategories
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel className={"mb-1"}>Brand</FieldLabel>
-                    </Field>
-                    <Combobox
-                      options={brandOptions}
-                      value={form.brand}
-                      onChange={(value) => {
-                        const selected =
-                          brandOptions.find((o) => o.value === value) || null;
-                        handleSingleSelect("brand", selected);
-                      }}
-                      placeholder="Select Brand..."
-                    />
-                  </div>
-                  <div>
-                    <Field>
-                      <FieldLabel className={"mb-1"}>Condition</FieldLabel>
-                    </Field>
-                    <Combobox
-                      options={conditionOptions}
-                      value={form.condition}
-                      onChange={(value) => {
-                        const selected =
-                          conditionOptions.find((o) => o.value === value) || null;
-                        handleSingleSelect("condition", selected);
-                      }}
-                      placeholder="Select Condition..."
-                    />
-                  </div>
-                  <div className="col-span-1 md:col-span-2 flex items-center gap-3">
-                    <Field>
-                      <FieldLabel htmlFor="product-refundable" className="mb-0">Refundable</FieldLabel>
-                    </Field>
-                    <Switch
-                      id="product-refundable"
-                      checked={form.refundable}
-                      onCheckedChange={(checked) =>
-                        setForm((prev) => ({ ...prev, refundable: !!checked }))
-                      }
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {form.refundable ? "Yes" : "No"}
-                    </span>
-                  </div>
-                  <div className="col-span-1 md:col-span-2">
-                    <Field>
-                      <FieldLabel htmlFor="product-description">Description</FieldLabel>
-                    </Field>
-                    <div className="mt-1">
-                      <RichTextEditor
-                        value={form.description}
-                        onChange={(html) =>
-                          setForm((prev) => ({ ...prev, description: html }))
-                        }
-                        placeholder="Description"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-1 md:col-span-2">
-                    <Field>
-                      <FieldLabel htmlFor="product-specification">Specification</FieldLabel>
-                    </Field>
-                    <div className="mt-1">
-                      <RichTextEditor
-                        value={form.specification}
-                        onChange={(html) =>
-                          setForm((prev) => ({ ...prev, specification: html }))
-                        }
-                        placeholder="Specification"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-1 md:col-span-2">
-                    <Field>
-                      <FieldLabel>Competitors (max 8)</FieldLabel>
-                    </Field>
-                    <div className="mt-1 space-y-2">
-                      {(form.competitors || []).map((c, idx) => (
-                        <div key={idx} className="flex gap-2 items-center">
-                          <Input
-                            type="text"
-                            placeholder="Label (e.g. Amazon)"
-                            value={c.label || ""}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setForm((prev) => {
-                                const next = [...(prev.competitors || [])];
-                                next[idx] = { ...next[idx], label: value };
-                                return { ...prev, competitors: next };
-                              });
-                            }}
-                          />
-                          <Input
-                            type="url"
-                            placeholder="https://..."
-                            value={c.url || ""}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setForm((prev) => {
-                                const next = [...(prev.competitors || [])];
-                                next[idx] = { ...next[idx], url: value };
-                                return { ...prev, competitors: next };
-                              });
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            // size="icon"
-                            className="text-red-600 w-10 h-10 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => {
-                              setForm((prev) => ({
-                                ...prev,
-                                competitors: (prev.competitors || []).filter((_, i) => i !== idx),
-                              }));
-                            }}
-                            aria-label="Remove competitor"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      {(!form.competitors || form.competitors.length < 8) && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              competitors: [
-                                ...(prev.competitors || []),
-                                { label: "", url: "" },
-                              ],
-                            }))
-                          }
-                        >
-                          Add competitor
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  {/* Image Upload */}
-                  <div className="col-span-1 md:col-span-2">
-                    <Field>
-                      <FieldLabel htmlFor="product-image">Product Image</FieldLabel>
-                    </Field>
-                    <ImageUploadDropzone
-                      onFileSelect={handleProductImageSelect}
-                      previewUrl={productImages[0]?.previewUrl}
-                      accept="image/*"
-                      className="mt-1"
-                      multiple
-                      primaryLabel="Upload product images"
-                      secondaryLabel="You can select multiple images (first will show in list)"
-                      onReorderFrontFromIndex={(index) => {
-                        setProductImages((prev) => moveItem(prev, index, 0));
-                      }}
-                    />
-                    {productImages.length > 0 && (
-                      <>
-                        <div className="mt-3 flex flex-wrap gap-3">
-                          {productImages.map((img, index) => (
-                            <div
-                              key={img.id ?? index}
-                              className="relative w-24 h-24 rounded-md overflow-hidden border border-muted bg-muted/40 cursor-move"
-                              draggable
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData("text/image-index", String(index));
-                                handleThumbnailDragStart(index);
-                              }}
-                              onDragOver={handleThumbnailDragOver}
-                              onDrop={() => handleThumbnailDrop(index)}
-                            >
-                              <img
-                                src={img.previewUrl}
-                                alt={`Selected ${index + 1}`}
-                                className="w-full h-full object-contain"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveImageAtIndex(index)}
-                                className="absolute top-1 right-1 rounded-full bg-white text-red-500 hover:bg-red-50 p-0.5 z-10"
-                                aria-label="Remove image"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleClearProductImage}
-                          className="mt-2 text-sm text-muted-foreground hover:text-foreground underline block"
-                        >
-                          Clear all images
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-4 items-center flex-wrap col-span-1 md:col-span-2">
-                    <Button type="submit" variant="default" disabled={loading}>
-                      {loading
-                        ? "Please wait..."
-                        : editingId
-                          ? "Update Product"
-                          : "Add Product"}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      onClick={handleClear}
-                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md"
-                    >
-                      Clear
-                    </Button>
-                    <DrawerClose asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="ml-auto"
-                      >
-                        Cancel
-                      </Button>
-                    </DrawerClose>
-                  </div>
-                </form>
-              </div>
-            </DrawerContent>
+            {productDrawerOpen && (
+              <ProductFormDrawer
+                open={productDrawerOpen}
+                onOpenChange={setProductDrawerOpen}
+                editingProduct={editingProduct}
+                categories={categories}
+                subcategories={subcategories}
+                brands={brands}
+                conditions={conditions}
+                onSuccess={() => {
+                  queryClient.invalidateQueries({ queryKey: ["products"] });
+                  setProductDrawerOpen(false);
+                  setEditingProduct(null);
+                }}
+              />
+            )}
           </Drawer>
         </div>
 

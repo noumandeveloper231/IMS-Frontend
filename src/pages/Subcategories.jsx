@@ -169,10 +169,11 @@ const Subcategories = () => {
   }, [itemsPerPage, customItemsPerPage]);
 
   const { data: categoriesData } = useQuery({
-    queryKey: ["categories-list"],
+    queryKey: ["categories"],
     queryFn: async () => {
-      const res = await api.get("/categories/getall");
-      return res.data?.categories ?? res.data ?? [];
+      const res = await api.get("/categories/getallcount");
+      const raw = res.data?.categories ?? res.data?.data ?? res.data;
+      return Array.isArray(raw) ? raw : [];
     },
   });
   const categories = categoriesData ?? EMPTY_ARRAY;
@@ -222,7 +223,7 @@ const Subcategories = () => {
   }, [bulkManagerOpen]);
 
   const categoryOptions = useMemo(
-    () => categories.map((c) => ({ value: c._id, label: c.name })),
+    () => categories.map((c) => ({ value: c._id ?? c.id, label: c.name ?? "" })),
     [categories]
   );
 

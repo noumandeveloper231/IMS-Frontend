@@ -170,8 +170,8 @@ function App() {
                             <Route path="/employees/page/:page" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
                             <Route path="/customers" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
                             <Route path="/customers/page/:page" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
-                            <Route path="/users" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
-                            <Route path="/users/page/:page" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
+                            <Route path="/users" element={<ProtectedRoute permission="user.manage"><UserManagement /></ProtectedRoute>} />
+                            <Route path="/users/page/:page" element={<ProtectedRoute permission="user.manage"><UserManagement /></ProtectedRoute>} />
                             <Route path="/reports" element={<ProtectedRoute permission="report.read"><Reports /></ProtectedRoute>} />
                             <Route path="/connected-devices" element={<ProtectedRoute permission="device.manage"><ConnectedDevices /></ProtectedRoute>} />
                             <Route path="/settings" element={<ProtectedRoute permission="settings.manage"><Settings /></ProtectedRoute>} />
@@ -231,8 +231,8 @@ function App() {
                             <Route path="/employees/page/:page" element={<ProtectedRoute permission="employee.manage"><Employees /></ProtectedRoute>} />
                             <Route path="/customers" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
                             <Route path="/customers/page/:page" element={<ProtectedRoute permission="customer.manage"><Customers /></ProtectedRoute>} />
-                            <Route path="/users" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
-                            <Route path="/users/page/:page" element={<ProtectedRoute permission="user.read"><UserManagement /></ProtectedRoute>} />
+                            <Route path="/users" element={<ProtectedRoute permission="user.manage"><UserManagement /></ProtectedRoute>} />
+                            <Route path="/users/page/:page" element={<ProtectedRoute permission="user.manage"><UserManagement /></ProtectedRoute>} />
                             <Route path="/reports" element={<ProtectedRoute permission="report.read"><Reports /></ProtectedRoute>} />
                             <Route path="/connected-devices" element={<ProtectedRoute permission="device.manage"><ConnectedDevices /></ProtectedRoute>} />
                             <Route path="/settings" element={<ProtectedRoute permission="settings.manage"><Settings /></ProtectedRoute>} />

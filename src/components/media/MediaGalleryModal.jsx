@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useContext } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -22,6 +23,7 @@ import {
 import { mediaApi } from "@/api/media";
 import { toast } from "sonner";
 import { Search, Loader2 } from "lucide-react";
+import { AuthContext } from "@/context/AuthContext";
 
 const MEDIA_QUERY_KEY = ["media"];
 
@@ -33,6 +35,8 @@ export function MediaGalleryModal({
   title = "Select image",
 }) {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useContext(AuthContext);
+  const canUpload = currentUser?.permissions?.includes("media.upload");
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
   const [searchDebounced, setSearchDebounced] = React.useState("");
@@ -67,7 +71,13 @@ export function MediaGalleryModal({
       }
     },
     onError: (err) => {
-      toast.error(err?.response?.data?.message || "Upload failed");
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || "";
+      const isPermissionDenied = status === 403 || /not allowed|forbidden|permission/i.test(msg);
+      const errorMessage = isPermissionDenied
+        ? "You don't have permission to upload media."
+        : (msg || "Upload failed");
+      toast.error(errorMessage);
     },
   });
 
@@ -111,11 +121,13 @@ export function MediaGalleryModal({
         </DialogHeader>
         <div className="flex flex-col gap-4 flex-1 min-h-0">
           <div className="flex flex-wrap items-center gap-2">
-            <MediaUpload
-              onFilesSelect={handleUpload}
-              disabled={uploadMutation.isPending}
-              label="Upload"
-            />
+            {canUpload && (
+              <MediaUpload
+                onFilesSelect={handleUpload}
+                disabled={uploadMutation.isPending}
+                label="Upload"
+              />
+            )}
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input

@@ -155,7 +155,7 @@ const SIDEBAR_CONFIG = [
     items: [
       { to: "/employees", label: "Employees", icon: Users, permission: "employee.manage" },
       { to: "/customers", label: "Customers", icon: UsersRound, permission: "customer.manage" },
-      { to: "/users", label: "User Management", icon: User, permission: "user.read" },
+      { to: "/users", label: "User Management", icon: User, permission: "user.manage" },
       { to: "/expenses", label: "Expenses", icon: UsersRound, permission: "expense.manage" },
       { to: "/expensecategories", label: "Expense Categories", icon: UsersRound, permission: "expense.manage" },
     ],

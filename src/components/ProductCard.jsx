@@ -34,7 +34,7 @@ const ProductCard = ({ item, options = {} }) => {
                     <img
                         src={getPrimaryImageUrl(item) || "https://placehold.co/600x400/png"}
                         alt={item.title || "Product image"}
-                        className="h-full w-full object-cover transition-transform duration-200"
+                        className="h-full w-full object-contain transition-transform duration-200"
                     />
                 </div>
                 <div className="flex flex-1 flex-col gap-2 p-4">

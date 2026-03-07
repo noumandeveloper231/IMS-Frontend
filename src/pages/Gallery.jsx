@@ -1,11 +1,13 @@
 import * as React from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useContext } from "react";
 import { Input } from "@/components/UI/input";
 import { MediaUpload } from "@/components/media/MediaUpload";
 import { MediaGrid } from "@/components/media/MediaGrid";
 import { useUploadQueue } from "@/context/UploadQueueContext";
 import { useImageModal } from "@/context/ImageModalContext";
+import { AuthContext } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -39,6 +41,9 @@ function getImageFiles(dataTransfer) {
 
 export default function Gallery() {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useContext(AuthContext);
+  const canUpload = currentUser?.permissions?.includes("media.upload");
+  const canDelete = currentUser?.permissions?.includes("media.delete");
   const { uploadingItems, addUploads } = useUploadQueue();
   const { openImageModal } = useImageModal();
   const [search, setSearch] = React.useState("");
@@ -137,7 +142,10 @@ export default function Gallery() {
       setDeleteId(null);
     },
     onError: (err) => {
-      toast.error(err?.response?.data?.message || "Delete failed");
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || "";
+      const isPermissionDenied = status === 403 || /not allowed|forbidden|permission/i.test(msg);
+      toast.error(isPermissionDenied ? "You don't have permission to delete media." : (msg || "Delete failed"));
       setDeleteId(null);
     },
   });
@@ -155,7 +163,10 @@ export default function Gallery() {
       setBulkDeleteOpen(false);
     },
     onError: (err) => {
-      toast.error(err?.response?.data?.message || "Bulk delete failed");
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || "";
+      const isPermissionDenied = status === 403 || /not allowed|forbidden|permission/i.test(msg);
+      toast.error(isPermissionDenied ? "You don't have permission to delete media." : (msg || "Bulk delete failed"));
       setBulkDeleteOpen(false);
     },
   });
@@ -194,6 +205,10 @@ export default function Gallery() {
       e.stopPropagation();
       dragCounterRef.current = 0;
       setIsDragOver(false);
+      if (!canUpload) {
+        toast.error("You don't have permission to upload media.");
+        return;
+      }
       if (isUploading) return;
       const files = getImageFiles(e.dataTransfer);
       if (files.length === 0) {
@@ -203,7 +218,7 @@ export default function Gallery() {
       addUploads(files);
       toast.success(`${files.length} image(s) added to upload`);
     },
-    [addUploads, isUploading],
+    [addUploads, canUpload, isUploading],
   );
 
   const handleDelete = React.useCallback((id) => {
@@ -295,8 +310,8 @@ export default function Gallery() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Full-page drop zone overlay */}
-      {isDragOver && (
+      {/* Full-page drop zone overlay - only when user can upload */}
+      {canUpload && isDragOver && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm border-4 border-dashed border-primary rounded-none"
           onDragOver={handleDragOver}
@@ -323,15 +338,17 @@ export default function Gallery() {
 
         {/* Row 1: Upload + Search */}
         <div className="flex flex-wrap items-center gap-3">
-          <MediaUpload
-            onFilesSelect={handleUpload}
-            disabled={isUploading}
-            label={
-              isUploading
-                ? `Uploading ${uploadingItems.filter((u) => u.status === "uploading").length} of ${uploadingItems.length}…`
-                : "Upload Image"
-            }
-          />
+          {canUpload && (
+            <MediaUpload
+              onFilesSelect={handleUpload}
+              disabled={isUploading}
+              label={
+                isUploading
+                  ? `Uploading ${uploadingItems.filter((u) => u.status === "uploading").length} of ${uploadingItems.length}…`
+                  : "Upload Image"
+              }
+            />
+          )}
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -476,14 +493,25 @@ export default function Gallery() {
                 Edit
               </Button>
               <Button
-                variant="destructive"
+                variant="outline"
                 size="sm"
-                onClick={() => setBulkDeleteOpen(true)}
-                disabled={bulkDeleteMutation.isPending}
+                onClick={() => toast.info("Edit coming soon")}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
               </Button>
+              {canDelete && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  disabled={bulkDeleteMutation.isPending}
+                  title={!canDelete ? "You don't have permission to delete media" : undefined}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              )}
             </div>
             <Button
               variant="ghost"
@@ -542,7 +570,7 @@ export default function Gallery() {
                     items={section.items}
                     selectedIds={selectedIds}
                     onSelect={setSelectedIds}
-                    onDelete={handleDelete}
+                    onDelete={canDelete ? handleDelete : undefined}
                     onViewImage={openImageModal}
                     multiple
                     selectionMode={selectionMode}

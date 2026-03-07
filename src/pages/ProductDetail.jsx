@@ -27,6 +27,7 @@ import {
 } from "@/components/UI/carousel";
 import { Separator } from "@/components/UI/separator";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
+import { Check, ExternalLink, Store } from "lucide-react";
 
 
 const resolveImageUrl = (src) => {
@@ -68,6 +69,54 @@ const ProductDetail = () => {
     }
     if (product.image) {
       return [product.image];
+    }
+    return [];
+  }, [product]);
+
+  const conditionName = product?.condition
+    ? (typeof product.condition === "object" ? product.condition.name : product.condition)
+    : null;
+
+  const ourMarketplaceList = useMemo(() => {
+    const p = product;
+    if (!p?.ourMarketplace) return [];
+    if (Array.isArray(p.ourMarketplace)) {
+      return p.ourMarketplace
+        .filter((c) => c && (c.url || c.label || typeof c === "string"))
+        .map((c) => {
+          if (typeof c === "object" && c !== null) {
+            return { label: c.label || "Marketplace", url: c.url || "" };
+          }
+          return { label: "Link", url: String(c) };
+        })
+        .filter((item) => item.url);
+    }
+    if (typeof p.ourMarketplace === "object") {
+      return Object.entries(p.ourMarketplace)
+        .filter(([, v]) => typeof v === "string" && v)
+        .map(([label, url]) => ({ label, url }));
+    }
+    return [];
+  }, [product]);
+
+  const competitorsList = useMemo(() => {
+    const p = product;
+    if (!p?.competitors) return [];
+    if (Array.isArray(p.competitors)) {
+      return p.competitors
+        .filter((c) => c && (c.url || c.label || typeof c === "string"))
+        .map((c) => {
+          if (typeof c === "object" && c !== null) {
+            return { label: c.label || "Competitor", url: c.url || "" };
+          }
+          return { label: "Link", url: String(c) };
+        })
+        .filter((item) => item.url);
+    }
+    if (typeof p.competitors === "object") {
+      return Object.entries(p.competitors)
+        .filter(([, v]) => typeof v === "string" && v)
+        .map(([label, url]) => ({ label, url }));
     }
     return [];
   }, [product]);
@@ -286,6 +335,58 @@ const ProductDetail = () => {
                       </p>
                     </div>
                   </div>
+
+                  {/* Condition section (screenshot style) */}
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Condition:</span>
+                      <span className="text-sm font-medium">{conditionName || "—"}</span>
+                      <span className="text-sm underline decoration-primary underline-offset-2 text-primary cursor-pointer">
+                        Details
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-sm text-emerald-600 font-medium">
+                        <Check className="h-4 w-4" aria-hidden />
+                        Phone Check
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        className="rounded-xl border-2 border-emerald-500 bg-emerald-50 px-4 py-3 text-left min-w-[140px] transition-colors hover:bg-emerald-100"
+                        aria-pressed="true"
+                        aria-label={`Selected condition: ${conditionName}`}
+                      >
+                        <p className="text-sm font-semibold text-gray-900">{conditionName || "—"}</p>
+                        <p className="text-base font-semibold text-emerald-700 mt-0.5">
+                          AED {Number(product.salePrice).toFixed(2)}
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Our marketplace – grid cards */}
+                  {ourMarketplaceList.length > 0 && (
+                    <div className="space-y-3">
+                      <h1 className="text-lg font-semibold">Our marketplace</h1>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {ourMarketplaceList.map((item, idx) => (
+                          <a
+                            key={idx}
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-xl border border-gray-200 bg-white p-4 flex flex-col gap-1 shadow-sm hover:border-primary hover:shadow-md transition-all"
+                          >
+                            <span className="text-sm font-semibold text-gray-900">{item.label}</span>
+                            <span className="text-xs text-muted-foreground truncate" title={item.url}>
+                              {item.url}
+                            </span>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground mt-1" aria-hidden />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
@@ -340,20 +441,6 @@ const ProductDetail = () => {
 
                   <Separator />
 
-                  {/* Condition */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Condition</span>
-                    <Badge variant="outline">
-                      {product.condition
-                        ? (typeof product.condition === "object"
-                          ? product.condition.name
-                          : product.condition)
-                        : "—"}
-                    </Badge>
-                  </div>
-
-                  <Separator />
-
                   {/* Refundable */}
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Refundable</span>
@@ -362,6 +449,31 @@ const ProductDetail = () => {
                     </Badge>
                   </div>
                 </div>
+
+                <Separator />
+
+                {/* Competitors – two-column grid cards */}
+                {competitorsList.length > 0 && (
+                  <div className="space-y-3">
+                    <h1 className="text-lg font-semibold">Competitors</h1>
+                    <div className="grid grid-cols-2 gap-3">
+                      {competitorsList.map((item, idx) => (
+                        <a
+                          key={idx}
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 flex items-center gap-3 shadow-sm hover:border-gray-300 hover:bg-gray-100 transition-all"
+                        >
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-200 text-gray-600">
+                            <Store className="h-5 w-5" aria-hidden />
+                          </span>
+                          <span className="text-sm font-semibold text-gray-800">{item.label}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <Separator />
 

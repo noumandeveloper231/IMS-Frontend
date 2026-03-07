@@ -45,13 +45,21 @@ export function UploadQueueProvider({ children }) {
     };
 
     const next = [...initial];
+    let successCount = 0;
     for (let i = 0; i < fileArray.length; i++) {
       try {
         const media = await uploadOne(fileArray[i]);
         next[i] = { ...next[i], status: "done", media };
+        successCount += 1;
         setUploadingItems([...next]);
       } catch (err) {
-        toast.error(`Upload failed: ${fileArray[i].name}`);
+        const status = err?.response?.status;
+        const msg = err?.response?.data?.message || err?.message || "";
+        const isPermissionDenied = status === 403 || /not allowed|forbidden|permission/i.test(msg);
+        const errorMessage = isPermissionDenied
+          ? "You don't have permission to upload media."
+          : (msg || `Upload failed: ${fileArray[i].name}`);
+        toast.error(errorMessage);
         next[i] = { ...next[i], status: "done", media: null };
         setUploadingItems([...next]);
       }
@@ -63,13 +71,15 @@ export function UploadQueueProvider({ children }) {
     });
     setUploadingItems([]);
 
-    const count = fileArray.length;
-    setRecentSuccessCount(count);
-    if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-    successTimeoutRef.current = setTimeout(() => {
-      setRecentSuccessCount(0);
-      successTimeoutRef.current = null;
-    }, 8000);
+    // Only show success when at least one upload succeeded
+    if (successCount > 0) {
+      setRecentSuccessCount(successCount);
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => {
+        setRecentSuccessCount(0);
+        successTimeoutRef.current = null;
+      }, 8000);
+    }
   }, [queryClient]);
 
   return (
