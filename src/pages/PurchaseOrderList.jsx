@@ -1,9 +1,16 @@
 import React, { useState } from "react";
 import api from "../utils/api";
-import { Eye } from "lucide-react";
+import { Eye, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/UI/popover";
+import { Calendar } from "@/components/UI/calendar";
 import {
   Select,
   SelectContent,
@@ -27,10 +34,12 @@ import { useImageModal } from "@/context/ImageModalContext";
 const PurchaseOrderList = () => {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateRange, setDateRange] = useState(undefined);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
+  const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : "";
 
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ["purchase-orders"],
@@ -51,8 +60,8 @@ const PurchaseOrderList = () => {
     const matchesStatus = status === "all" ? true : order.status === status;
     const orderDate = new Date(order.orderDate || 0);
     const matchesDate =
-      (!dateFrom || orderDate >= new Date(dateFrom)) &&
-      (!dateTo || orderDate <= new Date(dateTo));
+      (!startDate || orderDate >= new Date(startDate)) &&
+      (!endDate || orderDate <= new Date(endDate + "T23:59:59.999"));
     return matchesSearch && matchesStatus && matchesDate;
   });
 
@@ -127,7 +136,7 @@ const PurchaseOrderList = () => {
                 : "bg-blue-100 text-blue-700";
 
           return (
-            <span className={baseClasses + statusClasses}>
+            <span className={`${baseClasses} capitalize ${statusClasses}`}>
               {status}
             </span>
           );
@@ -138,7 +147,7 @@ const PurchaseOrderList = () => {
         header: "Total Amount",
         meta: { label: "Total Amount" },
         cell: ({ row }) => (
-          <span className="block text-right">
+          <span className="block text-center">
             Rs {Number(row.original.totalAmount || 0).toLocaleString()}
           </span>
         ),
@@ -293,20 +302,37 @@ const PurchaseOrderList = () => {
             </Select>
           </Field>
           <Field>
-            <FieldLabel>Date From</FieldLabel>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Date To</FieldLabel>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
+            <FieldLabel>Date range</FieldLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="min-w-[260px] justify-start px-2.5 font-normal text-left"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} – {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick date range</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
           </Field>
         </div>
 
@@ -328,7 +354,7 @@ const PurchaseOrderList = () => {
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-screen overflow-y-auto flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-xl border-b border-gray-300 pb-2">
               Purchase Order Details
@@ -355,7 +381,7 @@ const PurchaseOrderList = () => {
                 <p>
                   <strong className="text-gray-900">Status:</strong>{" "}
                   <span
-                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${selectedOrder.status === "completed"
+                    className={`capitalize inline-flex px-2 py-0.5 rounded text-xs font-medium ${selectedOrder.status === "completed"
                       ? "bg-green-100 text-green-800"
                       : selectedOrder.status === "pending"
                         ? "bg-yellow-100 text-yellow-800"

@@ -78,6 +78,7 @@ import { useImageModal } from "@/context/ImageModalContext";
 import axios from "axios";
 import { ProductFormDrawer } from "@/components/ProductFormDrawer";
 import { RichTextEditor } from "@/components/UI/RichTextEditor";
+import { Combobox } from "@/components/UI/combobox";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -551,7 +552,7 @@ const Products = () => {
         cell: ({ row }) => {
           const p = row.original;
           return (
-            <div className="flex flex-col gap-1 w-80">
+            <div className="flex flex-col gap-1">
               <h3 className="font-semibold line-clamp-2 text-gray-800">
                 <Link
                   to={`/products/${p._id}`}
@@ -560,7 +561,7 @@ const Products = () => {
                   {p.title}
                 </Link>
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-2 rounded">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-2 rounded border-gray-300">
                 {p.brand && (
                   <p className="text-xs text-gray-600">
                     <span className="font-medium text-gray-700">Brand:</span>{" "}

@@ -144,9 +144,6 @@ export default function Login() {
               </Button>
             </div>
 
-            <p className="text-center text-sm text-muted-foreground">
-              Run <code className="bg-muted px-1.5 py-0.5 rounded text-xs">npm run seed</code> in backend to create admin user
-            </p>
           </form>
         </div>
       </div>

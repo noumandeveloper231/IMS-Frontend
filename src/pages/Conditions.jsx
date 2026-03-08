@@ -1774,7 +1774,7 @@ const Conditions = () => {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Rows per page" />
                   </SelectTrigger>
-                  <SelectContent className="min-w-[var(--radix-select-trigger-width)]">
+                  <SelectContent className="min-w-(--radix-select-trigger-width)">
                     <SelectGroup>
                       <SelectLabel>Rows per page</SelectLabel>
                       <SelectItem value="10">10 per page</SelectItem>

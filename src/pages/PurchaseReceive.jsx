@@ -85,19 +85,21 @@ const PurchaseReceive = () => {
           const freshPO = res.data;
           if (freshPO) {
             setSelectedPO(freshPO);
+            const productId = (p) => (p && typeof p === "object" && p._id ? p._id : p);
             setFormData((prev) => ({
               ...prev,
               items: freshPO.items.map((item) => ({
-                product: item.product,
+                product: productId(item.product),
                 itemId: item._id,
-                title: item.title,
-                asin: item.asin,
-                orderedQty: item.orderedQty,
+                title: item.title || item.product?.title || "",
+                asin: item.asin || item.product?.asin || "",
+                orderedQty: Number(item.orderedQty || 0),
                 receivedQty: 0,
                 alreadyReceived: item.receivedQty || 0,
-                purchasePrice: item.purchasePrice,
-                condition: "",
-                brand: "",
+                purchasePrice: Number(item.purchasePrice ?? item.product?.purchasePrice ?? 0),
+                salePrice: Number(item.salePrice ?? item.product?.salePrice ?? 0) || "",
+                condition: item.condition?._id || item.product?.condition?._id || item.product?.condition || "",
+                brand: item.brand?._id || item.product?.brand?._id || item.product?.brand || "",
                 total: 0,
               })),
               receiveDate: new Date().toISOString().split("T")[0],
@@ -126,15 +128,24 @@ const PurchaseReceive = () => {
       }));
       return;
     }
+    const productId = (p) => (p && typeof p === "object" && p._id ? p._id : p);
     setFormData((prev) => ({
       ...prev,
       purchaseOrder: po._id,
       vendor: po.vendor?._id || "",
       items: (po.items || []).map((item) => ({
-        product: item.product,
+        product: productId(item.product),
         itemId: item._id,
+        title: item.title || item.product?.title || "",
+        asin: item.asin || item.product?.asin || "",
+        orderedQty: Number(item.orderedQty || 0),
         receivedQty: 0,
-        alreadyReceived: item.receivedQty || 0,
+        alreadyReceived: Number(item.receivedQty || 0),
+        purchasePrice: Number(item.purchasePrice ?? item.product?.purchasePrice ?? 0),
+        salePrice: Number(item.salePrice ?? item.product?.salePrice ?? 0) || "",
+        condition: item.condition?._id || item.product?.condition?._id || item.product?.condition || "",
+        brand: item.brand?._id || item.product?.brand?._id || item.product?.brand || "",
+        total: 0,
       })),
     }));
   };
@@ -215,12 +226,21 @@ const PurchaseReceive = () => {
         meta: { label: "Remaining" },
         cell: ({ row }) => {
           const item = row.original;
-          const alreadyReceived = Number(item.receivedQty || 0);
+          const items = formDataRef.current?.items ?? [];
+          const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
+          if (actualIndex < 0) return null;
+          const formItem = items[actualIndex];
+          const orderedQty = Number(formItem?.orderedQty ?? item.orderedQty ?? 0);
+          const alreadyReceived = Number(formItem?.alreadyReceived ?? item.receivedQty ?? 0);
           const remaining = Math.max(
             0,
-            Number(item.orderedQty || 0) - alreadyReceived
+            orderedQty - alreadyReceived - Number(formItem?.receivedQty ?? 0)
           );
-          return <span>{remaining}</span>;
+          return (
+            <span className="w-20 inline-block px-2 py-1 text-center rounded">
+              {remaining}
+            </span>
+          );
         },
       },
       {
@@ -229,7 +249,22 @@ const PurchaseReceive = () => {
         meta: { label: "Purchase Price" },
         cell: ({ row }) => {
           const item = row.original;
-          return <span>{item.product.purchasePrice}</span>;
+          const items = formDataRef.current?.items ?? [];
+          const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
+          if (actualIndex < 0) return <span>{item.product?.purchasePrice ?? ""}</span>;
+          const formItem = items[actualIndex];
+          return (
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              className="w-24"
+              value={formItem?.purchasePrice ?? item.product?.purchasePrice ?? ""}
+              onChange={(e) =>
+                handlePurchasePriceChange(actualIndex, e.target.value)
+              }
+            />
+          );
         },
       },
       {
@@ -238,8 +273,22 @@ const PurchaseReceive = () => {
         meta: { label: "Sale Price" },
         cell: ({ row }) => {
           const item = row.original;
-          return <span>{item.product.salePrice}</span>;
-
+          const items = formDataRef.current?.items ?? [];
+          const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
+          if (actualIndex < 0) return <span>{item.product?.salePrice ?? ""}</span>;
+          const formItem = items[actualIndex];
+          return (
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              className="w-24"
+              value={formItem?.salePrice ?? item.product?.salePrice ?? ""}
+              onChange={(e) =>
+                handleSalePriceChange(actualIndex, e.target.value)
+              }
+            />
+          );
         },
       },
       {
@@ -248,8 +297,22 @@ const PurchaseReceive = () => {
         meta: { label: "Condition" },
         cell: ({ row }) => {
           const item = row.original;
-          return <span>{item?.product?.condition?.name || "N/A"}</span>;
-
+          const items = formDataRef.current?.items ?? [];
+          const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
+          if (actualIndex < 0) return <span>{item?.product?.condition?.name || "N/A"}</span>;
+          const formItem = items[actualIndex];
+          return (
+            <Combobox
+              options={conditions.map((c) => ({
+                label: c.name,
+                value: c._id,
+              }))}
+              className="min-w-[140px] w-full"
+              placeholder="Condition..."
+              value={formItem?.condition || item?.product?.condition?._id || ""}
+              onChange={(value) => handleConditionChange(actualIndex, value)}
+            />
+          );
         },
       },
       {
@@ -258,22 +321,21 @@ const PurchaseReceive = () => {
         meta: { label: "Receive Now" },
         cell: ({ row }) => {
           const item = row.original;
-          const alreadyReceived = Number(item.receivedQty || 0);
-          const remaining = Math.max(
-            0,
-            Number(item.orderedQty || 0) - alreadyReceived
-          );
           const items = formDataRef.current?.items ?? [];
           const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
           if (actualIndex < 0) return null;
           const formItem = items[actualIndex];
+          const orderedQty = Number(formItem?.orderedQty ?? item.orderedQty ?? 0);
+          const alreadyReceived = Number(formItem?.alreadyReceived ?? item.receivedQty ?? 0);
+          const maxReceive = Math.max(0, orderedQty - alreadyReceived);
+          const remaining = maxReceive - Number(formItem?.receivedQty ?? 0);
           return (
             <div className="flex items-center gap-2">
-              {remaining > 0 ? (
+              {maxReceive > 0 ? (
                 <Input
                   type="number"
                   min={0}
-                  max={remaining}
+                  max={maxReceive}
                   className="w-20"
                   value={formItem?.receivedQty ?? ""}
                   onChange={(e) =>
@@ -322,9 +384,15 @@ const PurchaseReceive = () => {
               className="min-w-[200px] w-full"
               placeholder="Search product..."
               value={item.product}
-              onChange={(e) => {
+              onChange={(value) => {
                 const next = [...extraItemsRef.current];
-                next[idx] = { ...next[idx], product: e.target.value };
+                const prod = products.find((p) => p._id === value);
+                next[idx] = {
+                  ...next[idx],
+                  product: value,
+                  title: prod?.title ?? next[idx].title,
+                  asin: prod?.asin ?? next[idx].asin,
+                };
                 setExtraItems(next);
               }}
             />
@@ -430,10 +498,10 @@ const PurchaseReceive = () => {
               }))}
               className="min-w-[200px] w-full"
               placeholder="Search condition..."
-              value={item.condition?._id}
-              onChange={(e) => {
+              value={item.condition?._id ?? item.condition}
+              onChange={(value) => {
                 const next = [...extraItemsRef.current];
-                next[idx] = { ...next[idx], condition: item.condition?._id };
+                next[idx] = { ...next[idx], condition: value };
                 setExtraItems(next);
               }}
             />
@@ -457,10 +525,10 @@ const PurchaseReceive = () => {
               }))}
               className="min-w-[200px] w-full"
               placeholder="Search brand..."
-              value={item.brand?._id}
-              onChange={(e) => {
+              value={item.brand?._id ?? item.brand}
+              onChange={(value) => {
                 const next = [...extraItemsRef.current];
-                next[idx] = { ...next[idx], brand: item.brand?._id };
+                next[idx] = { ...next[idx], brand: value };
                 setExtraItems(next);
               }}
             />
@@ -512,7 +580,41 @@ const PurchaseReceive = () => {
     setFormData((prev) => {
       const items = [...(prev.items || [])];
       if (!items[index]) return prev;
-      items[index] = { ...items[index], receivedQty: numeric };
+      const ordered = Number(items[index].orderedQty ?? 0);
+      const already = Number(items[index].alreadyReceived ?? 0);
+      const receivedQty = Math.max(0, Math.min(ordered - already, numeric));
+      items[index] = { ...items[index], receivedQty };
+      return { ...prev, items };
+    });
+  };
+
+  const handleRemainingChange = (index, value) => {
+    const remaining = Math.max(0, Number(value));
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]) return prev;
+      const ordered = Number(items[index].orderedQty ?? 0);
+      const already = Number(items[index].alreadyReceived ?? 0);
+      const receivedQty = Math.max(0, ordered - already - remaining);
+      items[index] = { ...items[index], receivedQty };
+      return { ...prev, items };
+    });
+  };
+
+  const handlePurchasePriceChange = (index, value) => {
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]) return prev;
+      items[index] = { ...items[index], purchasePrice: Number(value) || 0 };
+      return { ...prev, items };
+    });
+  };
+
+  const handleSalePriceChange = (index, value) => {
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]) return prev;
+      items[index] = { ...items[index], salePrice: value === "" ? "" : Number(value) || 0 };
       return { ...prev, items };
     });
   };
@@ -526,11 +628,20 @@ const PurchaseReceive = () => {
     });
   };
 
-  console.log(formData);
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    const regularItems = formData.items.filter((item) => Number(item.receivedQty) > 0);
+    const regularItems = formData.items
+      .filter((item) => Number(item.receivedQty) > 0)
+      .map((item) => ({
+        ...item,
+        product: item.product?._id || item.product,
+        orderedQty: Number(item.orderedQty ?? 0),
+        receivedQty: Number(item.receivedQty),
+        purchasePrice: Number(item.purchasePrice ?? 0),
+        salePrice: item.salePrice === "" ? undefined : Number(item.salePrice ?? 0),
+        condition: item.condition || undefined,
+        brand: item.brand || undefined,
+      }));
     const extraItemsFormatted = extraItems
       .filter((item) => item.asin && item.title && item.quantity > 0)
       .map((item) => ({

@@ -23,7 +23,9 @@ export function Combobox({
 }) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
+  const [highlightedIndex, setHighlightedIndex] = React.useState(-1)
   const wrapperRef = React.useRef(null)
+  const optionRefs = React.useRef([])
 
   // Single-select: value is string; multiselect: value is string[]
   const valuesArray = multiselect
@@ -45,6 +47,35 @@ export function Combobox({
   const filtered = options.filter((option) =>
     option.label.toLowerCase().includes(search.toLowerCase())
   )
+
+  // When popover opens, set highlighted index to current value (single) or 0
+  React.useEffect(() => {
+    if (open) {
+      if (filtered.length === 0) {
+        setHighlightedIndex(-1)
+      } else if (!multiselect && value != null) {
+        const idx = filtered.findIndex((o) => o.value === value)
+        setHighlightedIndex(idx >= 0 ? idx : 0)
+      } else {
+        setHighlightedIndex(0)
+      }
+    } else {
+      setHighlightedIndex(-1)
+    }
+  }, [open])
+
+  // Keep highlighted index in bounds when filtered list changes
+  React.useEffect(() => {
+    if (!open || filtered.length === 0) return
+    setHighlightedIndex((i) => Math.min(Math.max(i, 0), filtered.length - 1))
+  }, [filtered, open])
+
+  // Scroll highlighted option into view
+  React.useEffect(() => {
+    if (highlightedIndex >= 0 && optionRefs.current[highlightedIndex]) {
+      optionRefs.current[highlightedIndex].scrollIntoView({ block: "nearest" })
+    }
+  }, [highlightedIndex])
 
   // Close when clicking outside
   React.useEffect(() => {
@@ -78,7 +109,54 @@ export function Combobox({
   )
 
   const handleKeyDown = (e) => {
+    const isArrowOrEnter =
+      e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === "Escape"
+
+    // Open on arrow when closed (multiselect; single-select opens in handleSingleSelectKeyDown)
+    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp") && filtered.length > 0) {
+      e.preventDefault()
+      setOpen(true)
+      setHighlightedIndex(0)
+      return
+    }
+
+    if (open && isArrowOrEnter && filtered.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setHighlightedIndex((i) => Math.min(i + 1, filtered.length - 1))
+        return
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setHighlightedIndex((i) => Math.max(i - 1, 0))
+        return
+      }
+      if (e.key === "Enter") {
+        e.preventDefault()
+        if (highlightedIndex >= 0 && filtered[highlightedIndex]) {
+          const option = filtered[highlightedIndex]
+          if (multiselect) {
+            const isSelected = valuesArray.includes(option.value)
+            if (isSelected) removeValue(option.value)
+            else addValue(option.value)
+          } else {
+            onChange?.(option.value)
+            setSearch(option.label)
+            setOpen(false)
+          }
+        }
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        setOpen(false)
+        return
+      }
+    }
+
     if (!multiselect) return
+
+    // Multiselect-only: Enter to add from search text
     if (e.key === "Enter") {
       e.preventDefault()
       const trimmed = search.trim()
@@ -102,6 +180,14 @@ export function Combobox({
     }
   }
 
+  const handleSingleSelectKeyDown = (e) => {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !open) {
+      e.preventDefault()
+      setOpen(true)
+    }
+    handleKeyDown(e)
+  }
+
   const renderSingleSelect = () => (
     <>
       <Input
@@ -111,6 +197,7 @@ export function Combobox({
           setOpen(true)
         }}
         onFocus={() => setOpen(true)}
+        onKeyDown={handleSingleSelectKeyDown}
         placeholder={placeholder}
         disabled={disabled}
       />
@@ -226,11 +313,13 @@ export function Combobox({
               )}
 
               {multiselect && options.length > 0 ? (
-                filtered.map((option) => {
+                filtered.map((option, index) => {
                   const isSelected = valuesArray.includes(option.value)
+                  const isHighlighted = index === highlightedIndex
                   return (
                     <div
                       key={option.value}
+                      ref={(el) => (optionRefs.current[index] = el)}
                       onClick={() => {
                         if (isSelected) {
                           removeValue(option.value)
@@ -238,7 +327,10 @@ export function Combobox({
                           addValue(option.value)
                         }
                       }}
-                      className="flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-accent"
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-accent",
+                        isHighlighted && "bg-accent"
+                      )}
                     >
                       {option.qrcode && (
                         <img
@@ -253,16 +345,22 @@ export function Combobox({
                   )
                 })
               ) : !multiselect ? (
-                filtered.map((option) => (
-                  <div
-                    key={option.value}
-                    onClick={() => {
-                      onChange?.(option.value)
-                      setSearch(option.label)
-                      setOpen(false)
-                    }}
-                    className="flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-accent"
-                  >
+                filtered.map((option, index) => {
+                  const isHighlighted = index === highlightedIndex
+                  return (
+                    <div
+                      key={option.value}
+                      ref={(el) => (optionRefs.current[index] = el)}
+                      onClick={() => {
+                        onChange?.(option.value)
+                        setSearch(option.label)
+                        setOpen(false)
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer hover:bg-accent",
+                        isHighlighted && "bg-accent"
+                      )}
+                    >
                     {option.qrcode && (
                       <img
                         src={option.qrcode}
@@ -273,7 +371,8 @@ export function Combobox({
                     <span>{option.label}</span>
                     {value === option.value && <Check className="h-4 w-4" />}
                   </div>
-                ))
+                );
+                })
               ) : null}
             </div>
             {multiselect && options.length > 0 && maxItemsNum != null && (
