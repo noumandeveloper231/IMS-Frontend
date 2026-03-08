@@ -24,7 +24,7 @@ export function UploadQueueProvider({ children }) {
     setRecentSuccessCount(0);
   }, []);
 
-  const addUploads = useCallback(async (files) => {
+  const addUploads = useCallback(async (files, folder = null) => {
     const fileArray = Array.from(files).filter((f) => f?.type?.startsWith("image/"));
     if (!fileArray.length) return;
 
@@ -40,6 +40,7 @@ export function UploadQueueProvider({ children }) {
     const uploadOne = async (file) => {
       const formData = new FormData();
       formData.append("images", file);
+      if (folder) formData.append("folder", folder);
       const created = await mediaApi.upload(formData);
       return Array.isArray(created) && created[0] ? created[0] : null;
     };

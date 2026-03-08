@@ -17,6 +17,7 @@ import {
 import { DataTable } from "@/components/DataTable";
 import { Combobox } from "@/components/UI/combobox";
 import { Textarea } from "@/components/UI/textarea";
+import { ChevronDown } from "lucide-react";
 
 const PurchaseReceive = () => {
   const queryClient = useQueryClient();
@@ -101,6 +102,7 @@ const PurchaseReceive = () => {
                 condition: item.condition?._id || item.product?.condition?._id || item.product?.condition || "",
                 brand: item.brand?._id || item.product?.brand?._id || item.product?.brand || "",
                 total: 0,
+                subReceives: [],
               })),
               receiveDate: new Date().toISOString().split("T")[0],
               notes: "",
@@ -146,6 +148,7 @@ const PurchaseReceive = () => {
         condition: item.condition?._id || item.product?.condition?._id || item.product?.condition || "",
         brand: item.brand?._id || item.product?.brand?._id || item.product?.brand || "",
         total: 0,
+        subReceives: [],
       })),
     }));
   };
@@ -181,6 +184,38 @@ const PurchaseReceive = () => {
     [filteredItems, formData.items]
   );
 
+  // Flatten so each parent row is followed by its sub-receive rows (for DataTable with sub-items below parent + arrow)
+  const flattenedOrderRows = React.useMemo(() => {
+    const flat = [];
+    orderItemRows.forEach((orderItem) => {
+      const actualIndex = formData.items.findIndex((fi) => fi.itemId === orderItem._id);
+      const formItem = actualIndex >= 0 ? formData.items[actualIndex] : null;
+      const parentRow = {
+        ...orderItem,
+        _rowType: "parent",
+        _parentIndex: actualIndex,
+        _orderItem: orderItem,
+        _formItem: formItem,
+        _rowId: `parent-${orderItem._id}`,
+      };
+      flat.push(parentRow);
+      const subReceives = formItem?.subReceives ?? [];
+      subReceives.forEach((sr, srIdx) => {
+        flat.push({
+          ...orderItem,
+          _rowType: "sub",
+          _parentIndex: actualIndex,
+          _subIndex: srIdx,
+          _orderItem: orderItem,
+          _formItem: formItem,
+          _subReceive: sr,
+          _rowId: `sub-${orderItem._id}-${srIdx}`,
+        });
+      });
+    });
+    return flat;
+  }, [orderItemRows, formData.items]);
+
   const { data: productsData } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
@@ -198,17 +233,29 @@ const PurchaseReceive = () => {
         id: "sno",
         header: "S.No",
         meta: { label: "S.No" },
-        cell: ({ row }) => (
-          <span className="font-medium">{row.index + 1}</span>
-        ),
+        cell: ({ row }) => {
+          const raw = row.original;
+          if (raw._rowType === "sub") {
+            return (
+              <div className="flex items-center justify-center text-primary" title="Sub-receive under parent">
+                <ChevronDown className="h-5 w-5 -rotate-90" />
+              </div>
+            );
+          }
+          return <span className="font-medium">{row.index + 1}</span>;
+        },
       },
       {
         id: "title",
         header: "Product",
         meta: { label: "Product" },
         cell: ({ row }) => {
-          const item = row.original;
-          return <span>{item.product.title}</span>;
+          const raw = row.original;
+          if (raw._rowType === "sub") {
+            return <span className="text-muted-foreground text-sm pl-6">↳ Sub-receive by condition</span>;
+          }
+          const item = raw._orderItem ?? raw;
+          return <span>{item.product?.title}</span>;
         },
       },
       {
@@ -216,8 +263,10 @@ const PurchaseReceive = () => {
         header: "SKU",
         meta: { label: "SKU" },
         cell: ({ row }) => {
-          const item = row.original;
-          return <span>{item.product.sku || "N/A"}</span>;
+          const raw = row.original;
+          if (raw._rowType === "sub") return <span />;
+          const item = raw._orderItem ?? raw;
+          return <span>{item.product?.sku || "N/A"}</span>;
         },
       },
       {
@@ -225,17 +274,16 @@ const PurchaseReceive = () => {
         header: "Remaining",
         meta: { label: "Remaining" },
         cell: ({ row }) => {
-          const item = row.original;
-          const items = formDataRef.current?.items ?? [];
-          const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
-          if (actualIndex < 0) return null;
-          const formItem = items[actualIndex];
+          const raw = row.original;
+          if (raw._rowType === "sub") return <span />;
+          const item = raw._orderItem ?? raw;
+          const formItem = raw._formItem;
           const orderedQty = Number(formItem?.orderedQty ?? item.orderedQty ?? 0);
           const alreadyReceived = Number(formItem?.alreadyReceived ?? item.receivedQty ?? 0);
-          const remaining = Math.max(
-            0,
-            orderedQty - alreadyReceived - Number(formItem?.receivedQty ?? 0)
-          );
+          const subTotal = (formItem?.subReceives ?? []).reduce((s, sr) => s + Number(sr.receivedQty || 0), 0);
+          const singleReceive = Number(formItem?.receivedQty ?? 0);
+          const totalReceiving = formItem?.subReceives?.length > 0 ? subTotal : singleReceive;
+          const remaining = Math.max(0, orderedQty - alreadyReceived - totalReceiving);
           return (
             <span className="w-20 inline-block px-2 py-1 text-center rounded">
               {remaining}
@@ -248,7 +296,26 @@ const PurchaseReceive = () => {
         header: "Purchase Price",
         meta: { label: "Purchase Price" },
         cell: ({ row }) => {
-          const item = row.original;
+          const raw = row.original;
+          if (raw._rowType === "sub") {
+            const actualIndex = raw._parentIndex;
+            const srIdx = raw._subIndex;
+            const sr = raw._subReceive;
+            const formItem = raw._formItem;
+            const maxReceive = Math.max(0, Number(formItem?.orderedQty ?? 0) - Number(formItem?.alreadyReceived ?? 0));
+            return (
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                className="w-24"
+                placeholder="Cost"
+                value={sr?.purchasePrice ?? ""}
+                onChange={(e) => handleSubReceiveChange(actualIndex, srIdx, "purchasePrice", e.target.value)}
+              />
+            );
+          }
+          const item = raw._orderItem ?? raw;
           const items = formDataRef.current?.items ?? [];
           const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
           if (actualIndex < 0) return <span>{item.product?.purchasePrice ?? ""}</span>;
@@ -272,7 +339,24 @@ const PurchaseReceive = () => {
         header: "Sale Price",
         meta: { label: "Sale Price" },
         cell: ({ row }) => {
-          const item = row.original;
+          const raw = row.original;
+          if (raw._rowType === "sub") {
+            const actualIndex = raw._parentIndex;
+            const srIdx = raw._subIndex;
+            const sr = raw._subReceive;
+            return (
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                className="w-24"
+                placeholder="Sale"
+                value={sr?.salePrice ?? ""}
+                onChange={(e) => handleSubReceiveChange(actualIndex, srIdx, "salePrice", e.target.value)}
+              />
+            );
+          }
+          const item = raw._orderItem ?? raw;
           const items = formDataRef.current?.items ?? [];
           const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
           if (actualIndex < 0) return <span>{item.product?.salePrice ?? ""}</span>;
@@ -296,7 +380,22 @@ const PurchaseReceive = () => {
         header: "Condition",
         meta: { label: "Condition" },
         cell: ({ row }) => {
-          const item = row.original;
+          const raw = row.original;
+          if (raw._rowType === "sub") {
+            const actualIndex = raw._parentIndex;
+            const srIdx = raw._subIndex;
+            const sr = raw._subReceive;
+            return (
+              <Combobox
+                options={conditions.map((c) => ({ label: c.name, value: c._id }))}
+                className="min-w-[140px] w-full"
+                placeholder="Condition"
+                value={sr?.condition || ""}
+                onChange={(value) => handleSubReceiveChange(actualIndex, srIdx, "condition", value)}
+              />
+            );
+          }
+          const item = raw._orderItem ?? raw;
           const items = formDataRef.current?.items ?? [];
           const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
           if (actualIndex < 0) return <span>{item?.product?.condition?.name || "N/A"}</span>;
@@ -320,7 +419,31 @@ const PurchaseReceive = () => {
         header: "Receive Now",
         meta: { label: "Receive Now" },
         cell: ({ row }) => {
-          const item = row.original;
+          const raw = row.original;
+          if (raw._rowType === "sub") {
+            const actualIndex = raw._parentIndex;
+            const srIdx = raw._subIndex;
+            const sr = raw._subReceive;
+            const formItem = raw._formItem;
+            const maxReceive = Math.max(0, Number(formItem?.orderedQty ?? 0) - Number(formItem?.alreadyReceived ?? 0));
+            const otherSubSum = (formItem?.subReceives ?? []).reduce(
+              (s, r, i) => (i === srIdx ? s : s + Number(r.receivedQty || 0)),
+              0
+            );
+            const maxForThisRow = Math.max(0, maxReceive - otherSubSum);
+            return (
+              <Input
+                type="number"
+                min={0}
+                max={maxForThisRow}
+                className="w-20"
+                placeholder="Qty"
+                value={sr?.receivedQty ?? ""}
+                onChange={(e) => handleSubReceiveChange(actualIndex, srIdx, "receivedQty", e.target.value)}
+              />
+            );
+          }
+          const item = raw._orderItem ?? raw;
           const items = formDataRef.current?.items ?? [];
           const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
           if (actualIndex < 0) return null;
@@ -328,23 +451,80 @@ const PurchaseReceive = () => {
           const orderedQty = Number(formItem?.orderedQty ?? item.orderedQty ?? 0);
           const alreadyReceived = Number(formItem?.alreadyReceived ?? item.receivedQty ?? 0);
           const maxReceive = Math.max(0, orderedQty - alreadyReceived);
-          const remaining = maxReceive - Number(formItem?.receivedQty ?? 0);
+          const subTotal = (formItem?.subReceives ?? []).reduce((s, sr) => s + Number(sr.receivedQty || 0), 0);
           return (
             <div className="flex items-center gap-2">
               {maxReceive > 0 ? (
-                <Input
-                  type="number"
-                  min={0}
-                  max={maxReceive}
-                  className="w-20"
-                  value={formItem?.receivedQty ?? ""}
-                  onChange={(e) =>
-                    handleItemQtyChange(actualIndex, e.target.value)
-                  }
-                />
+                formItem?.subReceives?.length > 0 ? (
+                  <span className="text-xs text-gray-600">
+                    {subTotal} / {maxReceive} (by condition)
+                  </span>
+                ) : (
+                  <Input
+                    type="number"
+                    min={0}
+                    max={maxReceive}
+                    className="w-20"
+                    value={formItem?.receivedQty ?? ""}
+                    onChange={(e) =>
+                      handleItemQtyChange(actualIndex, e.target.value)
+                    }
+                  />
+                )
               ) : (
                 <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
                   Fully Received
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "subReceive",
+        header: "Sub-receive by condition",
+        meta: { label: "Sub-receive by condition" },
+        cell: ({ row }) => {
+          const raw = row.original;
+          if (raw._rowType === "sub") {
+            const actualIndex = raw._parentIndex;
+            const srIdx = raw._subIndex;
+            return (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-red-600"
+                onClick={() => handleRemoveSubReceive(actualIndex, srIdx)}
+              >
+                Remove
+              </Button>
+            );
+          }
+          const item = raw._orderItem ?? raw;
+          const items = formDataRef.current?.items ?? [];
+          const actualIndex = items.findIndex((fi) => fi.itemId === item._id);
+          if (actualIndex < 0) return null;
+          const formItem = items[actualIndex];
+          const orderedQty = Number(formItem?.orderedQty ?? item.orderedQty ?? 0);
+          const alreadyReceived = Number(formItem?.alreadyReceived ?? item.receivedQty ?? 0);
+          const maxReceive = Math.max(0, orderedQty - alreadyReceived);
+          const subReceives = formItem?.subReceives ?? [];
+          const subTotal = subReceives.reduce((s, sr) => s + Number(sr.receivedQty || 0), 0);
+          return (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddSubReceive(actualIndex)}
+                disabled={maxReceive <= 0}
+              >
+                + Add by condition
+              </Button>
+              {subReceives.length > 0 && (
+                <span className="text-xs text-gray-500">
+                  Total: {subTotal} / {maxReceive} remaining
                 </span>
               )}
             </div>
@@ -628,20 +808,104 @@ const PurchaseReceive = () => {
     });
   };
 
+  const handleAddSubReceive = (index) => {
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]) return prev;
+      const base = items[index];
+      const subReceives = [...(base.subReceives || [])];
+      subReceives.push({
+        condition: base.condition || "",
+        receivedQty: 0,
+        purchasePrice: Number(base.purchasePrice ?? 0),
+        salePrice: base.salePrice === "" ? "" : Number(base.salePrice ?? 0),
+      });
+      items[index] = { ...base, subReceives };
+      return { ...prev, items };
+    });
+  };
+
+  const handleRemoveSubReceive = (index, subIndex) => {
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]) return prev;
+      const subReceives = (items[index].subReceives || []).filter((_, i) => i !== subIndex);
+      items[index] = { ...items[index], subReceives };
+      return { ...prev, items };
+    });
+  };
+
+  const handleSubReceiveChange = (index, subIndex, field, value) => {
+    setFormData((prev) => {
+      const items = [...(prev.items || [])];
+      if (!items[index]?.subReceives?.[subIndex]) return prev;
+      const subReceives = [...items[index].subReceives];
+      if (field === "receivedQty") {
+        const orderedQty = Number(items[index].orderedQty ?? 0);
+        const alreadyReceived = Number(items[index].alreadyReceived ?? 0);
+        const maxReceive = Math.max(0, orderedQty - alreadyReceived);
+        // Cap so sum of all sub-receives does not exceed remaining
+        const otherSubSum = subReceives.reduce(
+          (s, sr, i) => (i === subIndex ? s : s + Number(sr.receivedQty || 0)),
+          0
+        );
+        const maxForThisRow = Math.max(0, maxReceive - otherSubSum);
+        const qty = Math.max(0, Math.min(maxForThisRow, Number(value)));
+        subReceives[subIndex] = { ...subReceives[subIndex], [field]: qty };
+      } else if (field === "purchasePrice" || field === "salePrice") {
+        subReceives[subIndex] = { ...subReceives[subIndex], [field]: value === "" ? "" : Number(value) };
+      } else {
+        subReceives[subIndex] = { ...subReceives[subIndex], [field]: value };
+      }
+      items[index] = { ...items[index], subReceives };
+      return { ...prev, items };
+    });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    const regularItems = formData.items
-      .filter((item) => Number(item.receivedQty) > 0)
-      .map((item) => ({
-        ...item,
-        product: item.product?._id || item.product,
-        orderedQty: Number(item.orderedQty ?? 0),
-        receivedQty: Number(item.receivedQty),
-        purchasePrice: Number(item.purchasePrice ?? 0),
-        salePrice: item.salePrice === "" ? undefined : Number(item.salePrice ?? 0),
-        condition: item.condition || undefined,
-        brand: item.brand || undefined,
-      }));
+    const regularItems = [];
+    for (const item of formData.items) {
+      const subReceives = item.subReceives || [];
+      const hasSubReceives = subReceives.length > 0 && subReceives.some((sr) => Number(sr.receivedQty) > 0);
+      if (hasSubReceives) {
+        const maxReceive = Math.max(0, Number(item.orderedQty ?? 0) - Number(item.alreadyReceived ?? 0));
+        const subTotal = subReceives.reduce((s, sr) => s + Number(sr.receivedQty || 0), 0);
+        if (subTotal > maxReceive) {
+          toast.warning(`Sub-receive total (${subTotal}) exceeds remaining (${maxReceive}) for "${item.title}".`);
+          return;
+        }
+        for (const sr of subReceives) {
+          if (!Number(sr.receivedQty)) continue;
+          if (!sr.condition) {
+            toast.warning(`Sub-receive for "${item.title}" has no condition selected.`);
+            return;
+          }
+          regularItems.push({
+            ...item,
+            product: item.product?._id || item.product,
+            itemId: item.itemId,
+            orderedQty: Number(item.orderedQty ?? 0),
+            receivedQty: Number(sr.receivedQty),
+            purchasePrice: Number(sr.purchasePrice ?? 0),
+            salePrice: sr.salePrice === "" ? undefined : Number(sr.salePrice ?? 0),
+            condition: sr.condition,
+            brand: item.brand || undefined,
+          });
+        }
+      } else if (Number(item.receivedQty) > 0) {
+        regularItems.push({
+          ...item,
+          product: item.product?._id || item.product,
+          orderedQty: Number(item.orderedQty ?? 0),
+          receivedQty: Number(item.receivedQty),
+          purchasePrice: Number(item.purchasePrice ?? 0),
+          salePrice: item.salePrice === "" ? undefined : Number(item.salePrice ?? 0),
+          condition: item.condition || undefined,
+          brand: item.brand || undefined,
+        });
+      }
+    }
     const extraItemsFormatted = extraItems
       .filter((item) => item.asin && item.title && item.quantity > 0)
       .map((item) => ({
@@ -715,7 +979,15 @@ const PurchaseReceive = () => {
 
             <DataTable
               columns={orderItemColumns}
-              data={orderItemRows}
+              data={flattenedOrderRows}
+              getRowId={(row) => row._rowId ?? row._id ?? row.id}
+              getRowProps={(row) => {
+                const raw = row.original;
+                if (raw._rowType === "sub") {
+                  return { className: "bg-slate-50/80 border-l-4 border-l-primary" };
+                }
+                return {};
+              }}
               addPagination={false}
               enableSelection={false}
               enableHeaderContextMenu={false}

@@ -58,6 +58,7 @@ export function DataTable({
   enableSelection = true,
   getRowId: getRowIdProp,
   containerClassName,
+  getRowProps,
   /** When false, header cells are not wrapped in context menu (e.g. for import/input tables). Default true. */
   enableHeaderContextMenu = true,
   /** Optional: initial page index (0-based) for pagination. */
@@ -397,11 +398,15 @@ export function DataTable({
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
+                table.getRowModel().rows.map((row) => {
+                  const rowProps = typeof getRowProps === "function" ? getRowProps(row) ?? {} : {};
+                  const { className: rowClassName, ...restRowProps } = rowProps;
+                  return (
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className="border-gray-200 px-4"
+                    className={rowClassName ? `border-gray-200 px-4 ${rowClassName}` : "border-gray-200 px-4"}
+                    {...restRowProps}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
@@ -424,7 +429,8 @@ export function DataTable({
                       </TableCell>
                     ))}
                   </TableRow>
-                ))
+                );
+                })
               ) : (
                 <TableRow>
                   <TableCell

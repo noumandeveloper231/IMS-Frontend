@@ -44,11 +44,11 @@ const ProductCard = ({ item, options = {} }) => {
                     <div className="flex items-baseline gap-2 text-sm">
                         {item.purchasePrice != null && item.purchasePrice !== "" && (
                             <span className="text-xs text-gray-400 line-through">
-                                AED {item.purchasePrice}
+                                AED {Number(item.purchasePrice).toFixed(2)}
                             </span>
                         )}
                         <span className="text-lg font-bold text-red-600">
-                            AED {item.salePrice ?? "-"}
+                            AED {item.salePrice != null && item.salePrice !== "" ? Number(item.salePrice).toFixed(2) : "-"}
                         </span>
                     </div>
                     <div className="mt-1 space-y-1 text-xs text-gray-600">

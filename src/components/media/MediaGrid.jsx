@@ -1,6 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Check, Loader2, Trash2, Eye, Copy } from "lucide-react";
+import { Check, Loader2, Trash2, Eye, Copy, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import {
   ContextMenu,
@@ -29,6 +29,9 @@ export function MediaGrid({
   onSelect,
   onDelete,
   onViewImage,
+  onCopy,
+  onCut,
+  cutIds = [],
   multiple = false,
   selectionMode = false,
   /** When true, clicking the card toggles selection (e.g. import modal). When false, only checkbox toggles (e.g. Gallery page). */
@@ -37,6 +40,7 @@ export function MediaGrid({
   columns,
   className,
 }) {
+  const cutSet = React.useMemo(() => new Set(cutIds || []), [cutIds]);
   const [hoveredId, setHoveredId] = React.useState(null);
   const gridStyle = columns != null && columns >= 2 && columns <= 10
     ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }
@@ -114,6 +118,7 @@ export function MediaGrid({
       {items.map((item) => {
         const id = item._id;
         const isSelected = onSelect && selectedIds.includes(id);
+        const isCut = cutSet.has(id);
         const showCheckbox = onSelect && (hoveredId === id || isSelected) && (!selectOnCardClick || selectionMode);
         const src = getMediaUrl(item.url, thumbnailTransform);
         const fullUrl = item.url || src;
@@ -125,6 +130,7 @@ export function MediaGrid({
             className={cn(
               cardClass,
               isSelected && "border-primary ring-2 ring-primary",
+              isCut && "opacity-50",
               onSelect && (selectOnCardClick ? "cursor-pointer" : "cursor-default")
             )}
             onClick={(e) => handleCardClick(id, e)}
@@ -201,7 +207,7 @@ export function MediaGrid({
           </div>
         );
 
-        if (onViewImage || onDelete) {
+        if (onViewImage || onDelete || onCopy || onCut) {
           return (
             <ContextMenu key={id}>
               <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
@@ -215,6 +221,28 @@ export function MediaGrid({
                   >
                     <Eye className="mr-2 h-4 w-4" />
                     View full size
+                  </ContextMenuItem>
+                )}
+                {onCopy && (
+                  <ContextMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCopy(selectedIds.includes(id) ? selectedIds : [id]);
+                    }}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
+                  </ContextMenuItem>
+                )}
+                {onCut && (
+                  <ContextMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCut(selectedIds.includes(id) ? selectedIds : [id]);
+                    }}
+                  >
+                    <Scissors className="mr-2 h-4 w-4" />
+                    Cut
                   </ContextMenuItem>
                 )}
                 <ContextMenuItem

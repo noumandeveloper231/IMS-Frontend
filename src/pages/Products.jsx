@@ -239,6 +239,7 @@ const Products = () => {
     errors: 0,
     duplicates: 0,
   });
+  const [existingSkusFromDb, setExistingSkusFromDb] = useState(new Set());
   const [importLoading, setImportLoading] = useState(false);
   const [descriptionModalOpen, setDescriptionModalOpen] = useState(false);
   const [descriptionModalRowIndex, setDescriptionModalRowIndex] = useState(null);
@@ -614,7 +615,7 @@ const Products = () => {
         header: "Purchase",
         cell: ({ row }) => {
           const p = row.original;
-          return <span className="text-sm text-gray-500">AED {p.purchasePrice}</span>;
+          return <span className="text-sm text-gray-500">AED {Number(p.purchasePrice).toFixed(2)}</span>;
         },
       },
       {
@@ -622,7 +623,7 @@ const Products = () => {
         header: "Sale",
         cell: ({ row }) => {
           const p = row.original;
-          return <span className="text-sm text-gray-500">AED {p.salePrice}</span>;
+          return <span className="text-sm text-gray-500">AED {Number(p.salePrice).toFixed(2)}</span>;
         },
       },
       {
@@ -798,13 +799,15 @@ const Products = () => {
       );
       conditionName = found ? (found.name || "").trim() : conditionValue;
     }
-    const conditionCode = conditionName ? CONDITION_CODE_MAP[conditionName] || "" : "";
+    const conditionCode = conditionName ? String(conditionName).trim().charAt(0).toUpperCase() : "";
 
     if (!asin) return "";
     return conditionCode ? `AR-${asin}-${conditionCode}` : `AR-${asin}`;
   };
 
-  const validateImportedRows = (rows) => {
+  const validateImportedRows = (rows, existingSkusSet = null) => {
+    // existingSkusSet: Set of SKUs that exist in DB (from POST /products/check-skus). If null, fall back to in-memory products list.
+    const dbCheckSet = existingSkusSet ?? new Set((products || []).map((p) => (p.sku || "").toString().trim()).filter(Boolean));
     // Count by generated SKU (derived from ASIN+Condition, or explicit from Excel) — used for duplicate-in-file check
     const skuCounts = {};
     rows.forEach((row) => {
@@ -889,13 +892,12 @@ const Products = () => {
         duplicates += 1;
       }
 
-      // Already in DB: compare using the same generated effective SKU we will send
+      // Already in DB: check against DB (existingSkusSet) or in-memory products
       if (effectiveSku && !fieldErrors[skuKey || "SKU"]) {
-        const existsInDb = (products || []).some(
-          (p) => (p.sku || "").toString().trim() === effectiveSku
-        );
+        const existsInDb = dbCheckSet.has(effectiveSku);
         if (existsInDb) {
           fieldErrors[skuKey || "SKU"] = "Already in DB";
+          duplicates += 1;
         }
       }
 
@@ -942,11 +944,32 @@ const Products = () => {
         toast.error("File is empty ❌");
         setImportRows([]);
         setImportColumns([]);
+        setExistingSkusFromDb(new Set());
         setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
         return;
       }
 
-      const validatedRows = validateImportedRows(rows);
+      // Check which SKUs already exist in DB (so we mark "Already in DB" in preview)
+      const skusToCheck = [...new Set(rows.map((row) => {
+        const explicitSku = Object.keys(row).find((k) => normalizeKey(k) === "sku");
+        const s = explicitSku ? String(row[explicitSku] ?? "").trim() : "";
+        const derived = deriveSkuFromRow(row);
+        return derived || s;
+      }).filter(Boolean))];
+
+      let existingFromApi = [];
+      if (skusToCheck.length > 0) {
+        try {
+          const res = await api.post("/products/check-skus", { skus: skusToCheck });
+          existingFromApi = res.data?.existing ?? [];
+        } catch (e) {
+          console.warn("check-skus failed, using in-memory list", e);
+        }
+      }
+      const existingSet = new Set((existingFromApi || []).map((s) => String(s).trim()));
+      setExistingSkusFromDb(existingSet);
+
+      const validatedRows = validateImportedRows(rows, existingSet);
       setImportRows(validatedRows);
       const allColumns = Object.keys(rows[0] || {});
       setImportColumns(allColumns.filter((c) => normalizeKey(c) !== "sku"));
@@ -968,6 +991,7 @@ const Products = () => {
   const handleClearImportData = () => {
     setImportRows([]);
     setImportColumns([]);
+    setExistingSkusFromDb(new Set());
     setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
     toast.info("Import data cleared");
   };
@@ -975,7 +999,7 @@ const Products = () => {
   const handleAddImportRow = () => {
     const cols = importColumns.length ? importColumns : TEMPLATE_COLUMNS;
     const newRow = Object.fromEntries(cols.map((h) => [h, ""]));
-    setImportRows((prev) => validateImportedRows([...prev, newRow]));
+    setImportRows((prev) => validateImportedRows([...prev, newRow], existingSkusFromDb));
   };
 
   const handleRemoveImportRow = useCallback((rowIndex) => {
@@ -985,7 +1009,7 @@ const Products = () => {
         setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
         return [];
       }
-      return validateImportedRows(next);
+      return validateImportedRows(next, existingSkusFromDb);
     });
   }, []);
 
@@ -994,7 +1018,7 @@ const Products = () => {
       const next = prev.map((r, i) =>
         i === rowIndex ? { ...r, [columnKey]: value } : r
       );
-      return validateImportedRows(next);
+      return validateImportedRows(next, existingSkusFromDb);
     });
   }, []);
 
@@ -1003,7 +1027,7 @@ const Products = () => {
       const next = prev.map((r, i) =>
         i === rowIndex ? { ...r, [columnKey]: value, __imageUrl: value } : r
       );
-      return validateImportedRows(next);
+      return validateImportedRows(next, existingSkusFromDb);
     });
   }, []);
 
@@ -1042,7 +1066,7 @@ const Products = () => {
             const col = importColumns.find((c) => normalizeKey(c) === "images" || normalizeKey(c) === "image") || "Images";
             return { ...r, [col]: url, __imageUrl: url };
           });
-          return validateImportedRows(next);
+          return validateImportedRows(next, existingSkusFromDb);
         });
         toast.success("Image uploaded");
       }
@@ -1072,7 +1096,7 @@ const Products = () => {
       const next = prev.map((r, i) =>
         i === rowIndex ? { ...r, [columnKey]: normalized, __imageUrl: normalized } : r
       );
-      return validateImportedRows(next);
+      return validateImportedRows(next, existingSkusFromDb);
     });
   }, []);
 
@@ -1416,12 +1440,28 @@ const Products = () => {
           image: imagesArray[0] || "",
         };
       });
+
+      // Final DB check: ensure no SKU in payload exists in DB (avoid "No new products to insert" on submit)
+      const skusToCheck = payload.map((p) => p.sku).filter(Boolean);
+      if (skusToCheck.length > 0) {
+        const res = await api.post("/products/check-skus", { skus: skusToCheck });
+        const existing = res.data?.existing ?? [];
+        if (existing.length > 0) {
+          toast.error(
+            `These SKUs already exist in DB. Remove or fix them: ${existing.slice(0, 5).join(", ")}${existing.length > 5 ? "…" : ""} ❌`
+          );
+          setImportLoading(false);
+          return;
+        }
+      }
+
       await api.post("/products/bulk-create", payload);
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success(`Imported ${payload.length} products ✅`);
       setImportDrawerOpen(false);
       setImportRows([]);
       setImportColumns([]);
+      setExistingSkusFromDb(new Set());
       setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
     } catch (err) {
       const messageFromServer =
@@ -1442,7 +1482,7 @@ const Products = () => {
   const handleViewTemplate = () => {
     setImportColumns(TEMPLATE_COLUMNS);
     const templateRow = [Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))];
-    setImportRows(validateImportedRows(templateRow));
+    setImportRows(validateImportedRows(templateRow, existingSkusFromDb));
   };
 
   const handleDownloadTemplate = () => {
@@ -1470,7 +1510,7 @@ const Products = () => {
         ...next[descriptionModalRowIndex],
         [descriptionModalColumn]: descriptionModalValue,
       };
-      return validateImportedRows(next);
+      return validateImportedRows(next, existingSkusFromDb);
     });
     setDescriptionModalOpen(false);
   };
@@ -1492,7 +1532,7 @@ const Products = () => {
         ...next[imageModalRowIndex],
         [imageModalColumn]: imageModalValue,
       };
-      return validateImportedRows(next);
+      return validateImportedRows(next, existingSkusFromDb);
     });
     setImageModalOpen(false);
   };

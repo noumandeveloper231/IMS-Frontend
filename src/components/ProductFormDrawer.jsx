@@ -176,7 +176,7 @@ export function ProductFormDrawer({
     const asin = form.asin?.trim();
     const selectedCondition = conditions.find((c) => c._id === form.condition);
     const conditionName = selectedCondition?.name;
-    const conditionCode = conditionName ? (CONDITION_CODE_MAP[conditionName] || "") : "";
+    const conditionCode = conditionName ? String(conditionName).trim().charAt(0).toUpperCase() : "";
     if (!asin) {
       setForm((prev) => (prev.sku === "" ? prev : { ...prev, sku: "" }));
       return;
