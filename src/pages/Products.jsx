@@ -114,6 +114,16 @@ const CONDITION_CODE_MAP = {
   "Max": "MX",
 };
 
+const getConditionCodeFromName = (name) => {
+  const trimmed = (name ?? "").toString().trim();
+  if (!trimmed) return "";
+  const mapped = CONDITION_CODE_MAP[trimmed];
+  if (mapped) return mapped;
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  return parts.map((part) => part.charAt(0).toUpperCase()).join("");
+};
+
 const TEMPLATE_COLUMNS = [
   "Title",
   "ASIN",
@@ -799,7 +809,7 @@ const Products = () => {
       );
       conditionName = found ? (found.name || "").trim() : conditionValue;
     }
-    const conditionCode = conditionName ? String(conditionName).trim().charAt(0).toUpperCase() : "";
+    const conditionCode = getConditionCodeFromName(conditionName);
 
     if (!asin) return "";
     return conditionCode ? `AR-${asin}-${conditionCode}` : `AR-${asin}`;
@@ -811,12 +821,9 @@ const Products = () => {
     // Count by generated SKU (derived from ASIN+Condition, or explicit from Excel) — used for duplicate-in-file check
     const skuCounts = {};
     rows.forEach((row) => {
-      const skuKey = Object.keys(row).find((k) => normalizeKey(k) === "sku");
-      const explicitSku = skuKey ? String(row[skuKey] ?? "").trim() : "";
       const derivedSku = deriveSkuFromRow(row);
-      const sku = derivedSku || explicitSku;
-      if (!sku) return;
-      skuCounts[sku] = (skuCounts[sku] || 0) + 1;
+      if (!derivedSku) return;
+      skuCounts[derivedSku] = (skuCounts[derivedSku] || 0) + 1;
     });
 
     let valid = 0;
@@ -838,10 +845,9 @@ const Products = () => {
           ["stock", "qty", "quantity"].includes(normalizeKey(k))
         ) ?? null;
 
-      const explicitSku = skuKey ? String(row[skuKey] ?? "").trim() : "";
       const derivedSku = deriveSkuFromRow(row);
-      // Prefer derived SKU when we can compute it (so ASIN/Condition changes update immediately); otherwise use explicit from Excel
-      const effectiveSku = derivedSku || explicitSku;
+      // Always derive SKU from ASIN + Condition; ignore any explicit SKU from Excel
+      const effectiveSku = derivedSku;
 
       const name = nameKey ? String(row[nameKey] ?? "").trim() : "";
       const price = priceKey != null ? Number(row[priceKey]) : NaN;
@@ -877,7 +883,9 @@ const Products = () => {
       const refundableRaw = refundableKey ? String(row[refundableKey] ?? "").trim().toLowerCase() : "";
       const __refundable = ["no", "false", "0", "n"].includes(refundableRaw) ? false : true;
 
-      if (!effectiveSku) fieldErrors[skuKey || "SKU"] = "Required";
+      if (!effectiveSku) {
+        fieldErrors[skuKey || "SKU"] = "ASIN and condition required to generate SKU";
+      }
       if (!name) fieldErrors[nameKey || "Name"] = "Required";
       if (!Number.isFinite(price) || price <= 0) {
         fieldErrors[priceKey || "Price"] = "Invalid price";
@@ -950,12 +958,13 @@ const Products = () => {
       }
 
       // Check which SKUs already exist in DB (so we mark "Already in DB" in preview)
-      const skusToCheck = [...new Set(rows.map((row) => {
-        const explicitSku = Object.keys(row).find((k) => normalizeKey(k) === "sku");
-        const s = explicitSku ? String(row[explicitSku] ?? "").trim() : "";
-        const derived = deriveSkuFromRow(row);
-        return derived || s;
-      }).filter(Boolean))];
+      const skusToCheck = [
+        ...new Set(
+          rows
+            .map((row) => deriveSkuFromRow(row))
+            .filter(Boolean)
+        ),
+      ];
 
       let existingFromApi = [];
       if (skusToCheck.length > 0) {

@@ -36,6 +36,16 @@ const CONDITION_CODE_MAP = {
   "Max": "MX",
 };
 
+const getConditionCodeFromName = (name) => {
+  const trimmed = (name ?? "").toString().trim();
+  if (!trimmed) return "";
+  const mapped = CONDITION_CODE_MAP[trimmed];
+  if (mapped) return mapped;
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  return parts.map((part) => part.charAt(0).toUpperCase()).join("");
+};
+
 const INITIAL_FORM = {
   title: "",
   sku: "",
@@ -176,7 +186,7 @@ export function ProductFormDrawer({
     const asin = form.asin?.trim();
     const selectedCondition = conditions.find((c) => c._id === form.condition);
     const conditionName = selectedCondition?.name;
-    const conditionCode = conditionName ? String(conditionName).trim().charAt(0).toUpperCase() : "";
+    const conditionCode = getConditionCodeFromName(conditionName);
     if (!asin) {
       setForm((prev) => (prev.sku === "" ? prev : { ...prev, sku: "" }));
       return;
