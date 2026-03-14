@@ -1515,26 +1515,15 @@ const Brands = () => {
                     <ImageUploadDropzone
                       onFileSelect={handleDropFile}
                       previewUrl={preview}
+                      showPreview
+                      onRemove={() => {
+                        setPreview(null);
+                        setImage(null);
+                        setImageLogoId(null);
+                      }}
                       className="mt-1"
                       accept="image/*"
                     />
-                    {preview && (
-                      <div className="mt-2 relative inline-block">
-                        <button
-                          type="button"
-                          onClick={() => { setPreview(null); setImage(null); setImageLogoId(null); }}
-                          className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white text-[10px] hover:bg-black"
-                          aria-label="Remove image"
-                        >
-                          ×
-                        </button>
-                        <img
-                          src={preview}
-                          alt="Preview"
-                          className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd]"
-                        />
-                      </div>
-                    )}
                   </Field>
                   <MediaGalleryModal
                     open={mediaGalleryOpen}

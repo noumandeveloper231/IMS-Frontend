@@ -466,11 +466,11 @@ const ProductDetail = () => {
 
                   <Separator />
 
-                  {/* Refundable */}
+                  {/* Returnable */}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Refundable</span>
-                    <Badge variant={product.refundable !== false ? "success" : "secondary"}>
-                      {product.refundable !== false ? "Yes" : "No"}
+                    <span className="text-sm text-muted-foreground">Returnable</span>
+                    <Badge variant={product.returnable !== false ? "success" : "secondary"}>
+                      {product.returnable !== false ? "Yes" : "No"}
                     </Badge>
                   </div>
                 </div>

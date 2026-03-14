@@ -140,7 +140,7 @@ const TEMPLATE_COLUMNS = [
   "Subcategories",
   "Brands",
   "Conditions",
-  "Refundable",
+  "Returnable",
   "Images",
 ];
 
@@ -563,7 +563,7 @@ const Products = () => {
         cell: ({ row }) => {
           const p = row.original;
           return (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-xs lg:min-w-sm">
               <h3 className="font-semibold line-clamp-2 text-gray-800">
                 <Link
                   to={`/products/${p._id}`}
@@ -633,7 +633,7 @@ const Products = () => {
         header: "Sale",
         cell: ({ row }) => {
           const p = row.original;
-          return <span className="text-sm text-gray-500">AED {Number(p.salePrice).toFixed(2)}</span>;
+          return <span className="text-sm text-gray-500 whitespace-nowrap">AED {Number(p.salePrice).toFixed(2)}</span>;
         },
       },
       {
@@ -645,13 +645,13 @@ const Products = () => {
         },
       },
       {
-        id: "refundable",
-        header: "Refundable",
+        id: "returnable",
+        header: "Returnable",
         cell: ({ row }) => {
           const p = row.original;
           return (
             <span className="text-sm text-gray-600">
-              {p.refundable !== false ? "Yes" : "No"}
+              {p.returnable !== false ? "Yes" : "No"}
             </span>
           );
         },
@@ -769,7 +769,7 @@ const Products = () => {
         Subcategories: p.subcategory ? (typeof p.subcategory === "object" ? p.subcategory.name : p.subcategory) : "",
         Brands: p.brand ? (typeof p.brand === "object" ? p.brand.name : p.brand) : "",
         Conditions: p.condition ? (typeof p.condition === "object" ? p.condition.name : p.condition) : "",
-        Refundable: p.refundable !== false ? "Yes" : "No",
+        Returnable: p.returnable !== false ? "Yes" : "No",
         Images: (() => {
           const imgs = Array.isArray(p.images) && p.images.length
             ? p.images
@@ -879,9 +879,9 @@ const Products = () => {
 
       const resolvedImageUrl = normalizedImages.length ? normalizedImages[0] : "";
 
-      const refundableKey = Object.keys(row).find((k) => normalizeKey(k) === "refundable") ?? null;
-      const refundableRaw = refundableKey ? String(row[refundableKey] ?? "").trim().toLowerCase() : "";
-      const __refundable = ["no", "false", "0", "n"].includes(refundableRaw) ? false : true;
+      const returnableKey = Object.keys(row).find((k) => normalizeKey(k) === "returnable" || normalizeKey(k) === "refundable") ?? null;
+      const returnableRaw = returnableKey ? String(row[returnableKey] ?? "").trim().toLowerCase() : "";
+      const __returnable = ["no", "false", "0", "n"].includes(returnableRaw) ? false : true;
 
       if (!effectiveSku) {
         fieldErrors[skuKey || "SKU"] = "ASIN and condition required to generate SKU";
@@ -921,7 +921,7 @@ const Products = () => {
         __sku: effectiveSku,
         __imageUrl: resolvedImageUrl,
         __images: normalizedImages,
-        __refundable,
+        __returnable,
         __errors: fieldErrors,
         __status: hasErrors ? "error" : "valid",
         __statusMessage: statusMessage,
@@ -1159,10 +1159,10 @@ const Products = () => {
       const isSalePrice = nk === "saleprice";
       const isQuantity = nk === "quantity" || nk === "stock" || nk === "qty";
       const isAsin = nk === "asin";
-      const isRefundable = nk === "refundable";
+      const isReturnable = nk === "returnable" || nk === "refundable";
       return {
         id: col,
-        header: col,
+        header: isReturnable ? "Returnable" : isSubcategory ? "Subcategories (optional)" : col,
         enableSorting: false,
         enableHiding: false,
         cell: ({ row }) => {
@@ -1172,7 +1172,15 @@ const Products = () => {
           const hasError = Boolean(errorKey);
           const errorMsg = errorKey ? rowData.__errors[errorKey] : "";
           const val = (rowData[col] ?? "").toString().trim();
-          const fulfilled = (val.length > 0 || (isCategory || isSubcategory || isBrand || isCondition ? Boolean(rowData[col]) : false)) && !hasError;
+          const isOptionalField = isSubcategory;
+          const fulfilled = isOptionalField
+            ? !hasError
+            : (val.length > 0 || (isCategory || isBrand || isCondition || isReturnable ? Boolean(rowData[col] ?? (isReturnable ? rowData.__returnable : undefined)) : false)) && !hasError;
+          const indicatorLabel = isOptionalField && !val && !rowData[col]
+            ? "Optional"
+            : fulfilled
+              ? "Field fulfilled"
+              : errorMsg || "Required";
           const indicator = (
             <TooltipProvider>
               <Tooltip>
@@ -1181,7 +1189,7 @@ const Products = () => {
                     {fulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[200px]">{fulfilled ? "Field fulfilled" : errorMsg || "Required"}</TooltipContent>
+                <TooltipContent side="top" className="max-w-[200px]">{indicatorLabel}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           );
@@ -1203,17 +1211,18 @@ const Products = () => {
               </div>
             );
           }
-          if (isRefundable) {
-            const refundable = rowData.__refundable !== false;
+          if (isReturnable) {
+            const returnable = rowData.__returnable !== false;
             return (
               <div className="flex items-center gap-2 py-1.5" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+                {indicator}
                 <Switch
-                  checked={refundable}
+                  checked={returnable}
                   onCheckedChange={(checked) =>
                     handleImportCellChange(rowIndex, col, checked ? "Yes" : "No")
                   }
                 />
-                <span className="text-xs text-muted-foreground">{refundable ? "Yes" : "No"}</span>
+                <span className="text-xs text-muted-foreground">{returnable ? "Yes" : "No"}</span>
               </div>
             );
           }
@@ -1261,7 +1270,7 @@ const Products = () => {
             const selectedValue = current?.value ?? "";
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
-                <Combobox options={subOpts.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Subcategory" clearable className="flex-1 min-w-0 w-full" />
+                <Combobox options={subOpts.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select subcategory (optional)" clearable className="flex-1 min-w-0 w-full" />
                 {indicator}
               </div>
             );
@@ -1399,7 +1408,7 @@ const Products = () => {
 
     setImportLoading(true);
     try {
-      const payload = validRows.map(({ __errors, __status, __sku, __imageUrl, __images, __refundable, ...rest }) => {
+      const payload = validRows.map(({ __errors, __status, __sku, __imageUrl, __images, __returnable, ...rest }) => {
         const title = rest.Title ?? rest.title ?? "";
         const asin = rest.ASIN ?? rest.asin ?? "";
         const purchasePrice = rest["Purchase Price"] ?? rest.purchasePrice ?? 0;
@@ -1444,7 +1453,7 @@ const Products = () => {
           subcategory,
           brand,
           condition,
-          refundable: __refundable !== false,
+          returnable: __returnable !== false,
           images: imagesArray,
           image: imagesArray[0] || "",
         };
@@ -1634,7 +1643,7 @@ const Products = () => {
                               Download Template
                             </Button>
                             <p className="text-xs text-muted-foreground">
-                              Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                              Supported formats: <span className="font-medium">.csv, .xlsx</span>. Subcategories column is optional.
                             </p>
                           </div>
                           {importRows.length > 0 && (
