@@ -20,6 +20,7 @@ import Sidebar from "./components/Layout/Sidebar";
 import Sales from "./pages/Sales";
 import Orders from "./pages/Orders";
 import ProductList from "./pages/ProductList";
+import PrintProductLabels from "./pages/PrintProductLabels";
 import EcommerceStore from "./components/EcommerceStore";
 import Vendors from "./pages/Vendors";
 import Expenses from "./pages/Expenses";
@@ -62,6 +63,7 @@ const ROUTE_CONFIG = [
   { path: "/products/filter/:type/:id", hideSidebar: true },
   { path: "/products/stock/:status", hideSidebar: true },
   { path: "/products/list", hideSidebar: true },
+  { path: "/products/print-labels", hideSidebar: false },
   { path: "/products/:id", hideSidebar: true },
   { path: "/", hideSidebar: false },
   { path: "/ecom", hideSidebar: false },
@@ -157,6 +159,7 @@ function App() {
                             <Route path="/expensecategories" element={<ProtectedRoute permission="expense.manage"><ExpenseCategories /></ProtectedRoute>} />
                             <Route path="/products" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
                             <Route path="/products/page/:page" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
+                            <Route path="/products/print-labels" element={<ProtectedRoute permission="product.read"><PrintProductLabels /></ProtectedRoute>} />
                             <Route path="/products/:id" element={<ProtectedRoute permission="product.read"><ProductDetail /></ProtectedRoute>} />
                             <Route path="/purchase-orders" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderForm /></ProtectedRoute>} />
                             <Route path="/purchaseorderslist" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderList /></ProtectedRoute>} />
@@ -218,6 +221,7 @@ function App() {
                             <Route path="/expensecategories" element={<ProtectedRoute permission="expense.manage"><ExpenseCategories /></ProtectedRoute>} />
                             <Route path="/products" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
                             <Route path="/products/page/:page" element={<ProtectedRoute permission="product.read"><Products /></ProtectedRoute>} />
+                            <Route path="/products/print-labels" element={<ProtectedRoute permission="product.read"><PrintProductLabels /></ProtectedRoute>} />
                             <Route path="/products/:id" element={<ProtectedRoute permission="product.read"><ProductDetail /></ProtectedRoute>} />
                             <Route path="/purchase-orders" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderForm /></ProtectedRoute>} />
                             <Route path="/purchaseorderslist" element={<ProtectedRoute permission="purchase.manage"><PurchaseOrderList /></ProtectedRoute>} />

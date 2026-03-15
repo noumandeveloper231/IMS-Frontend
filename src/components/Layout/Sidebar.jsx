@@ -76,7 +76,9 @@ const isProductsActive = (pathname) =>
 
 const isManageProductsActive = (pathname) =>
   pathname === "/products" ||
-  (pathname.startsWith("/products/") && !pathname.startsWith("/products/list"));
+  (pathname.startsWith("/products/") &&
+    !pathname.startsWith("/products/list") &&
+    pathname !== "/products/print-labels");
 
 // Single config object: sections with items; items can be links (to) or collapsibles (subItems)
 // permission: optional; if missing, item is visible to all authenticated users
@@ -105,6 +107,7 @@ const SIDEBAR_CONFIG = [
         subItems: [
           { to: "/products", label: "Manage Products", activeType: "manageProducts", permission: "product.read" },
           { to: "/products/list", label: "Products list", exact: true, permission: "product.read" },
+          { to: "/products/print-labels", label: "Print labels", exact: true, permission: "product.read" },
         ],
       },
     ],
