@@ -44,6 +44,7 @@ import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { MediaGalleryModal } from "@/components/media";
 import { useImageModal } from "@/context/ImageModalContext";
+import { useUploadQueue } from "@/context/UploadQueueContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
 import axios from "axios";
@@ -134,6 +135,7 @@ const Conditions = () => {
   const navigate = useNavigate();
   const { page: pageParam } = useParams();
   const { openImageModal } = useImageModal();
+  const { addUploads } = useUploadQueue();
 
   const DESCRIPTION_MIN = 100;
   const DESCRIPTION_MAX = 350;
@@ -610,41 +612,40 @@ const Conditions = () => {
 
   const handleDropFile = (file) => {
     if (!file) return;
-
     if (!file.type?.startsWith("image/")) {
       toast.error("Please upload a valid image file ❌");
       return;
     }
-
-    const maxSizeInMB = 2;
-    if (file.size > maxSizeInMB * 1024 * 1024) {
-      toast.error(`Image must be smaller than ${maxSizeInMB} MB ❌`);
-      return;
-    }
-
-    setImage(file);
-    setImageMediaId(null);
-    setPreview(URL.createObjectURL(file));
+    addUploads([file], undefined, {
+      onComplete: (created) => {
+        const m = created[0];
+        if (m) {
+          setPreview(m.url);
+          setImageMediaId(m._id);
+          setImage(null);
+        }
+      },
+    });
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type?.startsWith("image/")) {
       toast.error("Please upload a valid image file ❌");
       return;
     }
-
-    const maxSizeInMB = 2;
-    if (file.size > maxSizeInMB * 1024 * 1024) {
-      toast.error(`Image must be smaller than ${maxSizeInMB} MB ❌`);
-      return;
-    }
-
-    setImage(file);
-    setImageMediaId(null);
-    setPreview(URL.createObjectURL(file));
+    addUploads([file], undefined, {
+      onComplete: (created) => {
+        const m = created[0];
+        if (m) {
+          setPreview(m.url);
+          setImageMediaId(m._id);
+          setImage(null);
+        }
+      },
+    });
+    e.target.value = "";
   };
 
   const filteredConditions = useMemo(
@@ -753,57 +754,33 @@ const Conditions = () => {
     });
   }, [validateImportedRows]);
 
-  const handleImportImageUpload = useCallback(async (rowIndex, file, prevImageUrl) => {
-    if (!file?.type?.startsWith("image/")) {
-      toast.error("Please select a valid image file");
-      return;
-    }
-    const controller = new AbortController();
-    imageUploadAbortRef.current = controller;
-    setImageUploadState({ rowIndex, fileName: file.name });
-    setImageUploadProgress(0);
-    try {
-      // Remove previous image from Vercel blob before uploading new one (import "Choose from device")
+  const handleImportImageUpload = useCallback(
+    (rowIndex, file, prevImageUrl) => {
+      if (!file?.type?.startsWith("image/")) {
+        toast.error("Please select a valid image file");
+        return;
+      }
       const prevUrl = (prevImageUrl ?? "").toString().trim();
       if (prevUrl && /^https?:\/\//i.test(prevUrl)) {
-        try {
-          await api.post("/conditions/delete-image-by-url", { imageUrl: prevUrl });
-        } catch (_) {
-          // Don't block upload if delete fails (e.g. URL from Excel, not our blob)
-        }
+        api.post("/conditions/delete-image-by-url", { imageUrl: prevUrl }).catch(() => {});
       }
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await api.post("/conditions/upload-image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        signal: controller.signal,
-        onUploadProgress: (ev) => {
-          const pct = ev.total ? Math.round((ev.loaded / ev.total) * 100) : 0;
-          setImageUploadProgress(pct);
+      addUploads([file], undefined, {
+        onComplete: (created) => {
+          const m = created[0];
+          if (m) {
+            setImportRows((prev) => {
+              const next = prev.map((r, i) =>
+                i === rowIndex ? { ...r, __imageUrl: m.url, Image: m.url } : r
+              );
+              return validateImportedRows(next);
+            });
+            toast.success("Image uploaded");
+          }
         },
       });
-      const url = res.data?.url;
-      if (url) {
-        setImageUploadProgress(100);
-        setImportRows((prev) => {
-          const next = prev.map((r, i) =>
-            i === rowIndex ? { ...r, __imageUrl: url, Image: url } : r
-          );
-          return validateImportedRows(next);
-        });
-        toast.success("Image uploaded");
-      }
-      setImageUploadState(null);
-      setImageUploadProgress(0);
-    } catch (err) {
-      if (axios.isCancel(err)) return;
-      setImageUploadState(null);
-      setImageUploadProgress(0);
-      toast.error(err?.response?.data?.message || "Image upload failed");
-    } finally {
-      imageUploadAbortRef.current = null;
-    }
-  }, [validateImportedRows]);
+    },
+    [addUploads, validateImportedRows]
+  );
 
   const handleImportImageUploadCancel = () => {
     if (imageUploadAbortRef.current) {

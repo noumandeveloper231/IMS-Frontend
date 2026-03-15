@@ -8,6 +8,9 @@ import { Loader2, CheckCircle2, ImageIcon } from "lucide-react";
 
 const MEDIA_QUERY_KEY = ["media"];
 
+/** Same rule as Products: images only, max 10MB per file */
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
 const UploadQueueContext = createContext(null);
 
 export function UploadQueueProvider({ children }) {
@@ -24,8 +27,13 @@ export function UploadQueueProvider({ children }) {
     setRecentSuccessCount(0);
   }, []);
 
-  const addUploads = useCallback(async (files, folder = null) => {
-    const fileArray = Array.from(files).filter((f) => f?.type?.startsWith("image/"));
+  const addUploads = useCallback(async (files, folder = null, options = {}) => {
+    const imageFiles = Array.from(files).filter((f) => f?.type?.startsWith("image/"));
+    const fileArray = imageFiles.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
+    if (imageFiles.length > 0 && fileArray.length === 0) {
+      toast.error("All selected images exceed 10MB. Please choose smaller files.");
+      return;
+    }
     if (!fileArray.length) return;
 
     const initial = fileArray.map((file, i) => ({
@@ -67,6 +75,10 @@ export function UploadQueueProvider({ children }) {
     }
 
     queryClient.invalidateQueries({ queryKey: MEDIA_QUERY_KEY });
+    const createdMediaList = next.filter((i) => i.media != null).map((i) => i.media);
+    if (typeof options.onComplete === "function" && createdMediaList.length > 0) {
+      options.onComplete(createdMediaList);
+    }
     next.forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     });

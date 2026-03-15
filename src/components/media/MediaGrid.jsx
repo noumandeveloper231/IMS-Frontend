@@ -1,6 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Check, Loader2, Trash2, Eye, Copy, Scissors } from "lucide-react";
+import { Check, Loader2, Trash2, Eye, Copy, Scissors, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   ContextMenu,
@@ -9,7 +9,19 @@ import {
   ContextMenuTrigger,
 } from "@/components/UI/context-menu";
 import { Checkbox } from "@/components/UI/checkbox";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/UI/tooltip";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/UI/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/UI/popover";
+import { Input } from "@/components/UI/input";
+import { Button } from "@/components/UI/button";
 /**
  * Build Cloudinary URL with optional transform (e.g. w_400,h_400,c_fill for thumbnails).
  */
@@ -39,13 +51,43 @@ export function MediaGrid({
   thumbnailTransform = "w_200,h_200,c_fill",
   columns,
   className,
+  /** Optional search term used to highlight matches inside alt text overlay. */
+  searchTerm,
+  /** Optional callback for updating alt text: (id, alt) => Promise */
+  onUpdateAlt,
 }) {
   const cutSet = React.useMemo(() => new Set(cutIds || []), [cutIds]);
   const [hoveredId, setHoveredId] = React.useState(null);
+  const [editingId, setEditingId] = React.useState(null);
+  const [editingAlt, setEditingAlt] = React.useState("");
+  const [savingId, setSavingId] = React.useState(null);
   const gridStyle = columns != null && columns >= 2 && columns <= 10
     ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }
     : undefined;
   const gridClass = columns == null ? "grid-cols-4 sm:grid-cols-5 md:grid-cols-6" : "";
+
+  const highlightAlt = React.useCallback(
+    (alt) => {
+      const text = alt || "";
+      const query = (searchTerm || "").trim();
+      if (!query) return text;
+      const lower = text.toLowerCase();
+      const q = query.toLowerCase();
+      const idx = lower.indexOf(q);
+      if (idx === -1) return text;
+      const before = text.slice(0, idx);
+      const match = text.slice(idx, idx + q.length);
+      const after = text.slice(idx + q.length);
+      return (
+        <>
+          {before}
+          <span className="bg-yellow-300/60 font-semibold">{match}</span>
+          {after}
+        </>
+      );
+    },
+    [searchTerm]
+  );
 
   const toggle = (id, e) => {
     if (e) e.stopPropagation();
@@ -75,7 +117,7 @@ export function MediaGrid({
   };
 
   const cardClass = cn(
-    "relative aspect-square rounded-lg border-2 overflow-hidden bg-muted focus:outline-none focus:ring-2 focus:ring-ring",
+    "group relative aspect-square rounded-lg border-2 overflow-hidden bg-muted focus:outline-none focus:ring-2 focus:ring-ring",
     onDelete ? "border-transparent hover:border-muted-foreground/30" : ""
   );
 
@@ -124,6 +166,38 @@ export function MediaGrid({
         const fullUrl = item.url || src;
         const inUse = item.inUse === true;
 
+        const effectiveAlt = item.alt || item.public_id || "Media";
+
+        const openEdit = () => {
+          setEditingId(id);
+          setEditingAlt(effectiveAlt);
+        };
+
+        const handleSaveAlt = async () => {
+          const nextAlt = (editingAlt || "").trim();
+          if (!nextAlt) {
+            toast.error("Alt text cannot be empty");
+            return;
+          }
+          if (!onUpdateAlt) {
+            setEditingId(null);
+            return;
+          }
+          try {
+            setSavingId(id);
+            await onUpdateAlt(id, nextAlt);
+            setEditingId(null);
+          } catch (err) {
+            const msg =
+              err?.response?.data?.message ||
+              err?.message ||
+              "Failed to update alt text";
+            toast.error(msg);
+          } finally {
+            setSavingId(null);
+          }
+        };
+
         const card = (
           <div
             key={id}
@@ -140,13 +214,13 @@ export function MediaGrid({
           >
             <img
               src={src}
-              alt={item.alt || item.public_id || "Media"}
+              alt={effectiveAlt}
               className="w-full h-full object-cover"
               loading="lazy"
             />
             {/* Subtle black overlay only in modal (selectOnCardClick) mode */}
             {isSelected && selectOnCardClick && (
-              <div className="absolute inset-0 bg-black/30 z-[1]" aria-hidden />
+              <div className="absolute inset-0 bg-black/30 z-10" aria-hidden />
             )}
             {showCheckbox && (
               <div
@@ -161,7 +235,7 @@ export function MediaGrid({
                 />
               </div>
             )}
-            <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1">
+            <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-1">
               {inUse && (
                 <TooltipProvider>
                   <Tooltip>
@@ -179,6 +253,69 @@ export function MediaGrid({
                 </TooltipProvider>
 
               )}
+              {/* Edit alt text */}
+              <Popover
+                open={editingId === id}
+                onOpenChange={(open) => {
+                  if (open) {
+                    openEdit();
+                  } else if (editingId === id) {
+                    setEditingId(null);
+                  }
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEdit();
+                    }}
+                    className="p-1.5 rounded-md bg-background/90 text-foreground/90 shadow border border-border opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Edit alt text"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-64 p-3 space-y-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Edit alt text
+                  </p>
+                  <Input
+                    value={editingAlt}
+                    onChange={(e) => setEditingAlt(e.target.value)}
+                    placeholder="Describe this image"
+                    className="h-8 text-xs"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingId(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveAlt}
+                      disabled={savingId === id}
+                    >
+                      {savingId === id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                      ) : null}
+                      Save
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
               {onDelete && !onViewImage && (
                 <button
                   type="button"
@@ -186,7 +323,7 @@ export function MediaGrid({
                     e.stopPropagation();
                     onDelete(id);
                   }}
-                  className="p-1.5 rounded-md bg-red-500/90 text-white hover:bg-red-600 shadow transition-colors"
+                  className="p-1.5 rounded-md bg-red-500/90 text-white hover:bg-red-600 shadow transition-colors opacity-0 group-hover:opacity-100"
                   aria-label="Delete image"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -203,6 +340,22 @@ export function MediaGrid({
                   <Check className="h-5 w-5" strokeWidth={2.5} />
                 </span>
               </span>
+            )}
+
+            {/* Alt text hover overlay */}
+            {effectiveAlt && (
+              <div
+                className={cn(
+                  "pointer-events-none absolute inset-x-0 bottom-0 z-10 px-2 pb-1.5 pt-4 bg-linear-to-t from-black/80 via-black/45 to-transparent transition-opacity duration-200",
+                  searchTerm && searchTerm.trim()
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-100"
+                )}
+              >
+                <p className="text-[11px] sm:text-[13px] md:text-[15px] leading-snug text-white line-clamp-2">
+                  {highlightAlt(effectiveAlt)}
+                </p>
+              </div>
             )}
           </div>
         );
