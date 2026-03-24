@@ -1,13 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { ChevronDown, Check, Trash2 } from "lucide-react";
 import api from "../utils/api";
-import { API_HOST } from "../config/api";
-
-const resolveImageUrl = (src) => {
-  if (!src) return null;
-  if (src.startsWith("http://") || src.startsWith("https://")) return src;
-  return `${API_HOST}${src}`;
-};
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
@@ -41,69 +34,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useScanner } from "@/context/ScannerContext";
 import { DataTable } from "@/components/DataTable";
-
-function SalesProductCombobox({ products = [], value, onChange, placeholder = "Search product..." }) {
-  const [open, setOpen] = useState(false);
-  const selected = products.find((p) => p._id === value) ?? null;
-  const displayLabel = selected ? selected.title : placeholder;
-
-  const handleSelect = (product) => {
-    onChange(product._id);
-    setOpen(false);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background",
-            "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-            !selected && "text-muted-foreground"
-          )}
-        >
-          <span className="truncate">{displayLabel}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 max-h-80" align="start">
-        <Command>
-          <CommandInput placeholder="Search product..." />
-          <CommandList>
-            <CommandEmpty>No products found.</CommandEmpty>
-            <CommandGroup>
-              {products.map((p) => (
-                <CommandItem
-                  key={p._id}
-                  value={p.title}
-                  onSelect={() => handleSelect(p)}
-                >
-                  <Check className={cn("mr-2 h-4 w-4", value === p._id ? "opacity-100" : "opacity-0")} />
-                  <div className="flex gap-2 items-center">
-                    {p.image ? (
-                      <img src={resolveImageUrl(p.image)} alt="" className="h-8 w-8 object-cover rounded border" />
-                    ) : (
-                      <span className="w-8 h-8 rounded border bg-muted flex items-center justify-center text-xs text-muted-foreground">—</span>
-                    )}
-                    <div className="flex flex-col">
-                      <span className="font-medium">{p.title}</span>
-                      {(p.category) && (
-                        <span className="text-xs text-muted-foreground">
-                          {typeof p.category === "object" ? p.category.name : p.category}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
+import { Combobox } from "@/components/UI/combobox";
+import { Textarea } from "@/components/UI/textarea";
 
 function SalesEmployeeCombobox({
   employees = [],
@@ -205,51 +137,58 @@ const Sales = () => {
   const activeEmployees = (employees || []).filter((e) => e.status === "active");
 
   const updateItem = useCallback((index, field, value) => {
-    const updated = [...items];
-    if (field === "quantity") {
-      value = Math.max(1, Math.min(value, updated[index].stock));
-    }
-    updated[index][field] = value;
+    setItems((prev) => {
+      const updated = [...prev];
+      if (!updated[index]) return prev;
 
-    if (field === "productId") {
-      const selected = products.find((p) => p._id === value);
-      if (selected) {
-        updated[index].productName = selected.title;
-        updated[index].salesnote = selected.salesnote;
-        updated[index].stock = selected.quantity;
-        updated[index].price = selected.salePrice;
-        updated[index].total = selected.salePrice * updated[index].quantity;
-      } else {
-        updated[index] = {
-          productId: "",
-          productName: "",
-          stock: 0,
-          price: 0,
-          quantity: 1,
-          total: 0,
-          salesnote: "",
-        };
+      if (field === "quantity") {
+        value = Math.max(1, Number(value) || 1);
       }
-    }
 
-    if (field === "quantity" || field === "price") {
-      updated[index].total = updated[index].price * updated[index].quantity;
-    }
-    setItems(updated);
-  }, [items, products]);
+      updated[index] = { ...updated[index], [field]: value };
+
+      if (field === "productId") {
+        const selected = products.find((p) => p._id === value);
+        if (selected) {
+          updated[index] = {
+            ...updated[index],
+            productName: selected.title,
+            salesnote: selected.salesnote,
+            stock: selected.quantity,
+            price: selected.salePrice,
+            total: selected.salePrice * updated[index].quantity,
+          };
+        } else {
+          updated[index] = {
+            productId: "",
+            productName: "",
+            stock: 0,
+            price: 0,
+            quantity: 1,
+            total: 0,
+            salesnote: "",
+          };
+        }
+      }
+
+      if (field === "quantity" || field === "price") {
+        updated[index].total = updated[index].price * updated[index].quantity;
+      }
+
+      return updated;
+    });
+  }, [products]);
 
   const addItem = useCallback(() => {
-    setItems([
-      ...items,
+    setItems((prev) => ([
+      ...prev,
       { productId: "", productName: "", salesnote: "", stock: 0, price: 0, quantity: 1, total: 0 },
-    ]);
-  }, [items]);
+    ]));
+  }, []);
 
   const removeItem = useCallback((index) => {
-    const updated = [...items];
-    updated.splice(index, 1);
-    setItems(updated);
-  }, [items]);
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   // Barcode scans add product to cart by SKU (mobile scanner or USB keyboard wedge)
   const productsRef = useRef(products);
@@ -363,11 +302,16 @@ const Sales = () => {
           const index = row.index;
           const item = row.original;
           return (
-            <SalesProductCombobox
-              products={products}
+            <Combobox
+              options={products.map((p) => ({
+                value: p._id,
+                label: p.title || p.sku || "Unnamed product",
+                qrcode: p.qrCode,
+              }))}
               value={item.productId}
               onChange={(id) => updateItem(index, "productId", id)}
               placeholder="Search product..."
+              className="min-w-[220px]"
             />
           );
         },
@@ -399,7 +343,6 @@ const Sales = () => {
             <Input
               type="number"
               min={1}
-              max={item.stock || 9999}
               className="w-20 h-9"
               value={item.quantity}
               onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
@@ -493,6 +436,7 @@ const Sales = () => {
               addPagination={false}
               enableSelection={false}
               enableHeaderContextMenu={false}
+              fixedHeight={false}
               containerClassName="overflow-x-auto rounded-lg border border-gray-200"
             />
             <Button type="button" variant="outline" className="mt-4" onClick={addItem}>
@@ -539,10 +483,9 @@ const Sales = () => {
                 </Select>
               </div>
               <div>
-                <Field><FieldLabel>Sales Note</FieldLabel></Field>
-                <textarea
+                <Field><FieldLabel className={"mb-1"}>Sales Note</FieldLabel></Field>
+                <Textarea
                   placeholder="Sales notes"
-                  className="mt-1 flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   value={saleNote}
                   onChange={(e) => setSaleNote(e.target.value)}
                 />

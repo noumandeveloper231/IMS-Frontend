@@ -58,6 +58,8 @@ export function DataTable({
   getRowId: getRowIdProp,
   containerClassName,
   getRowProps,
+  /** When false, table container grows with content (no fixed 500px height). Default true. */
+  fixedHeight = true,
   /** When false, header cells are not wrapped in context menu (e.g. for import/input tables). Default true. */
   enableHeaderContextMenu = true,
   /** Optional: initial page index (0-based) for pagination. */
@@ -307,9 +309,13 @@ export function DataTable({
   return (
     <div className="space-y-3 w-full flex flex-col">
       <div
-        className={cn(containerClassName, "flex h-[500px] flex-col overflow-hidden rounded-md border border-gray-200 bg-background")}
+        className={cn(
+          containerClassName,
+          "flex flex-col overflow-hidden rounded-md border border-gray-200 bg-background",
+          fixedHeight && "h-[500px]",
+        )}
       >
-        <div className="flex-1 overflow-y-auto">
+        <div className={cn(fixedHeight ? "flex-1 overflow-y-auto" : "overflow-y-visible")}>
           <Table className="relative min-w-full text-black" stickyHeader>
             <TableHeader className="text-black shadow-sm">
               {table.getHeaderGroups().map((headerGroup) => (
