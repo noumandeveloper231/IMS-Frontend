@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { ChevronDown, Check, Trash2 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
@@ -36,15 +36,11 @@ import {
   CommandList,
 } from "@/components/UI/command";
 import {
-  Table,
-  TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from "@/components/UI/table";
 import { cn } from "@/lib/utils";
 import { useScanner } from "@/context/ScannerContext";
+import { DataTable } from "@/components/DataTable";
 
 function SalesProductCombobox({ products = [], value, onChange, placeholder = "Search product..." }) {
   const [open, setOpen] = useState(false);
@@ -208,7 +204,7 @@ const Sales = () => {
   const employees = employeesData ?? [];
   const activeEmployees = (employees || []).filter((e) => e.status === "active");
 
-  const updateItem = (index, field, value) => {
+  const updateItem = useCallback((index, field, value) => {
     const updated = [...items];
     if (field === "quantity") {
       value = Math.max(1, Math.min(value, updated[index].stock));
@@ -240,20 +236,20 @@ const Sales = () => {
       updated[index].total = updated[index].price * updated[index].quantity;
     }
     setItems(updated);
-  };
+  }, [items, products]);
 
-  const addItem = () => {
+  const addItem = useCallback(() => {
     setItems([
       ...items,
       { productId: "", productName: "", salesnote: "", stock: 0, price: 0, quantity: 1, total: 0 },
     ]);
-  };
+  }, [items]);
 
-  const removeItem = (index) => {
+  const removeItem = useCallback((index) => {
     const updated = [...items];
     updated.splice(index, 1);
     setItems(updated);
-  };
+  }, [items]);
 
   // Barcode scans add product to cart by SKU (mobile scanner or USB keyboard wedge)
   const productsRef = useRef(products);
@@ -357,6 +353,87 @@ const Sales = () => {
     createSaleMutation.mutate(payload);
   };
 
+  const itemColumns = useMemo(
+    () => [
+      {
+        id: "product",
+        header: "Product",
+        meta: { label: "Product" },
+        cell: ({ row }) => {
+          const index = row.index;
+          const item = row.original;
+          return (
+            <SalesProductCombobox
+              products={products}
+              value={item.productId}
+              onChange={(id) => updateItem(index, "productId", id)}
+              placeholder="Search product..."
+            />
+          );
+        },
+      },
+      {
+        id: "stock",
+        header: "Stock",
+        meta: { label: "Stock" },
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">{row.original.stock}</span>
+        ),
+      },
+      {
+        id: "price",
+        header: "Price",
+        meta: { label: "Price" },
+        cell: ({ row }) => (
+          <span className="text-sm text-gray-500">AED {row.original.price}</span>
+        ),
+      },
+      {
+        id: "quantity",
+        header: "Quantity",
+        meta: { label: "Quantity" },
+        cell: ({ row }) => {
+          const index = row.index;
+          const item = row.original;
+          return (
+            <Input
+              type="number"
+              min={1}
+              max={item.stock || 9999}
+              className="w-20 h-9"
+              value={item.quantity}
+              onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
+            />
+          );
+        },
+      },
+      {
+        id: "total",
+        header: "Total",
+        meta: { label: "Total" },
+        cell: ({ row }) => (
+          <span className="font-medium">AED {row.original.total}</span>
+        ),
+      },
+      {
+        id: "action",
+        header: "Action",
+        filter: false,
+        meta: { label: "Action" },
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={() => removeItem(row.index)}
+            className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200"
+          >
+            <Trash2 size={18} />
+          </button>
+        ),
+      },
+    ],
+    [products, removeItem, updateItem],
+  );
+
   return (
     <div className="min-h-screen bg-white p-8 sm:p-10 lg:p-12 max-w-full">
       <div className="max-w-7xl mx-auto">
@@ -410,52 +487,14 @@ const Sales = () => {
 
           <section className="mb-6">
             <h3 className="text-xl font-semibold text-gray-700 mb-4">Sale Items</h3>
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead>Product</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead className="text-center">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item, index) => (
-                    <TableRow key={index} className="hover:bg-gray-50">
-                      <TableCell className="min-w-[200px]">
-                        <SalesProductCombobox
-                          products={products}
-                          value={item.productId}
-                          onChange={(id) => updateItem(index, "productId", id)}
-                          placeholder="Search product..."
-                        />
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-500">{item.stock}</TableCell>
-                      <TableCell className="text-sm text-gray-500">AED {item.price}</TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={item.stock || 9999}
-                          className="w-20 h-9"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">AED {item.total}</TableCell>
-                      <TableCell className="">
-                        <button onClick={() => removeItem(index)} className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-full transition-colors duration-200">
-                          <Trash2 size={18} />
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              columns={itemColumns}
+              data={items}
+              addPagination={false}
+              enableSelection={false}
+              enableHeaderContextMenu={false}
+              containerClassName="overflow-x-auto rounded-lg border border-gray-200"
+            />
             <Button type="button" variant="outline" className="mt-4" onClick={addItem}>
               + Add Item
             </Button>
