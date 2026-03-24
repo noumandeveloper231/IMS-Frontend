@@ -239,6 +239,9 @@ const Products = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [stockFilter, setStockFilter] = useState("all");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [conditionFilter, setConditionFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [importRows, setImportRows] = useState([]);
@@ -394,6 +397,10 @@ const Products = () => {
   const brandOptions = brands.map((b) => ({ value: b._id, label: b.name }));
   const conditionOptions = conditions.map((c) => ({ value: c._id, label: c.name }));
 
+  const tableCategoryOptions = useMemo(() => categoryOptions, [categoryOptions]);
+  const tableBrandOptions = useMemo(() => brandOptions, [brandOptions]);
+  const tableConditionOptions = useMemo(() => conditionOptions, [conditionOptions]);
+
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
       const res = await api.delete(`/products/delete/${id}`);
@@ -470,7 +477,28 @@ const Products = () => {
       matchesStock = (p.quantity ?? 0) === 0;
     }
 
-    return matchesSearch && matchesStock;
+    const productBrandId = typeof p.brand === "object" ? p.brand?._id : p.brand;
+    const productBrandName = typeof p.brand === "object" ? p.brand?.name : p.brand;
+    const matchesBrand =
+      !brandFilter ||
+      String(productBrandId ?? "").trim() === brandFilter ||
+      String(productBrandName ?? "").trim() === brandFilter;
+
+    const productConditionId = typeof p.condition === "object" ? p.condition?._id : p.condition;
+    const productConditionName = typeof p.condition === "object" ? p.condition?.name : p.condition;
+    const matchesCondition =
+      !conditionFilter ||
+      String(productConditionId ?? "").trim() === conditionFilter ||
+      String(productConditionName ?? "").trim() === conditionFilter;
+
+    const productCategoryId = typeof p.category === "object" ? p.category?._id : p.category;
+    const productCategoryName = typeof p.category === "object" ? p.category?.name : p.category;
+    const matchesCategory =
+      !categoryFilter ||
+      String(productCategoryId ?? "").trim() === categoryFilter ||
+      String(productCategoryName ?? "").trim() === categoryFilter;
+
+    return matchesSearch && matchesStock && matchesBrand && matchesCondition && matchesCategory;
   });
 
   const confirmDelete = async (id) => {
@@ -535,11 +563,20 @@ const Products = () => {
       {
         id: "index",
         header: "#",
+        accessorFn: (_, index) => index + 1,
+        type: "number",
         cell: ({ row }) => row.index + 1,
       },
       {
         id: "image",
         header: "Image",
+        filter: false,
+        accessorFn: (p) => {
+          const primaryImage =
+            Array.isArray(p.images) && p.images.length ? p.images[0] : p.image;
+          return p.imageUrl || resolveImageUrl(primaryImage) || "";
+        },
+        type: "any",
         cell: ({ row }) => {
           const p = row.original;
           const primaryImage =
@@ -548,18 +585,32 @@ const Products = () => {
             return <span className="text-gray-400 italic">No Image</span>;
           }
           return (
-            <img
-              src={p.imageUrl || resolveImageUrl(primaryImage)}
-              alt={p.title}
-              onClick={() => openImageModal(p.imageUrl || resolveImageUrl(primaryImage))}
-              className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
-            />
+            <div className="flex items-center justify-center w-50">
+              <img
+                src={p.imageUrl || resolveImageUrl(primaryImage)}
+                alt={p.title}
+                onClick={() => openImageModal(p.imageUrl || resolveImageUrl(primaryImage))}
+                className="aspect-square w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+              />
+            </div>
           );
         },
       },
       {
         id: "details",
         header: "Details",
+        accessorFn: (p) =>
+          [
+            p.title,
+            p.sku,
+            typeof p.brand === "object" ? p.brand?.name : p.brand,
+            typeof p.condition === "object" ? p.condition?.name : p.condition,
+            typeof p.category === "object" ? p.category?.name : p.category,
+            typeof p.subcategory === "object" ? p.subcategory?.name : p.subcategory,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        type: "text",
         cell: ({ row }) => {
           const p = row.original;
           return (
@@ -608,6 +659,9 @@ const Products = () => {
       {
         id: "qr",
         header: "QR Code",
+        filter: false,
+        accessorFn: (p) => p.qrCode || "",
+        type: "text",
         cell: ({ row }) => {
           const p = row.original;
           return (
@@ -623,6 +677,8 @@ const Products = () => {
       {
         id: "purchase",
         header: "Purchase",
+        accessorFn: (p) => Number(p.purchasePrice ?? 0),
+        type: "number",
         cell: ({ row }) => {
           const p = row.original;
           return <span className="text-sm text-gray-500">AED {Number(p.purchasePrice).toFixed(2)}</span>;
@@ -631,6 +687,8 @@ const Products = () => {
       {
         id: "sale",
         header: "Sale",
+        accessorFn: (p) => Number(p.salePrice ?? 0),
+        type: "number",
         cell: ({ row }) => {
           const p = row.original;
           return <span className="text-sm text-gray-500 whitespace-nowrap">AED {Number(p.salePrice).toFixed(2)}</span>;
@@ -639,6 +697,8 @@ const Products = () => {
       {
         id: "stock",
         header: "Stock",
+        accessorFn: (p) => Number(p.quantity ?? 0),
+        type: "number",
         cell: ({ row }) => {
           const p = row.original;
           return <span className="text-sm text-gray-500">{p.quantity}</span>;
@@ -647,6 +707,8 @@ const Products = () => {
       {
         id: "returnable",
         header: "Returnable",
+        accessorFn: (p) => (p.returnable !== false ? "Yes" : "No"),
+        type: "text",
         cell: ({ row }) => {
           const p = row.original;
           return (
@@ -659,6 +721,9 @@ const Products = () => {
       {
         id: "actions",
         header: "Actions",
+        accessorFn: () => "",
+        type: "any",
+        enableColumnFilter: false,
         cell: ({ row }) => {
           const p = row.original;
           return (
@@ -1300,7 +1365,7 @@ const Products = () => {
             const displayVal = numVal === "" || numVal == null ? "" : String(numVal);
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-0 w-full" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
-                <Input type="number" min={0} step={0.01} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")} placeholder={isPurchasePrice ? "0.00" : "0.00"} />  
+                <Input type="number" min={0} step={0.01} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")} placeholder={isPurchasePrice ? "0.00" : "0.00"} />
                 {indicator}
               </div>
             );
@@ -1428,13 +1493,13 @@ const Products = () => {
           Array.isArray(__images) && __images.length
             ? __images
             : (() => {
-                const raw = (__imageUrl || rest.Images || rest.Image || "").toString();
-                const parts = raw
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-                return parts;
-              })();
+              const raw = (__imageUrl || rest.Images || rest.Image || "").toString();
+              const parts = raw
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+              return parts;
+            })();
         return {
           title,
           sku: __sku,
@@ -1800,17 +1865,8 @@ const Products = () => {
         {/* Table section */}
         <div className="min-w-0">
           <div className="flex flex-col gap-4 mb-4">
-            <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
-              <div className="w-full min-w-0 flex-5">
-                <Input
-                  type="text"
-                  placeholder="Search products..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-              <div className="w-full sm:w-auto min-w-0 flex-1">
+            <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="w-full min-w-0">
                 <UiSelect
                   value={stockFilter}
                   onValueChange={(value) => {
@@ -1830,7 +1886,45 @@ const Products = () => {
                   </SelectContent>
                 </UiSelect>
               </div>
-              <div className="w-full sm:w-auto min-w-0 flex-1">
+              <div className="w-full min-w-0">
+                <Combobox
+                  options={tableCategoryOptions}
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  placeholder="Category filter"
+                  className="w-full"
+                />
+              </div>
+              <div className="w-full min-w-0">
+                <Combobox
+                  options={tableBrandOptions}
+                  value={brandFilter}
+                  onChange={setBrandFilter}
+                  placeholder="Brand filter"
+                  className="w-full"
+                />
+              </div>
+              <div className="w-full min-w-0">
+                <Combobox
+                  options={tableConditionOptions}
+                  value={conditionFilter}
+                  onChange={setConditionFilter}
+                  placeholder="Condition filter"
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
+              <div className="w-full min-w-0 sm:flex-1">
+                <Input
+                  type="text"
+                  placeholder="Search products..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="w-full sm:w-auto min-w-0 sm:min-w-[220px]">
                 <UiSelect
                   value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
                   onValueChange={(value) => {

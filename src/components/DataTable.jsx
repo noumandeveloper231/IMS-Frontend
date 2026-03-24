@@ -30,7 +30,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/UI/table";
-import { Input } from "@/components/UI/input";
 import { Button } from "@/components/UI/button";
 import { Checkbox } from "@/components/UI/checkbox";
 import {
@@ -65,7 +64,6 @@ export function DataTable({
   initialPageIndex,
   /** Optional: called whenever page index changes (0-based). */
   onPageChange,
-  // TanStack Query: when provided, table uses useQuery instead of data prop
   queryKey,
   queryFn,
   queryOptions = {},
@@ -205,15 +203,26 @@ export function DataTable({
     [renderRowActions]
   );
 
-  const allColumns = React.useMemo(
-    () =>
-      enableSelection
-        ? (actionsColumn
-          ? [selectionColumn, ...columns, actionsColumn]
-          : [selectionColumn, ...columns])
-        : (actionsColumn ? [...columns, actionsColumn] : columns),
-    [selectionColumn, columns, actionsColumn, enableSelection]
-  );
+  const allColumns = React.useMemo(() => {
+    const normalizeColumn = (column) => {
+      if (!column || typeof column !== "object") return column;
+      if (column.id === "__select" || column.id === "__actions") {
+        return { ...column, enableColumnFilter: false, enableSorting: false };
+      }
+      if (column.filter === false) {
+        return { ...column, enableSorting: false };
+      }
+      return column;
+    };
+
+    const mergedColumns = enableSelection
+      ? (actionsColumn
+        ? [selectionColumn, ...columns, actionsColumn]
+        : [selectionColumn, ...columns])
+      : (actionsColumn ? [...columns, actionsColumn] : columns);
+
+    return mergedColumns.map(normalizeColumn);
+  }, [selectionColumn, columns, actionsColumn, enableSelection]);
 
   const getRowId = React.useCallback(
     (row, index) => {
@@ -307,6 +316,7 @@ export function DataTable({
                 <TableRow key={headerGroup.id} className="">
                   {headerGroup.headers.map((header) => {
                     const isSelection = header.column.id === "__select";
+                    const headerFilterEnabled = header.column.columnDef.filter !== false;
 
                     const rawLabel = header.isPlaceholder
                       ? null
@@ -325,10 +335,16 @@ export function DataTable({
                       <div className="flex justify-center">{rawLabel}</div>
                     ) : (
                       <div className="">
-                        <DefaultHeader
-                          column={header.column}
-                          title={String(title)}
-                        />
+                        {headerFilterEnabled ? (
+                          <DefaultHeader
+                            column={header.column}
+                            title={String(title)}
+                          />
+                        ) : (
+                          <span className="truncate text-sm font-semibold text-gray-800">
+                            {String(title)}
+                          </span>
+                        )}
                       </div>
                     );
 
