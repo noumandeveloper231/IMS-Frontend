@@ -39,8 +39,12 @@ export function Combobox({
   const atMax = maxItemsNum != null && valuesArray.length >= maxItemsNum
 
   React.useEffect(() => {
-    if (!multiselect && selected) {
-      setSearch(selected.label)
+    if (!multiselect) {
+      if (selected) {
+        setSearch(selected.label)
+      } else if (value == null || value === "") {
+        setSearch("")
+      }
     }
   }, [multiselect, value, selected])
 

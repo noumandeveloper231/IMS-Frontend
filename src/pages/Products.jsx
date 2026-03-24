@@ -1924,6 +1924,23 @@ const Products = () => {
                   className="w-full"
                 />
               </div>
+              <div className="w-full sm:w-auto min-w-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    setSearch("");
+                    setStockFilter("");
+                    setCategoryFilter("");
+                    setBrandFilter("");
+                    setConditionFilter("");
+                    setCustomItemsPerPage("");
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              </div>
               <div className="w-full sm:w-auto min-w-0 sm:min-w-[220px]">
                 <UiSelect
                   value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
