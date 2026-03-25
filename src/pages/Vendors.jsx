@@ -42,6 +42,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { Trash2, Pencil, Check, X } from "lucide-react";
 import { Textarea } from "@/components/UI/textarea";
+import Loader from "@/components/Loader";
 
 const TEMPLATE_COLUMNS = ["Name", "Company Name", "Email", "Phone", "Address", "City", "Country", "Opening Balance", "Notes", "Status"];
 
@@ -1378,9 +1379,7 @@ const Vendors = () => {
           </div>
 
           {vendorsLoading ? (
-            <div className="flex justify-center items-center py-10">
-              <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-            </div>
+            <div className="flex justify-center items-center py-10"><Loader /></div>
           ) : (
             <div className="overflow-x-auto">
               <DataTable

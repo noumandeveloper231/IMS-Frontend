@@ -41,6 +41,7 @@ import { DataTable } from "@/components/UI/data-table";
 import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
+import Loader from "@/components/Loader";
 
 const TEMPLATE_COLUMNS = ["Name", "Phone", "Email", "Role", "Salary", "Status"];
 
@@ -1159,9 +1160,7 @@ const Employees = () => {
             </div>
           </div>
           {employeesLoading ? (
-            <div className="flex justify-center items-center py-10">
-              <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-            </div>
+            <div className="flex justify-center items-center py-10"><Loader /></div>
           ) : (
             <div className="overflow-x-auto">
               <DataTable

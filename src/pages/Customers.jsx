@@ -38,6 +38,7 @@ import {
   DrawerTrigger,
   DrawerFooter,
 } from "@/components/UI/drawer";
+import Loader from "@/components/Loader";
 
 const TEMPLATE_COLUMNS = [
   "Name",
@@ -1242,9 +1243,7 @@ const Customers = () => {
         </Drawer>
 
         {tableLoading ? (
-          <div className="flex justify-center items-center py-10">
-            <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-          </div>
+          <div className="flex justify-center items-center py-10"><Loader /></div>
         ) : (
           <DataTable
             columns={customerColumns}

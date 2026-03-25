@@ -34,6 +34,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/UI/sheet";
+import Loader from "@/components/Loader";
+import { useSettings } from "@/context/SettingsContext";
 
 
 const resolveImageUrl = (src) => {
@@ -46,6 +48,8 @@ const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { openImageModal } = useImageModal();
+  const { settings } = useSettings();
+  const currency = settings?.currency || "AED";
   const [activeIndex, setActiveIndex] = useState(0);
   const [carouselApi, setCarouselApi] = useState(null);
   const [conditionSheetOpen, setConditionSheetOpen] = useState(false);
@@ -162,7 +166,7 @@ const ProductDetail = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 p-6 sm:p-8 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
+        <Loader />
       </div>
     );
   }
@@ -340,7 +344,7 @@ const ProductDetail = () => {
                         Sale Price
                       </p>
                       <p className="text-2xl font-semibold text-destructive">
-                        AED {Number(product.salePrice).toFixed(2)}
+                        {currency} {Number(product.salePrice).toFixed(2)}
                       </p>
                     </div>
 
@@ -349,7 +353,7 @@ const ProductDetail = () => {
                         Purchase Price
                       </p>
                       <p className="text-xl font-semibold text-primary">
-                        AED {Number(product.purchasePrice).toFixed(2)}
+                        {currency} {Number(product.purchasePrice).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -383,7 +387,7 @@ const ProductDetail = () => {
                       >
                         <p className="text-sm font-semibold text-gray-900">{conditionName || "—"}</p>
                         <p className="text-base font-semibold text-emerald-700 mt-0.5">
-                          AED {Number(product.salePrice).toFixed(2)}
+                          {currency} {Number(product.salePrice).toFixed(2)}
                         </p>
                       </button>
                     </div>

@@ -3,6 +3,7 @@ import { User, LogOut, Settings, ChevronDown } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import assets from "@/assets/assets";
+import { useSettings } from "@/context/SettingsContext";
 import {
   Popover,
   PopoverContent,
@@ -12,6 +13,7 @@ import {
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { settings } = useSettings();
 
   const handleLogout = () => {
     logout();
@@ -23,9 +25,9 @@ const Navbar = () => {
   return (
     <div className="bg-white text-gray-900 border-b border-gray-300 px-5 py-3 flex justify-between items-center dark:border-gray-600 dark:bg-gray-900 dark:text-white">
       <Link to="/" className="flex items-center gap-2">
-        <img src={assets.logo} alt="logo" className="w-10 h-10" />
+        <img src={settings?.siteLogo || assets.logo} alt="logo" className="w-10 h-10" />
         <h1 className="text-xl font-semibold">
-          Al Ramil
+          {settings?.siteName || "Al Ramil"}
         </h1>
       </Link>
 

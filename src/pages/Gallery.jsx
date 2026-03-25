@@ -63,6 +63,7 @@ import { mediaApi } from "@/api/media";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
+import Loader from "@/components/Loader";
 import {
   Search,
   Loader2,
@@ -1102,7 +1103,7 @@ export default function Gallery() {
 
               {isLoading ? (
                 <div className="flex items-center justify-center py-16">
-                  <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+                  <Loader />
                 </div>
               ) : (
                 <ContextMenu>

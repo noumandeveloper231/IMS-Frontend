@@ -17,6 +17,7 @@ import {
 } from "@/components/UI/collapsible";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbPage, BreadcrumbSeparator } from "@/components/UI/breadcrumb";
 import { BreadcrumbLink } from "@/components/UI/breadcrumb";
+import Loader from "@/components/Loader";
 
 const getRefName = (ref) => (ref && typeof ref === "object" ? ref.name : ref);
 
@@ -306,10 +307,7 @@ const ProductList = () => {
   if (productsLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <p className="text-gray-500">Loading products…</p>
-          <div className="mt-2 h-1 w-24 animate-pulse rounded bg-gray-200 mx-auto" />
-        </div>
+        <Loader />
       </div>
     );
   }

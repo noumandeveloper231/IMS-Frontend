@@ -30,6 +30,7 @@ import {
 } from "@/components/UI/dialog";
 import { DataTable } from "@/components/DataTable";
 import { useImageModal } from "@/context/ImageModalContext";
+import Loader from "@/components/Loader";
 
 const PurchaseOrderList = () => {
   const [search, setSearch] = useState("");
@@ -337,9 +338,7 @@ const PurchaseOrderList = () => {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10">
-            <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-          </div>
+          <div className="flex justify-center py-10"><Loader /></div>
         ) : filteredOrders.length === 0 ? (
           <p className="text-gray-500 py-6">No purchase orders found.</p>
         ) : (

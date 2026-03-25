@@ -75,10 +75,12 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { InfoIcon } from "lucide-react";
 import { useImageModal } from "@/context/ImageModalContext";
+import { useSettings } from "@/context/SettingsContext";
 import axios from "axios";
 import { ProductFormDrawer } from "@/components/ProductFormDrawer";
 import { RichTextEditor } from "@/components/UI/RichTextEditor";
 import { Combobox } from "@/components/UI/combobox";
+import Loader from "@/components/Loader";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -231,8 +233,20 @@ function ProductCombobox({
 const Products = () => {
   const queryClient = useQueryClient();
   const { openImageModal } = useImageModal();
+  const { settings } = useSettings();
   const { page: pageParam } = useParams();
   const navigate = useNavigate();
+  const currency = settings?.currency || "AED";
+
+  const normalizeSkuPrefix = (value) =>
+    (value ?? "")
+      .toString()
+      .trim()
+      .replace(/[\s-]/g, "")
+      .slice(0, 5)
+      .toUpperCase();
+
+  const [skuPrefixDefault, setSkuPrefixDefault] = useState("AR");
 
   const [editingProduct, setEditingProduct] = useState(null);
   const [search, setSearch] = useState("");
@@ -306,6 +320,26 @@ const Products = () => {
       document.removeEventListener("dragover", onDragOver, false);
       document.removeEventListener("dragleave", onDragLeave, false);
       document.removeEventListener("drop", onDrop, false);
+    };
+  }, []);
+
+  // Load SKU prefix setting (used as default in ProductFormDrawer, still editable in UI).
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      try {
+        const res = await api.get("/settings/get");
+        const settings = res.data?.settings ?? {};
+        const next = normalizeSkuPrefix(settings.skuPrefix);
+        if (isMounted && next) setSkuPrefixDefault(next);
+      } catch (err) {
+        // Keep default on failure (avoid breaking product page).
+        console.error("Failed to load SKU prefix setting", err);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
     };
   }, []);
 
@@ -681,7 +715,7 @@ const Products = () => {
         type: "number",
         cell: ({ row }) => {
           const p = row.original;
-          return <span className="text-sm text-gray-500">AED {Number(p.purchasePrice).toFixed(2)}</span>;
+          return <span className="text-sm text-gray-500">{currency} {Number(p.purchasePrice).toFixed(2)}</span>;
         },
       },
       {
@@ -691,7 +725,7 @@ const Products = () => {
         type: "number",
         cell: ({ row }) => {
           const p = row.original;
-          return <span className="text-sm text-gray-500 whitespace-nowrap">AED {Number(p.salePrice).toFixed(2)}</span>;
+          return <span className="text-sm text-gray-500 whitespace-nowrap">{currency} {Number(p.salePrice).toFixed(2)}</span>;
         },
       },
       {
@@ -767,7 +801,7 @@ const Products = () => {
         },
       },
     ],
-    [openImageModal, handleEdit, confirmDelete]
+    [openImageModal, handleEdit, confirmDelete, currency]
   );
 
   // Export
@@ -858,6 +892,7 @@ const Products = () => {
     key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
   const deriveSkuFromRow = (row) => {
+    const prefix = normalizeSkuPrefix(skuPrefixDefault) || "AR";
     const asinKey = Object.keys(row).find((k) => normalizeKey(k) === "asin");
     const condKey = Object.keys(row).find((k) => {
       const nk = normalizeKey(k);
@@ -877,7 +912,7 @@ const Products = () => {
     const conditionCode = getConditionCodeFromName(conditionName);
 
     if (!asin) return "";
-    return conditionCode ? `AR-${asin}-${conditionCode}` : `AR-${asin}`;
+    return conditionCode ? `${prefix}-${asin}-${conditionCode}` : `${prefix}-${asin}`;
   };
 
   const validateImportedRows = (rows, existingSkusSet = null) => {
@@ -1852,6 +1887,7 @@ const Products = () => {
                 subcategories={subcategories}
                 brands={brands}
                 conditions={conditions}
+                skuPrefixDefault={skuPrefixDefault}
                 onSuccess={() => {
                   queryClient.invalidateQueries({ queryKey: ["products"] });
                   setProductDrawerOpen(false);
@@ -1985,9 +2021,7 @@ const Products = () => {
           </div>
 
           {productsLoading ? (
-            <div className="flex justify-center items-center py-10">
-              <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-            </div>
+            <Loader />
           ) : (
             <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
               <DataTable

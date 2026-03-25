@@ -50,6 +50,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/UI/dialog";
+import Loader from "@/components/Loader";
 
 const Orders = () => {
   const queryClient = useQueryClient();
@@ -435,9 +436,7 @@ const Orders = () => {
 
         <div className="">
           {isLoading ? (
-            <div className="flex justify-center items-center py-10">
-              <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-            </div>
+            <div className="flex justify-center items-center py-10"><Loader /></div>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -496,9 +495,7 @@ const Orders = () => {
           {selectedOrder && (
             <div className="space-y-6">
             {viewOrderLoading ? (
-              <div className="flex justify-center items-center py-12">
-                <div className="w-10 h-10 border-4 border-blue-500 border-dashed rounded-full animate-spin rounded-full" />
-              </div>
+              <div className="flex justify-center items-center py-12"><Loader /></div>
             ) : (
               <>
                 {/* Top Section */}

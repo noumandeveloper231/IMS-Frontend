@@ -16,6 +16,7 @@ const inputBaseClasses = [
   "placeholder:text-gray-500",
   "focus:outline-none focus:ring-3 focus:ring-[#cdcdcd] focus:border-[#a1a1a1]",
   "disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200",
+  "bg-white",
 ];
 
 function DatePickerInput(

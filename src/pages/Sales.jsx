@@ -126,6 +126,8 @@ const Sales = () => {
   });
   const products = productsData ?? [];
 
+  console.log(products);
+
   const { data: employeesData } = useQuery({
     queryKey: ["employees"],
     queryFn: async () => {
@@ -142,7 +144,12 @@ const Sales = () => {
       if (!updated[index]) return prev;
 
       if (field === "quantity") {
-        value = Math.max(1, Number(value) || 1);
+        const currentItem = updated[index];
+        const maxQuantity = Math.max(0, Number(currentItem?.stock) || 0);
+        const minQuantity = maxQuantity > 0 ? 1 : 0;
+        const parsedValue = Number(value);
+        const safeValue = Number.isFinite(parsedValue) ? parsedValue : minQuantity;
+        value = Math.min(maxQuantity, Math.max(minQuantity, safeValue));
       }
 
       updated[index] = { ...updated[index], [field]: value };
@@ -306,7 +313,7 @@ const Sales = () => {
               options={products.map((p) => ({
                 value: p._id,
                 label: p.title || p.sku || "Unnamed product",
-                qrcode: p.qrCode,
+                qrcode: p.image,
               }))}
               value={item.productId}
               onChange={(id) => updateItem(index, "productId", id)}
@@ -320,9 +327,11 @@ const Sales = () => {
         id: "stock",
         header: "Stock",
         meta: { label: "Stock" },
-        cell: ({ row }) => (
-          <span className="text-sm text-gray-500">{row.original.stock}</span>
-        ),
+        cell: ({ row }) => {
+          const item = row.original;
+          const remainingStock = Math.max(0, (item.stock || 0) - (item.quantity || 0));
+          return <span className="text-sm text-gray-500">{remainingStock}</span>;
+        },
       },
       {
         id: "price",
@@ -342,7 +351,8 @@ const Sales = () => {
           return (
             <Input
               type="number"
-              min={1}
+              min={item.stock > 0 ? 1 : 0}
+              max={item.stock}
               className="w-20 h-9"
               value={item.quantity}
               onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
@@ -418,13 +428,16 @@ const Sales = () => {
               <Field><FieldLabel>Seller Name *</FieldLabel></Field>
               <div className="mt-1">
 
-              <SalesEmployeeCombobox
-                employees={activeEmployees}
-                value={selectedEmployee}
-                onChange={setSelectedEmployee}
-                placeholder="Select Employee"
-              />
-                </div>
+                <Combobox
+                  options={activeEmployees.map((e) => ({
+                    value: e._id,
+                    label: e.name,
+                  }))}
+                  value={selectedEmployee}
+                  onChange={setSelectedEmployee}
+                  placeholder="Select Employee"
+                />
+              </div>
             </div>
           </section>
 

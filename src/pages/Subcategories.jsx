@@ -57,6 +57,7 @@ import { DataTable } from "@/components/UI/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { cn } from "@/lib/utils";
+import Loader from "@/components/Loader";
 
 const TEMPLATE_COLUMNS = ["Name", "Category"];
 const REQUIRED_FILE_COLUMNS = ["Name", "Category"];
@@ -1458,9 +1459,7 @@ const Subcategories = () => {
           </div>
 
           {subcategoriesLoading ? (
-            <div className="flex justify-center items-center py-10">
-              <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-            </div>
+            <div className="flex justify-center items-center py-10"><Loader /></div>
           ) : (
             <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
               <DataTable

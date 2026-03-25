@@ -22,8 +22,9 @@ import {
 } from "@/components/UI/pagination";
 import { mediaApi } from "@/api/media";
 import { toast } from "sonner";
-import { Search, Loader2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { AuthContext } from "@/context/AuthContext";
+import Loader from "@/components/Loader";
 
 const MEDIA_QUERY_KEY = ["media"];
 
@@ -143,7 +144,7 @@ export function MediaGalleryModal({
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Loader />
             </div>
           ) : (
             <MediaGrid

@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/UI/dialog";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/UI/tooltip";
+import Loader from "@/components/Loader";
 
 const PurchaseReceiveList = () => {
   const [search, setSearch] = useState("");
@@ -459,9 +460,7 @@ const PurchaseReceiveList = () => {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10">
-            <div className="w-12 h-12 border-4 border-blue-500 border-dashed rounded-full animate-spin" />
-          </div>
+          <div className="flex justify-center py-10"><Loader /></div>
         ) : (
           <DataTable
             columns={listColumns}

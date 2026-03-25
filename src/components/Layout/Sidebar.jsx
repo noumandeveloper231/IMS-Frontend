@@ -31,6 +31,7 @@ import {
 import { AuthContext } from "@/context/AuthContext";
 import { createPortal } from "react-dom";
 import assets from "@/assets/assets";
+import { useSettings } from "@/context/SettingsContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -175,6 +176,9 @@ const Sidebar = ({ onCollapseToggle }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useContext(AuthContext);
+  const { settings } = useSettings();
+  const logoSrc = settings?.siteLogo || assets.logo;
+  const siteName = settings?.siteName || "Al Ramil";
 
   const canSee = (item) =>
     !item.permission || (user?.permissions && user.permissions.includes(item.permission));
@@ -437,9 +441,9 @@ const Sidebar = ({ onCollapseToggle }) => {
       <div
         className={`flex items-center border-b border-gray-100 shrink-0 ${isCollapsed ? "justify-center px-0 py-4" : "gap-3 px-4 py-4"}`}
       >
-        <img src={assets.logo} alt="logo" className="w-7 h-7 shrink-0" />
+        <img src={logoSrc} alt="logo" className="w-7 h-7 shrink-0" />
         {!isCollapsed && (
-          <h1 className="text-xl font-semibold truncate">Al Ramil</h1>
+          <h1 className="text-xl font-semibold truncate">{siteName}</h1>
         )}
       </div>
 

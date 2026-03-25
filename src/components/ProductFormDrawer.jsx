@@ -55,6 +55,7 @@ const getConditionCodeFromName = (name) => {
 const INITIAL_FORM = {
   title: "",
   sku: "",
+  skuPrefix: "AR",
   asin: "",
   purchasePrice: "",
   salePrice: "",
@@ -70,6 +71,15 @@ const INITIAL_FORM = {
   condition: "",
   returnable: true,
 };
+
+const normalizeSkuPrefix = (value) =>
+  (value ?? "")
+    .toString()
+    .trim()
+    // Prevent breaking the SKU separator: we generate `PREFIX-<body>`
+    .replace(/[\s-]/g, "")
+    .slice(0, 5)
+    .toUpperCase();
 
 function normalizeCompetitorsFromProduct(p) {
   if (!p || !p.competitors) return [];
@@ -119,6 +129,7 @@ export function ProductFormDrawer({
   subcategories = [],
   brands = [],
   conditions = [],
+  skuPrefixDefault = "AR",
   onSuccess,
 }) {
   const queryClient = useQueryClient();
@@ -150,14 +161,34 @@ export function ProductFormDrawer({
     ? subcategoryOptionsAll.filter((opt) => opt.categoryId === form.category)
     : subcategoryOptionsAll;
 
+  const selectedCondition = conditions.find((c) => c._id === form.condition);
+  const conditionName = selectedCondition?.name;
+  const conditionCode = getConditionCodeFromName(conditionName);
+  const asinTrimmed = form.asin?.trim() ?? "";
+  const skuBody = asinTrimmed
+    ? conditionCode
+      ? `${asinTrimmed}-${conditionCode}`
+      : asinTrimmed
+    : "";
+
   // Sync form when opening for add or edit
   useEffect(() => {
     if (!open) return;
     if (editingProduct) {
       const p = editingProduct;
+      const existingSkuPrefix = (() => {
+        const s = p?.sku ?? "";
+        if (typeof s !== "string") return "";
+        const parts = s.split("-").filter(Boolean);
+        return parts[0] ?? "";
+      })();
       setForm({
         title: p.title,
         sku: p.sku,
+        skuPrefix:
+          normalizeSkuPrefix(existingSkuPrefix) ||
+          normalizeSkuPrefix(skuPrefixDefault) ||
+          "AR",
         asin: p.asin || "",
         purchasePrice: p.purchasePrice,
         salePrice: p.salePrice,
@@ -189,11 +220,14 @@ export function ProductFormDrawer({
       );
       toast.info(`Editing product: ${p.title}`);
     } else {
-      setForm(INITIAL_FORM);
+      setForm({
+        ...INITIAL_FORM,
+        skuPrefix: normalizeSkuPrefix(skuPrefixDefault) || "AR",
+      });
       setProductImages([]);
     }
     setTimeout(() => titleInputRef.current?.focus(), 100);
-  }, [open, editingProduct?._id]);
+  }, [open, editingProduct?._id, skuPrefixDefault]);
 
   // SKU from ASIN + condition
   useEffect(() => {
@@ -201,17 +235,16 @@ export function ProductFormDrawer({
     const selectedCondition = conditions.find((c) => c._id === form.condition);
     const conditionName = selectedCondition?.name;
     const conditionCode = getConditionCodeFromName(conditionName);
+    const prefix = normalizeSkuPrefix(form.skuPrefix) || normalizeSkuPrefix(skuPrefixDefault) || "AR";
+
     if (!asin) {
       setForm((prev) => (prev.sku === "" ? prev : { ...prev, sku: "" }));
       return;
     }
-    const nextSku = conditionCode
-      ? `AR-${asin}-${conditionCode}`
-      : `AR-${asin}`;
-    setForm((prev) =>
-      prev.sku === nextSku ? prev : { ...prev, sku: nextSku },
-    );
-  }, [form.asin, form.condition, conditions]);
+
+    const nextSku = conditionCode ? `${prefix}-${asin}-${conditionCode}` : `${prefix}-${asin}`;
+    setForm((prev) => (prev.sku === nextSku ? prev : { ...prev, sku: nextSku }));
+  }, [form.asin, form.condition, form.skuPrefix, conditions, skuPrefixDefault]);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -364,6 +397,7 @@ export function ProductFormDrawer({
         condition,
         competitors,
         ourMarketplace,
+        skuPrefix,
         ...rest
       } = form;
       if (category) formData.append("category", category);
@@ -406,7 +440,10 @@ export function ProductFormDrawer({
         await createMutation.mutateAsync(formData);
       }
 
-      setForm(INITIAL_FORM);
+      setForm({
+        ...INITIAL_FORM,
+        skuPrefix: normalizeSkuPrefix(skuPrefixDefault) || "AR",
+      });
       setProductImages((prev) => {
         prev.forEach((img) => {
           if (
@@ -420,11 +457,14 @@ export function ProductFormDrawer({
         return [];
       });
     },
-    [form, productImages, editingId, updateMutation, createMutation],
+    [form, productImages, editingId, updateMutation, createMutation, skuPrefixDefault],
   );
 
   const handleClear = useCallback(() => {
-    setForm(INITIAL_FORM);
+    setForm({
+      ...INITIAL_FORM,
+      skuPrefix: normalizeSkuPrefix(skuPrefixDefault) || "AR",
+    });
     setProductImages((prev) => {
       prev.forEach((img) => {
         if (img.isNew && img.previewUrl && img.previewUrl.startsWith("blob:")) {
@@ -433,7 +473,7 @@ export function ProductFormDrawer({
       });
       return [];
     });
-  }, []);
+  }, [skuPrefixDefault]);
 
   const handleProductImageSelect = useCallback((fileOrFiles) => {
     const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
@@ -602,30 +642,48 @@ export function ProductFormDrawer({
               </div>
               <div className="md:col-span-2">
                 <Field>
-                 <div className="flex items-center gap-2">
-                  <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <InfoIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>SKU is a unique identifier for the product.</p>
+                  <div className="flex items-center gap-2">
+                    <FieldLabel htmlFor="product-sku-prefix">SKU</FieldLabel>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InfoIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>SKU is a unique identifier for the product.</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
                 </Field>
-                <Input
-                  id="product-sku"
-                  type="text"
-                  name="sku"
-                  placeholder="SKU"
-                  value={form.sku}
-                  className="mt-1 w-full bg-muted"
-                  readOnly
-                  disabled
-                />
+                <div className="mt-1 flex items-center gap-2">
+                  <Input
+                    id="product-sku-prefix"
+                    type="text"
+                    name="skuPrefix"
+                    placeholder="AR"
+                    value={form.skuPrefix}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        skuPrefix: normalizeSkuPrefix(e.target.value),
+                      }))
+                    }
+                    className="w-20 bg-muted"
+                    maxLength={5}
+                    required
+                  />
+                  <span className="text-muted-foreground">-</span>
+                  <Input
+                    id="product-sku-suffix"
+                    type="text"
+                    value={skuBody}
+                    placeholder="ASIN-CC"
+                    className="flex-1 bg-muted"
+                    readOnly
+                    disabled
+                  />
+                </div>
               </div>
             </div>
           </section>

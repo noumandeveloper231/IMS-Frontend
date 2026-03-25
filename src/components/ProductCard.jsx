@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/UI/card";
 import { API_HOST } from "../config/api";
+import { useSettings } from "@/context/SettingsContext";
 
 const getPrimaryImageUrl = (product) => {
     const primary =
@@ -17,6 +18,10 @@ const getPrimaryImageUrl = (product) => {
 };
 
 const ProductCard = ({ item, options = {} }) => {
+    const { settings } = useSettings();
+    const placeholderSrc = settings?.placeholderImage || "https://placehold.co/600x400/png";
+    const currency = settings?.currency || "AED";
+
     if (!item) return null;
 
     const productLink = `/products/${item._id}`;
@@ -32,7 +37,7 @@ const ProductCard = ({ item, options = {} }) => {
             <Card className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-200 group-hover:border-black hover:shadow-md">
                 <div className="flex h-52 w-full items-center justify-center bg-gray-50">
                     <img
-                        src={getPrimaryImageUrl(item) || "https://placehold.co/600x400/png"}
+                        src={getPrimaryImageUrl(item) || placeholderSrc}
                         alt={item.title || "Product image"}
                         className="h-full w-full object-contain transition-transform duration-200"
                     />
@@ -44,11 +49,11 @@ const ProductCard = ({ item, options = {} }) => {
                     <div className="flex items-baseline gap-2 text-sm">
                         {item.purchasePrice != null && item.purchasePrice !== "" && (
                             <span className="text-xs text-gray-400 line-through">
-                                AED {Number(item.purchasePrice).toFixed(2)}
+                                {currency} {Number(item.purchasePrice).toFixed(2)}
                             </span>
                         )}
                         <span className="text-lg font-bold text-red-600">
-                            AED {item.salePrice != null && item.salePrice !== "" ? Number(item.salePrice).toFixed(2) : "-"}
+                            {currency} {item.salePrice != null && item.salePrice !== "" ? Number(item.salePrice).toFixed(2) : "-"}
                         </span>
                     </div>
                     <div className="mt-1 space-y-1 text-xs text-gray-600">
