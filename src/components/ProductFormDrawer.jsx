@@ -559,7 +559,7 @@ export function ProductFormDrawer({
           </DrawerClose>
         </div>
       </DrawerHeader>
-      <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 pb-6 sm:pb-8">
+      <div className="no-scrollbar overflow-y-auto px-4 sm:px-6">
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* —— Basic information —— */}
           <section className="space-y-4">
@@ -785,7 +785,7 @@ export function ProductFormDrawer({
                       handleSingleSelect(
                         "subcategory",
                         subcategoryOptions.find((o) => o.value === value) ||
-                          null,
+                        null,
                         subcategories,
                       )
                     }
@@ -1067,22 +1067,26 @@ export function ProductFormDrawer({
           </section>
 
           {/* —— Actions —— */}
-          <section className="flex gap-3 items-center flex-wrap pt-2 border-t border-border">
-            <Button type="submit" variant="default" disabled={loading}>
-              {loading
-                ? "Please wait..."
-                : editingId
-                  ? "Update product"
-                  : "Add product"}
-            </Button>
-            <Button type="button" variant="outline" onClick={handleClear}>
-              Clear form
-            </Button>
-            <DrawerClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
-              </Button>
-            </DrawerClose>
+          <section className="sticky bottom-0 -mx-4 sm:-mx-6 mt-6 border-t border-border z-99 bg-background/95 backdrop-blur px-4 sm:px-6 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Button type="submit" variant="default" disabled={loading}>
+                  {loading
+                    ? "Please wait..."
+                    : editingId
+                      ? "Update product"
+                      : "Add product"}
+                </Button>
+                <Button type="button" variant="danger" onClick={handleClear}>
+                  Clear form
+                </Button>
+              </div>
+              <DrawerClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DrawerClose>
+            </div>
           </section>
         </form>
       </div>
