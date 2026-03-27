@@ -43,6 +43,8 @@ import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { Trash2, Pencil, Check, X } from "lucide-react";
 import { Textarea } from "@/components/UI/textarea";
 import Loader from "@/components/Loader";
+import { InputGroup, InputGroupInput, InputGroupAddon } from "@/components/UI/input-group";
+import { useSettings } from "@/context/SettingsContext";
 
 const TEMPLATE_COLUMNS = ["Name", "Company Name", "Email", "Phone", "Address", "City", "Country", "Opening Balance", "Notes", "Status"];
 
@@ -65,6 +67,8 @@ const Vendors = () => {
     notes: "",
     status: "active",
   });
+  const { settings } = useSettings();
+  const currency = settings?.currency || "AED";
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState(null);
@@ -241,7 +245,7 @@ const Vendors = () => {
       if (error?.response?.status === 409) {
         toast.error(
           messageFromServer ||
-            "Cannot delete vendor because it is linked with other records ❌",
+          "Cannot delete vendor because it is linked with other records ❌",
         );
       } else if (messageFromServer) {
         toast.error(messageFromServer);
@@ -1002,173 +1006,173 @@ const Vendors = () => {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2 sm:gap-4 items-center shrink-0">
-                <Drawer open={importDrawerOpen} onOpenChange={setImportDrawerOpen}>
-                  <DrawerTrigger asChild>
-                    <Label
-                      variant="light"
-                      className="px-3 sm:px-4 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
-                    >
-                      Import Excel
-                    </Label>
-                  </DrawerTrigger>
-                  <DrawerContent className="max-h-[90vh] w-full max-w-[100vw]">
-                    <DrawerHeader className="border-b px-4 sm:px-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <DrawerTitle>Bulk Vendor Import</DrawerTitle>
-                          <DrawerDescription>
-                            Upload CSV or Excel file to create multiple vendors.
-                          </DrawerDescription>
-                        </div>
-                        <DrawerClose asChild>
-                          <Button variant="outline" size="icon">
-                            ✕
-                          </Button>
-                        </DrawerClose>
-                      </div>
-                    </DrawerHeader>
-                    <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleViewTemplate}
-                          >
-                            View Template
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleDownloadTemplate}
-                          >
-                            Download Template
-                          </Button>
-                          <p className="text-xs text-muted-foreground">
-                            Supported formats: <span className="font-medium">.csv, .xlsx</span>
-                          </p>
-                        </div>
-                        {importRows.length > 0 && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={handleClearImportData}
-                          >
-                            Clear
-                          </Button>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Upload file</p>
-                        <ImageUploadDropzone
-                          accept=".csv,.xlsx"
-                          type="excel"
-                          label="Drag & Drop Excel or CSV File"
-                          description="Upload bulk vendor file"
-                          maxSize={10 * 1024 * 1024}
-                          onFileSelect={handleImportFileSelected}
-                        />
-                      </div>
-                      {importRows.length > 0 && (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium">
-                                Preview ({importStats.total} rows)
-                              </p>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={handleAddImportRow}
-                              >
-                                Add row
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Valid: {importStats.valid} | Errors: {importStats.errors}
-                              {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
-                            </p>
+                  <Drawer open={importDrawerOpen} onOpenChange={setImportDrawerOpen}>
+                    <DrawerTrigger asChild>
+                      <Label
+                        variant="light"
+                        className="px-3 sm:px-4 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-300 cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                      >
+                        Import Excel
+                      </Label>
+                    </DrawerTrigger>
+                    <DrawerContent className="max-h-[90vh] w-full max-w-[100vw]">
+                      <DrawerHeader className="border-b px-4 sm:px-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <DrawerTitle>Bulk Vendor Import</DrawerTitle>
+                            <DrawerDescription>
+                              Upload CSV or Excel file to create multiple vendors.
+                            </DrawerDescription>
                           </div>
-                          <div className="border w-full rounded-md max-h-80 overflow-auto">
-                            <DataTable
-                              columns={importTableColumns}
-                              data={importRows}
-                              enableSelection={false}
-                              addPagination={false}
-                              pageSize={5}
-                              getRowId={(row, index) => String(index)}
-                              containerClassName="flex flex-col overflow-hidden rounded-none border-0 bg-background min-h-[200px] max-h-[320px]"
-                              enableHeaderContextMenu={false}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <DrawerFooter className="border-t px-4 sm:px-6 py-3 sm:py-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span className="text-muted-foreground">
-                            ✔ Valid:{" "}
-                            <span className="font-semibold text-emerald-700">
-                              {importStats.valid}
-                            </span>
-                          </span>
-                          <span className="text-muted-foreground">
-                            ⚠ Errors:{" "}
-                            <span className="font-semibold text-red-700">
-                              {importStats.errors}
-                            </span>
-                          </span>
-                          {importStats.duplicates > 0 && (
-                            <span className="text-muted-foreground">
-                              ✖ Duplicates:{" "}
-                              <span className="font-semibold text-orange-700">
-                                {importStats.duplicates}
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                          <Button
-                            type="button"
-                            variant="default"
-                            onClick={handleImportValidSubmit}
-                            disabled={!importStats.valid || importLoading}
-                          >
-                            {importLoading ? "Importing..." : "Import Valid Only"}
-                          </Button>
                           <DrawerClose asChild>
-                            <Button type="button" variant="ghost">
-                              Cancel
+                            <Button variant="outline" size="icon">
+                              ✕
                             </Button>
                           </DrawerClose>
                         </div>
+                      </DrawerHeader>
+                      <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleViewTemplate}
+                            >
+                              View Template
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleDownloadTemplate}
+                            >
+                              Download Template
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                            </p>
+                          </div>
+                          {importRows.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={handleClearImportData}
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Upload file</p>
+                          <ImageUploadDropzone
+                            accept=".csv,.xlsx"
+                            type="excel"
+                            label="Drag & Drop Excel or CSV File"
+                            description="Upload bulk vendor file"
+                            maxSize={10 * 1024 * 1024}
+                            onFileSelect={handleImportFileSelected}
+                          />
+                        </div>
+                        {importRows.length > 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium">
+                                  Preview ({importStats.total} rows)
+                                </p>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleAddImportRow}
+                                >
+                                  Add row
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Valid: {importStats.valid} | Errors: {importStats.errors}
+                                {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
+                              </p>
+                            </div>
+                            <div className="border w-full rounded-md max-h-80 overflow-auto">
+                              <DataTable
+                                columns={importTableColumns}
+                                data={importRows}
+                                enableSelection={false}
+                                addPagination={false}
+                                pageSize={5}
+                                getRowId={(row, index) => String(index)}
+                                containerClassName="flex flex-col overflow-hidden rounded-none border-0 bg-background min-h-[200px] max-h-[320px]"
+                                enableHeaderContextMenu={false}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </DrawerFooter>
-                  </DrawerContent>
-                </Drawer>
-                <Label
-                  variant="success"
-                  onClick={handleExport}
-                  className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
-                >
-                  Export Excel
-                </Label>
-                <Button
-                  type="button"
-                  variant="default"
-                  onClick={() => {
-                    if (!editingId) resetForm();
-                    setVendorDrawerOpen(true);
-                  }}
+                      <DrawerFooter className="border-t px-4 sm:px-6 py-3 sm:py-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-3 text-xs">
+                            <span className="text-muted-foreground">
+                              ✔ Valid:{" "}
+                              <span className="font-semibold text-emerald-700">
+                                {importStats.valid}
+                              </span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              ⚠ Errors:{" "}
+                              <span className="font-semibold text-red-700">
+                                {importStats.errors}
+                              </span>
+                            </span>
+                            {importStats.duplicates > 0 && (
+                              <span className="text-muted-foreground">
+                                ✖ Duplicates:{" "}
+                                <span className="font-semibold text-orange-700">
+                                  {importStats.duplicates}
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                            <Button
+                              type="button"
+                              variant="default"
+                              onClick={handleImportValidSubmit}
+                              disabled={!importStats.valid || importLoading}
+                            >
+                              {importLoading ? "Importing..." : "Import Valid Only"}
+                            </Button>
+                            <DrawerClose asChild>
+                              <Button type="button" variant="ghost">
+                                Cancel
+                              </Button>
+                            </DrawerClose>
+                          </div>
+                        </div>
+                      </DrawerFooter>
+                    </DrawerContent>
+                  </Drawer>
+                  <Label
+                    variant="success"
+                    onClick={handleExport}
+                    className="bg-green-600 text-white shadow hover:bg-green-600/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  >
+                    Export Excel
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="default"
+                    onClick={() => {
+                      if (!editingId) resetForm();
+                      setVendorDrawerOpen(true);
+                    }}
                   // className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
-                >
-                  Add New Vendor
-                </Button>
+                  >
+                    Add New Vendor
+                  </Button>
+                </div>
               </div>
-            </div>
             </div>
             <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
               <DrawerHeader className="px-4 sm:px-6">
@@ -1263,13 +1267,20 @@ const Vendors = () => {
                   </Field>
                   <Field>
                     <FieldLabel>Opening Balance</FieldLabel>
-                    <Input
-                      type="number"
-                      name="openingBalance"
-                      placeholder="Opening Balance"
-                      value={form.openingBalance}
-                      onChange={handleChange}
-                    />
+                    <InputGroup>
+                      <InputGroupInput
+                        type="number"
+                        name="openingBalance"
+                        placeholder="Opening Balance"
+                        value={form.openingBalance}
+                        onChange={handleChange}
+                      />
+                      <InputGroupAddon>
+                        <span className="text-sm font-medium text-black">
+                          {currency}
+                        </span>
+                      </InputGroupAddon>
+                    </InputGroup>
                   </Field>
                   <Field>
                     <FieldLabel>Status</FieldLabel>
