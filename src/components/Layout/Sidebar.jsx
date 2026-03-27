@@ -114,6 +114,13 @@ const SIDEBAR_CONFIG = [
     ],
   },
   {
+    label: "Sales",
+    items: [
+      { to: "/sales", label: "POS", icon: ShoppingCart, permission: "order.create" },
+      { to: "/orders", label: "Orders", icon: ClipboardList, permission: "order.read" },
+    ],
+  },
+  {
     label: "Purchasing",
     items: [
       {
@@ -145,13 +152,6 @@ const SIDEBAR_CONFIG = [
           { to: "/bills", label: "Bills", exact: true, permission: "purchase.manage" },
         ],
       },
-    ],
-  },
-  {
-    label: "Sales",
-    items: [
-      { to: "/sales", label: "POS", icon: ShoppingCart, permission: "order.create" },
-      { to: "/orders", label: "Orders", icon: ClipboardList, permission: "order.read" },
     ],
   },
   {
