@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import axios from "axios";
+import NProgress from "nprogress";
 import "./App.css";
 import { AuthProvider } from "./context/AuthContext";
 import { SettingsProvider, useSettings } from "./context/SettingsContext";
@@ -11,7 +13,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Categories from "./pages/Categories";
 import Subcategories from "./pages/Subcategories";
 import Brands from "./pages/Brands";
-import { BrandProvider } from "./context/BrandContext";
 import Conditions from "./pages/Conditions";
 import Products from "./pages/Products";
 import ProductDetail from "./pages/ProductDetail";
@@ -104,11 +105,73 @@ const ROUTE_CONFIG = [
 function App() {
   const sidebarPanelRef = useRef(null);
   const location = useLocation();
+  const requestCountRef = useRef(0);
 
   const matchedRoute = ROUTE_CONFIG.find((route) =>
     matchRoute(location.pathname, route.path),
   );
   const hideSidebar = !matchedRoute || matchedRoute.hideSidebar;
+
+  useEffect(() => {
+    NProgress.configure({
+      showSpinner: false,
+      trickle: true,
+      trickleSpeed: 120,
+      minimum: 0.15,
+      easing: "ease",
+      speed: 280,
+    });
+  }, []);
+
+  useEffect(() => {
+    NProgress.start();
+
+    const minVisibleMs = 350;
+    const timer = setTimeout(() => {
+      NProgress.done();
+    }, minVisibleMs);
+
+    return () => clearTimeout(timer);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const startProgress = () => {
+      requestCountRef.current += 1;
+      if (requestCountRef.current === 1) NProgress.start();
+    };
+
+    const stopProgress = () => {
+      requestCountRef.current = Math.max(0, requestCountRef.current - 1);
+      if (requestCountRef.current === 0) NProgress.done();
+    };
+
+    const requestInterceptor = axios.interceptors.request.use(
+      (config) => {
+        startProgress();
+        return config;
+      },
+      (error) => {
+        stopProgress();
+        return Promise.reject(error);
+      },
+    );
+
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => {
+        stopProgress();
+        return response;
+      },
+      (error) => {
+        stopProgress();
+        return Promise.reject(error);
+      },
+    );
+
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, []);
 
   const handleSidebarCollapseToggle = () => {
     const panel = sidebarPanelRef.current;
