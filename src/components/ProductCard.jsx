@@ -34,8 +34,8 @@ const ProductCard = ({ item, options = {} }) => {
             key={item._id ?? item.id ?? item.sku}
             className="group block h-full"
         >
-            <Card className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-200 group-hover:border-black hover:shadow-md">
-                <div className="flex h-52 w-full items-center justify-center bg-gray-50">
+            <Card className="flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--app-accent-border,#d1d5db)] bg-white shadow-sm transition-all duration-200 group-hover:border-[var(--app-accent,#111827)] hover:shadow-md">
+                <div className="flex h-52 w-full items-center justify-center bg-gray-50 py-2">
                     <img
                         src={getPrimaryImageUrl(item) || placeholderSrc}
                         alt={item.title || "Product image"}

@@ -9,6 +9,14 @@ import api from "@/utils/api";
 import { toast } from "sonner";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { useSettings } from "@/context/SettingsContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/UI/dialog";
 
 const SETTINGS_SECTIONS = [
   { id: "general", label: "General", description: "General application settings. Configure later." },
@@ -67,23 +75,103 @@ const SETTINGS_MODAL_SECTIONS = [
   },
 ];
 
+const APPEARANCE_FIELDS = [
+  {
+    name: "accentColor",
+    label: "Accent color",
+    placeholder: "#111827",
+    hint: "Used for primary buttons, lighter hover state, and the top loading bar.",
+  },
+];
+
+const DEFAULT_PRESET_COLORS = [
+  "#FABC00", "#FF9800", "#FF6D00", "#CF550E", "#E74600", "#EA6D52", "#D0323A", "#FF434A",
+  "#E84859", "#F80A27", "#EA006D", "#CA005D", "#DD0395", "#C30089", "#BB41B6", "#A90EA0",
+  "#197CCB", "#156CB0", "#8684CD", "#6A6BCB", "#876ABD", "#7752AF", "#A84CC1", "#8F24A8",
+  "#1A98B7", "#3A85A3", "#1DAFBA", "#158A8F", "#15AE98", "#0D8B7D", "#0ECC66", "#1A923F",
+  "#898383", "#656261", "#6D7D94", "#586679", "#648B82", "#4E746D", "#498C00", "#0E8B11",
+  "#818181", "#545251", "#74848D", "#4F5A61", "#6F866B", "#5A685E", "#8A7D4C", "#877E68",
+];
+
 const initialFormState = () =>
-  SETTINGS_MODAL_SECTIONS.reduce((acc, section) => {
+  [...SETTINGS_MODAL_SECTIONS, { fields: APPEARANCE_FIELDS }].reduce((acc, section) => {
     section.fields.forEach((f) => {
       acc[f.name] = "";
     });
     return acc;
   }, {});
 
+const normalizeHexColor = (value) => {
+  const raw = String(value || "").trim();
+  const hex = raw.startsWith("#") ? raw.slice(1) : raw;
+  const isThreeDigitHex = /^[0-9a-fA-F]{3}$/.test(hex);
+  const isSixDigitHex = /^[0-9a-fA-F]{6}$/.test(hex);
+  if (!isThreeDigitHex && !isSixDigitHex) return null;
+  const sixDigit = isThreeDigitHex
+    ? hex
+        .split("")
+        .map((char) => char + char)
+        .join("")
+    : hex;
+  return `#${sixDigit.toUpperCase()}`;
+};
+
+const normalizeColorList = (list = [], max = 20) => {
+  const seen = new Set();
+  const normalized = [];
+  for (const value of list) {
+    const color = normalizeHexColor(value);
+    if (!color || seen.has(color)) continue;
+    seen.add(color);
+    normalized.push(color);
+    if (normalized.length >= max) break;
+  }
+  return normalized;
+};
+
+const pushRecentColor = (list = [], color, max = 8) => {
+  const normalized = normalizeHexColor(color);
+  if (!normalized) return normalizeColorList(list, max);
+  const without = normalizeColorList(list, max).filter((c) => c !== normalized);
+  return [normalized, ...without].slice(0, max);
+};
+
+const hexToRgb = (hex) => {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) return null;
+  const raw = normalized.slice(1);
+  return {
+    r: parseInt(raw.slice(0, 2), 16),
+    g: parseInt(raw.slice(2, 4), 16),
+    b: parseInt(raw.slice(4, 6), 16),
+  };
+};
+
+const getReadableText = (hex) => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return "#FFFFFF";
+  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+  return luminance > 0.62 ? "#111827" : "#FFFFFF";
+};
+
 const Settings = () => {
   const { settings, loading: settingsLoading, refreshSettings } = useSettings();
   const [formData, setFormData] = useState(initialFormState);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [accentSaving, setAccentSaving] = useState(false);
+  const [recentColors, setRecentColors] = useState([]);
+  const [presetColors, setPresetColors] = useState(DEFAULT_PRESET_COLORS);
+  const [customColors, setCustomColors] = useState([]);
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [customColorDraft, setCustomColorDraft] = useState("#7C3AED");
 
   const setField = (name, value) => {
     let nextValue = value;
     if (name === "skuPrefix" || name === "currency") {
+      nextValue = String(value ?? "").toUpperCase();
+    }
+    if (name === "accentColor") {
       nextValue = String(value ?? "").toUpperCase();
     }
     setFormData((prev) => ({ ...prev, [name]: nextValue }));
@@ -97,13 +185,86 @@ const Settings = () => {
         if (settings[f.name] != null) next[f.name] = String(settings[f.name]);
       });
     });
+    APPEARANCE_FIELDS.forEach((f) => {
+      if (settings[f.name] != null) next[f.name] = String(settings[f.name]);
+    });
     setFormData(next);
+    setRecentColors(normalizeColorList(settings.accentColorRecents || [], 8));
+    const presets = normalizeColorList(settings.accentColorPresets || [], 64);
+    const mergedPresets = normalizeColorList([...DEFAULT_PRESET_COLORS, ...presets], 64);
+    setPresetColors(mergedPresets.length > 0 ? mergedPresets : DEFAULT_PRESET_COLORS);
+    setCustomColors(normalizeColorList(settings.accentColorCustoms || [], 64));
   }, [settings]);
+
+  const persistAppearance = async ({
+    accent,
+    recents = recentColors,
+    presets = presetColors,
+    customs = customColors,
+    withToast = false,
+  }) => {
+    const normalizedAccent = normalizeHexColor(accent);
+    if (!normalizedAccent) return;
+    setAccentSaving(true);
+    try {
+      const payload = {
+        ...formData,
+        accentColor: normalizedAccent,
+        accentColorRecents: normalizeColorList(recents, 8),
+        accentColorPresets: normalizeColorList(presets, 64),
+        accentColorCustoms: normalizeColorList(customs, 64),
+      };
+      await api.put("/settings/update", payload);
+      if (withToast) toast.success("Accent updated");
+      await refreshSettings();
+    } catch (err) {
+      console.error("Failed to update accent settings", err);
+      toast.error("Failed to update accent settings");
+    } finally {
+      setAccentSaving(false);
+    }
+  };
+
+  const handleSelectAccentColor = async (color) => {
+    const normalized = normalizeHexColor(color);
+    if (!normalized) return;
+    setField("accentColor", normalized);
+    const nextRecents = pushRecentColor(recentColors, normalized, 8);
+    setRecentColors(nextRecents);
+    await persistAppearance({
+      accent: normalized,
+      recents: nextRecents,
+    });
+  };
+
+  const handleAddCustomColor = async () => {
+    const normalized = normalizeHexColor(customColorDraft);
+    if (!normalized) return;
+    const nextCustoms = normalizeColorList([normalized, ...customColors], 64);
+    const nextRecents = pushRecentColor(recentColors, normalized, 8);
+    setCustomColors(nextCustoms);
+    setRecentColors(nextRecents);
+    setField("accentColor", normalized);
+    await persistAppearance({
+      accent: normalized,
+      recents: nextRecents,
+      customs: nextCustoms,
+      withToast: true,
+    });
+    setCustomDialogOpen(false);
+  };
 
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      await api.put("/settings/update", formData);
+      const payload = {
+        ...formData,
+        accentColor: normalizeHexColor(formData.accentColor) || "",
+        accentColorRecents: normalizeColorList(recentColors, 8),
+        accentColorPresets: normalizeColorList(presetColors, 64),
+        accentColorCustoms: normalizeColorList(customColors, 64),
+      };
+      await api.put("/settings/update", payload);
       toast.success("Settings saved successfully");
       await refreshSettings();
     } catch (err) {
@@ -168,7 +329,8 @@ const Settings = () => {
                   value={section.id}
                   className={cn(
                     "w-full justify-start rounded-md px-3 py-2 text-sm font-medium text-gray-700",
-                    "data-[state=active]:bg-gray-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-none"
+                    "hover:bg-gray-100",
+                    "data-[state=active]:bg-[var(--app-accent,#111827)] data-[state=active]:text-[var(--app-accent-foreground,#ffffff)] data-[state=active]:shadow-none data-[state=active]:font-semibold"
                   )}
                 >
                   {section.label}
@@ -194,7 +356,7 @@ const Settings = () => {
                           Configure site identity and general options.
                         </p>
                         <Tabs defaultValue={SETTINGS_MODAL_SECTIONS[0].id} className="w-full">
-                          <TabsList className="grid w-full grid-cols-2 max-w-md">
+                          <TabsList className="grid w-full grid-cols-2 max-w-xl">
                             {SETTINGS_MODAL_SECTIONS.map((tab) => (
                               <TabsTrigger key={tab.id} value={tab.id}>
                                 {tab.label}
@@ -250,6 +412,170 @@ const Settings = () => {
                             {saving ? "Saving…" : "Save"}
                           </Button>
                         </div>
+                      </div>
+                    ) : section.id === "appearance" ? (
+                      <div className="max-w-xl space-y-4">
+                        <p className="text-sm text-gray-500">
+                          Click a color to apply immediately. No save button required.
+                        </p>
+
+                        <div className="space-y-2">
+                          <Label className="mb-2 text-lg font-medium">Recent colors</Label>
+                          <div className="max-w-xl flex flex-wrap gap-1">
+                            {recentColors.length > 0 ? (
+                              recentColors.map((color) => (
+                                <button
+                                  key={`recent-${color}`}
+                                  type="button"
+                                  className={cn(
+                                    "h-15 w-15 border border-gray-300 transition-transform hover:scale-105",
+                                    normalizeHexColor(formData.accentColor) === color &&
+                                      "ring-2 ring-[var(--app-accent-border,#d1d5db)] ring-offset-1"
+                                  )}
+                                  style={{ backgroundColor: color }}
+                                  onClick={() => handleSelectAccentColor(color)}
+                                  disabled={accentSaving || saving || uploading || settingsLoading}
+                                  aria-label={`Select recent color ${color}`}
+                                />
+                              ))
+                            ) : (
+                              <p className="text-xs text-gray-500">No recent colors yet.</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="mb-2 text-lg font-medium">Preset colors</Label>
+                          <div className="max-w-xl flex flex-wrap gap-1">
+                            {presetColors.map((color) => (
+                              <button
+                                key={`preset-${color}`}
+                                type="button"
+                                className={cn(
+                                  "h-15 w-15 border border-gray-300 transition-transform hover:scale-105",
+                                  normalizeHexColor(formData.accentColor) === color &&
+                                    "ring-2 ring-[var(--app-accent-border,#d1d5db)] ring-offset-1"
+                                )}
+                                style={{ backgroundColor: color }}
+                                onClick={() => handleSelectAccentColor(color)}
+                                disabled={accentSaving || saving || uploading || settingsLoading}
+                                aria-label={`Select preset color ${color}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="mb-2 text-lg font-medium">Custom colors</Label>
+                          <div className="max-w-xl flex flex-wrap gap-1">
+                            <button
+                              type="button"
+                              className="h-15 w-15 grid place-content-center border-2 border-dashed border-gray-400 text-2xl text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                              onClick={() => {
+                                setCustomColorDraft(normalizeHexColor(formData.accentColor) || "#7C3AED");
+                                setCustomDialogOpen(true);
+                              }}
+                              disabled={accentSaving || saving || uploading || settingsLoading}
+                              aria-label="Create custom color"
+                            >
+                              +
+                            </button>
+                            {customColors.map((color) => (
+                              <button
+                                key={`custom-${color}`}
+                                type="button"
+                                className={cn(
+                                  "h-15 w-15 border border-gray-300 transition-transform hover:scale-105",
+                                  normalizeHexColor(formData.accentColor) === color &&
+                                    "ring-2 ring-[var(--app-accent-border,#d1d5db)] ring-offset-1"
+                                )}
+                                style={{ backgroundColor: color }}
+                                onClick={() => handleSelectAccentColor(color)}
+                                disabled={accentSaving || saving || uploading || settingsLoading}
+                                aria-label={`Select custom color ${color}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>Custom color</DialogTitle>
+                              <DialogDescription>
+                                Choose a custom color and preview it before applying.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+                              <div className="space-y-3">
+                                <Input
+                                  type="color"
+                                  value={normalizeHexColor(customColorDraft) || "#7C3AED"}
+                                  onChange={(e) => setCustomColorDraft(e.target.value)}
+                                  className="h-56 w-full cursor-pointer rounded-xl p-2"
+                                />
+                                <Input
+                                  value={customColorDraft}
+                                  onChange={(e) => setCustomColorDraft(e.target.value.toUpperCase())}
+                                  placeholder="#7C3AED"
+                                  className="uppercase"
+                                />
+                              </div>
+                              <div className="space-y-3">
+                                <p className="text-sm font-medium">Color preview</p>
+                                <div className="overflow-hidden rounded-lg border border-gray-300">
+                                  <div
+                                    className="p-3 text-center text-sm"
+                                    style={{
+                                      backgroundColor: normalizeHexColor(customColorDraft) || "#7C3AED",
+                                      color: getReadableText(customColorDraft),
+                                    }}
+                                  >
+                                    Preview
+                                  </div>
+                                  <div className="grid grid-cols-2">
+                                    <div
+                                      className="p-3 text-center text-sm"
+                                      style={{
+                                        backgroundColor: "#111827",
+                                        color: normalizeHexColor(customColorDraft) || "#7C3AED",
+                                      }}
+                                    >
+                                      Preview
+                                    </div>
+                                    <div
+                                      className="p-3 text-center text-sm"
+                                      style={{
+                                        backgroundColor: "#E5E7EB",
+                                        color: normalizeHexColor(customColorDraft) || "#7C3AED",
+                                      }}
+                                    >
+                                      Preview
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button type="button" variant="outline" onClick={() => setCustomDialogOpen(false)}>
+                                Cancel
+                              </Button>
+                              <Button
+                                type="button"
+                                onClick={handleAddCustomColor}
+                                disabled={
+                                  accentSaving ||
+                                  saving ||
+                                  uploading ||
+                                  settingsLoading ||
+                                  !normalizeHexColor(customColorDraft)
+                                }
+                              >
+                                Done
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     ) : (
                       <p className="text-sm text-gray-400">No options yet.</p>

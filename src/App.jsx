@@ -49,6 +49,58 @@ import {
   ResizablePanelGroup,
 } from "./components/UI/resizable";
 
+const DEFAULT_ACCENT = "#111827";
+
+const normalizeHexColor = (value) => {
+  const raw = String(value || "").trim();
+  const hex = raw.startsWith("#") ? raw.slice(1) : raw;
+  const isThreeDigitHex = /^[0-9a-fA-F]{3}$/.test(hex);
+  const isSixDigitHex = /^[0-9a-fA-F]{6}$/.test(hex);
+  if (!isThreeDigitHex && !isSixDigitHex) return null;
+  const sixDigit = isThreeDigitHex
+    ? hex
+        .split("")
+        .map((char) => char + char)
+        .join("")
+    : hex;
+  return `#${sixDigit.toUpperCase()}`;
+};
+
+const hexToRgb = (hex) => {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) return null;
+  const raw = normalized.slice(1);
+  return {
+    r: parseInt(raw.slice(0, 2), 16),
+    g: parseInt(raw.slice(2, 4), 16),
+    b: parseInt(raw.slice(4, 6), 16),
+  };
+};
+
+const rgbToHex = ({ r, g, b }) =>
+  `#${[r, g, b]
+    .map((v) => Math.min(255, Math.max(0, Math.round(v))).toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase()}`;
+
+const mixWithWhite = (hex, weight = 0.2) => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return DEFAULT_ACCENT;
+  return rgbToHex({
+    r: rgb.r + (255 - rgb.r) * weight,
+    g: rgb.g + (255 - rgb.g) * weight,
+    b: rgb.b + (255 - rgb.b) * weight,
+  });
+};
+
+const getAccessibleForeground = (hex) => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return "#FFFFFF";
+  // Standard perceived luminance formula.
+  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+  return luminance > 0.62 ? "#111827" : "#FFFFFF";
+};
+
 /** Match pathname against route path with params (e.g. :id, :type) */
 const matchRoute = (pathname, routePath) => {
   const pathParts = pathname.split("/").filter(Boolean);
@@ -216,6 +268,21 @@ function App() {
       if (!siteName) return;
       document.title = siteName;
     }, [settings?.siteName]);
+
+    useEffect(() => {
+      const root = document.documentElement;
+      const accent = normalizeHexColor(settings?.accentColor) || DEFAULT_ACCENT;
+      const accentHover = mixWithWhite(accent, 0.18);
+      const accentLight = mixWithWhite(accent, 0.70);
+      const accentBorder = mixWithWhite(accent, 0.62);
+      const accentForeground = getAccessibleForeground(accent);
+
+      root.style.setProperty("--app-accent", accent);
+      root.style.setProperty("--app-accent-hover", accentHover);
+      root.style.setProperty("--app-accent-light", accentLight);
+      root.style.setProperty("--app-accent-border", accentBorder);
+      root.style.setProperty("--app-accent-foreground", accentForeground);
+    }, [settings?.accentColor]);
 
     return null;
   }

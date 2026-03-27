@@ -1528,12 +1528,11 @@ const Conditions = () => {
                 </Label>
                 <Button
                   type="button"
-                  variant="success"
                   onClick={() => {
                     handleClearForm();
                     setConditionDrawerOpen(true);
                   }}
-                  className="bg-black text-white shadow hover:bg-black/90 px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                  className="px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
                 >
                   Add New Condition
                 </Button>

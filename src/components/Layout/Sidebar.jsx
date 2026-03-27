@@ -48,7 +48,7 @@ const navItemClasses = (isActive, collapsed) =>
 
 const subItemClasses = (isActive) =>
   `block rounded-md px-3 py-1.5 text-sm transition-colors ${isActive
-    ? "bg-black text-white"
+    ? "bg-[var(--app-accent,#111827)] text-[var(--app-accent-foreground,#ffffff)] hover:bg-[var(--app-accent-hover,#374151)]"
     : "text-slate-700 hover:bg-slate-100"
   }`;
 
@@ -208,9 +208,6 @@ const Sidebar = ({ onCollapseToggle }) => {
   const anchorRefs = useRef({ products: null, purchases: null });
   const menuRefs = useRef({ products: null, purchases: null });
   const sidebarRef = useRef(null);
-
-  const isActive = (to, exact = false) =>
-    exact ? pathname === to : pathname.startsWith(to);
 
   const getItemActive = (item) => {
     if (item.to) {
@@ -396,7 +393,7 @@ const Sidebar = ({ onCollapseToggle }) => {
 
   // Render sub-items block (for expanded sidebar or floating menu)
   const renderSubItemsBlock = (subItems, parentKey, isFloating = false) => (
-    <div className={isFloating ? "space-y-0.5" : "ml-6 mt-1 space-y-0.5 border-l border-gray-300 pl-3 mr-5"}>
+    <div className={isFloating ? "space-y-0.5" : "ml-6 mt-1 space-y-0.5 border-l border-[var(--app-accent-border,#d1d5db)] pl-3 mr-5"}>
       {subItems.map((sub) =>
         sub.to ? (
           <Link

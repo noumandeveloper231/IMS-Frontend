@@ -1315,8 +1315,7 @@ const Subcategories = () => {
                 <DrawerTrigger asChild>
                   <Button
                     type="button"
-                    variant="success"
-                    className="bg-black text-white shadow hover:bg-black px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
+                    className="px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
 
                     onClick={() => {
                       handleClearForm();

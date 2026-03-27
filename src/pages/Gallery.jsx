@@ -196,19 +196,20 @@ function FolderTreeItem({
             <span className="w-4" />
           )}
         </button>
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => onSelectFolder(node.path)}
           className={cn(
-            "flex-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors text-left min-w-0",
+            "flex-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors text-left min-w-0 justify-start",
             isSelected
-              ? "bg-primary text-primary-foreground"
+              ? "bg-[var(--app-accent,#111827)] text-[var(--app-accent-foreground,#ffffff)] hover:bg-[var(--app-accent-hover,#374151)]"
               : "text-foreground hover:bg-muted",
           )}
         >
           <FolderInput className="h-4 w-4 shrink-0" />
           <span className="truncate">{node.name}</span>
-        </button>
+        </Button>
         {canDelete && onDeleteFolder && (
           <button
             type="button"
@@ -824,19 +825,20 @@ export default function Gallery() {
             <aside className="w-56 shrink-0  left-0 ">
               <div className="sticky top-2 z-10 left-0 flex flex-col gap-2">
                 <div className="rounded-lg  border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 p-2 space-y-0.5">
-                  <button
+                  <Button
                     type="button"
+                    // variant="default"
                     onClick={() => setSelectedFolder(null)}
                     className={cn(
                       "w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                       selectedFolder === null
-                        ? "bg-primary text-primary-foreground"
-                        : "text-foreground hover:bg-muted",
+                        ? "bg-[var(--app-accent,#111827)] text-[var(--app-accent-foreground,#ffffff)] hover:bg-[var(--app-accent-hover,#374151)]"
+                        : "",
                     )}
                   >
                     <FolderOpen className="h-4 w-4" />
                     All images
-                  </button>
+                  </Button>
                   {folderTree.map((node) => (
                     <FolderTreeItem
                       key={node.path}
@@ -854,7 +856,7 @@ export default function Gallery() {
 
                 {canUpload && canHaveSubfolder(selectedFolder) && (
                   <Button
-                    variant="outline"
+                    variant="default"
                     // size="sm"
                     className="w-full justify-start gap-2 "
                     onClick={() => {

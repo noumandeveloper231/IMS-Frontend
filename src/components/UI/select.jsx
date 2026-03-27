@@ -69,7 +69,7 @@ const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) 
       "shadow",
 
       // Focus styles (match Input exactly)
-      "outline-none focus-visible:ring-3 focus-visible:ring-[#cdcdcd] focus-visible:border-[#a1a1a1]",
+      "outline-none focus:ring-3 focus:ring-[var(--app-accent-light,#d1d5db)] focus:border-[var(--app-accent-border,#d1d5db)] data-[state=open]:ring-3 data-[state=open]:ring-[var(--app-accent-light,#d1d5db)] data-[state=open]:border-[var(--app-accent-border,#d1d5db)]",
       // Disabled
       "disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200",
 

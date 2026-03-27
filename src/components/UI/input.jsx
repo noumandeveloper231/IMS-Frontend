@@ -14,7 +14,7 @@ const inputBaseClasses = [
   "border border-[#cdcdcd]",
   "shadow",
   "placeholder:text-gray-500",
-  "focus:outline-none focus:ring-3 focus:ring-[#cdcdcd] focus:border-[#a1a1a1]",
+  "focus:outline-none focus:ring-3 focus:ring-[var(--app-accent-light,#d1d5db)] focus:border-[var(--app-accent-border,#d1d5db)]",
   "disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200",
   "bg-white",
 ];

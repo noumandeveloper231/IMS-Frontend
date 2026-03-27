@@ -218,7 +218,7 @@ export function Combobox({
   const renderMultiselectInput = () => (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-1.5 min-h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        "flex flex-wrap items-center gap-1.5 min-h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow focus-within:ring-2 focus-within:ring-[var(--app-accent-light,#d1d5db)] focus-within:border-[var(--app-accent-border,#d1d5db)]",
         disabled && "opacity-50 cursor-not-allowed"
       )}
     >
