@@ -31,19 +31,12 @@ import {
   PaginationPrevious,
   PaginationNext,
 } from "@/components/UI/pagination";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/UI/table";
-import { DataTable } from "@/components/UI/data-table";
+import { DataTable } from "@/components/DataTable";
 import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { useParams, useNavigate } from "react-router-dom";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { DeleteModel } from "@/components/DeleteModel";
+import { useSettings } from "@/context/SettingsContext";
 import {
   Dialog,
   DialogContent,
@@ -54,8 +47,10 @@ import Loader from "@/components/Loader";
 
 const Orders = () => {
   const queryClient = useQueryClient();
+  const { settings } = useSettings();
   const { page: pageParam } = useParams();
   const navigate = useNavigate();
+  const currency = settings?.currency || "AED";
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -157,6 +152,34 @@ const Orders = () => {
     setViewOpen(true);
   };
 
+  const handleOpenInvoice = async (order) => {
+    try {
+      const response = await api.get(`/sales/${order._id}/invoice`, {
+        responseType: "blob",
+      });
+      const blobUrl = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" }),
+      );
+      const newWindow = window.open(blobUrl, "_blank", "noopener,noreferrer");
+      if (!newWindow) {
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+    } catch (error) {
+      const messageFromServer =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Failed to open invoice";
+      toast.error(messageFromServer);
+    }
+  };
+
   const confirmDelete = (id) => {
     setDeleteId(id);
     setDeleteOpen(true);
@@ -239,7 +262,7 @@ const Orders = () => {
         accessorKey: "grandTotal",
         cell: ({ row }) => (
           <span className="text-sm text-gray-900">
-            AED {Number(row.original.grandTotal).toFixed(2)}
+            {currency} {Number(row.original.grandTotal).toFixed(2)}
           </span>
         ),
       },
@@ -252,7 +275,7 @@ const Orders = () => {
           const isCash = pm === "cash" || pm === "Cash";
           return (
             <span
-              className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${isCash ? "bg-green-100 text-green-800" : "bg-indigo-100 text-indigo-800"
+              className={`inline-flex px-2 capitalize py-0.5 text-xs font-semibold rounded-full ${isCash ? "bg-green-100 text-green-800" : "bg-indigo-100 text-indigo-800"
                 }`}
             >
               {pm ?? "—"}
@@ -275,7 +298,6 @@ const Orders = () => {
         header: "Actions",
         cell: ({ row }) => {
           const order = row.original;
-          const invoiceUrl = `${import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") || ""}/api/sales/${order._id}/invoice`;
           return (
             <div className="flex items-center justify-center gap-1">
               <TooltipProvider>
@@ -295,10 +317,14 @@ const Orders = () => {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button asChild type="button" variant="ghost" size="icon" className="h-8 w-8">
-                      <a href={invoiceUrl} target="_blank" rel="noopener noreferrer">
-                        <FileText className="h-4 w-4" />
-                      </a>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleOpenInvoice(order)}
+                    >
+                      <FileText className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Invoice</TooltipContent>
@@ -323,7 +349,40 @@ const Orders = () => {
         },
       },
     ],
-    [],
+    [currency],
+  );
+
+  const orderItemsColumns = useMemo(
+    () => [
+      { id: "index", header: "#", cell: ({ row }) => row.index + 1, filter: false },
+      {
+        id: "product",
+        header: "Product",
+        cell: ({ row }) => row.original.product?.title ?? "Deleted product",
+      },
+      {
+        id: "quantity",
+        header: "Qty",
+        cell: ({ row }) => <span className="block text-center">{row.original.quantity}</span>,
+      },
+      {
+        id: "price",
+        header: "Price",
+        cell: ({ row }) => (
+          <span className="block text-center">{currency} {Number(row.original.price).toFixed(2)}</span>
+        ),
+      },
+      {
+        id: "total",
+        header: "Total",
+        cell: ({ row }) => (
+          <span className="block text-center font-medium">
+            {currency} {Number(row.original.total).toFixed(2)}
+          </span>
+        ),
+      },
+    ],
+    [currency],
   );
 
   return (
@@ -501,8 +560,7 @@ const Orders = () => {
                 {/* Top Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
-                  {/* Order Info */}
-                  <div className="lg:col-span-2 bg-white border border-gray-300 rounded-xl p-6 space-y-4 shadow-sm">
+                  <div className="lg:col-span-2 bg-white border border-gray-300 rounded-xl p-6 space-y-4 shadow-sm max-w-sm">
                     <h3 className="text-lg font-semibold border-b border-gray-300 pb-2">Order Details</h3>
           
                     <div className="grid grid-cols-2 gap-y-3 text-sm">
@@ -566,36 +624,19 @@ const Orders = () => {
                 {/* Items Table */}
                 <div className="bg-white border rounded-md border-gray-300">
                   <div className="p-4 border-b border-gray-300">
-                    <h3 className="text-lg font-semibold">Order Items</h3>
+                    <h3 className="text-lg font-semibold">Order Items ({viewOrderDetail?.items?.length ?? selectedOrder.items?.length})</h3>
                   </div>
           
                   <div className="overflow-x-auto">
-                    <Table className="px-8">
-                      <TableHeader className="sticky top-0 z-10">
-                        <TableRow className="bg-gray-50 px-4!">
-                          <TableHead>#</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead className="text-right">Qty</TableHead>
-                          <TableHead className="text-right">Price</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody className="px-4!">
-                        {((viewOrderDetail?.items ?? selectedOrder.items) || []).map((it, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>{idx + 1}</TableCell>
-                            <TableCell>{it.product?.title ?? "Deleted product"}</TableCell>
-                            <TableCell className="text-right">{it.quantity}</TableCell>
-                            <TableCell className="text-right">
-                              AED {Number(it.price).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              AED {Number(it.total).toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <DataTable
+                      columns={orderItemsColumns}
+                      data={(viewOrderDetail?.items ?? selectedOrder.items) || []}
+                      enableSelection={false}
+                      addPagination={false}
+                      fixedHeight={false}
+                      enableHeaderContextMenu={false}
+                      containerClassName="border-0 rounded-none"
+                    />
                   </div>
                 </div>
           
@@ -604,28 +645,28 @@ const Orders = () => {
                   <div className="max-w-sm ml-auto space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Sub Total</span>
-                      <span>AED {Number(viewOrderDetail?.subTotal ?? selectedOrder.subTotal ?? 0).toFixed(2)}</span>
+                      <span>{currency} {Number(viewOrderDetail?.subTotal ?? selectedOrder.subTotal ?? 0).toFixed(2)}</span>
                     </div>
           
                     <div className="flex justify-between">
                       <span className="text-gray-500">VAT</span>
-                      <span>AED {Number(viewOrderDetail?.vat ?? selectedOrder.vat ?? 0).toFixed(2)}</span>
+                      <span>{currency} {Number(viewOrderDetail?.vat ?? selectedOrder.vat ?? 0).toFixed(2)}</span>
                     </div>
           
                     <div className="flex justify-between">
                       <span className="text-gray-500">Shipping</span>
-                      <span>AED {Number(viewOrderDetail?.shipping ?? selectedOrder.shipping ?? 0).toFixed(2)}</span>
+                      <span>{currency} {Number(viewOrderDetail?.shipping ?? selectedOrder.shipping ?? 0).toFixed(2)}</span>
                     </div>
           
                     <div className="flex justify-between">
                       <span className="text-gray-500">Discount</span>
-                      <span>AED {Number(viewOrderDetail?.discount ?? selectedOrder.discount ?? 0).toFixed(2)}</span>
+                      <span>{currency} {Number(viewOrderDetail?.discount ?? selectedOrder.discount ?? 0).toFixed(2)}</span>
                     </div>
           
                     <div className="flex justify-between border-t border-gray-300 pt-3 text-base font-semibold">
                       <span>Grand Total</span>
                       <span>
-                        AED {Number(viewOrderDetail?.grandTotal ?? selectedOrder.grandTotal ?? 0).toFixed(2)}
+                        {currency} {Number(viewOrderDetail?.grandTotal ?? selectedOrder.grandTotal ?? 0).toFixed(2)}
                       </span>
                     </div>
                   </div>
