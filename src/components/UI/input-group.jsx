@@ -2,9 +2,9 @@ import * as React from "react"
 import { cva } from "class-variance-authority";
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/UI/button"
+import { Input } from "@/components/UI/input"
+import { Textarea } from "@/components/UI/textarea"
 
 function InputGroup({
   className,
