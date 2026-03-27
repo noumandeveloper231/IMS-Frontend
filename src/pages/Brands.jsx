@@ -55,9 +55,6 @@ const resolveImageUrl = (src) => {
 };
 
 const TEMPLATE_COLUMNS = ["Name", "Image"];
-/** Only Name is required in the file; Image column is optional. */
-const REQUIRED_FILE_COLUMNS = ["Name"];
-
 /** Stable empty array so brands don't get new ref when data is undefined (avoids column remount / focus loss). */
 const EMPTY_ARRAY = [];
 
@@ -1517,6 +1514,7 @@ const Brands = () => {
                       setMediaGalleryOpen(false);
                     }}
                   />
+                  <section className="sticky bottom-0 -mx-4 sm:-mx-6 mt-6 border-t border-border z-99 bg-background/95 backdrop-blur px-4 sm:px-6 py-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
                     <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
                       {loading
@@ -1539,6 +1537,7 @@ const Brands = () => {
                       </Button>
                     </DrawerClose>
                   </div>
+                  </section>
                 </form>
               </div>
             </DrawerContent>

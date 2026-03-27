@@ -467,7 +467,7 @@ const PurchaseOrderForm = () => {
                   " - " +
                   product.sku,
                 value: product._id,
-                qrcode: product.qrCode,
+                qrcode: product.image,
               }))}
               value={item.productId || ""}
               onChange={(value) => {
@@ -847,6 +847,7 @@ const PurchaseOrderForm = () => {
           <DataTable
             columns={itemColumns}
             data={items}
+            fixedHeight={false}
             addPagination={false}
             enableSelection={false}
             enableHeaderContextMenu={false}

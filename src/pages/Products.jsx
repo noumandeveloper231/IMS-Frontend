@@ -73,7 +73,6 @@ import {
 } from "@/components/UI/command";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
-import { InfoIcon } from "lucide-react";
 import { useImageModal } from "@/context/ImageModalContext";
 import { useSettings } from "@/context/SettingsContext";
 import axios from "axios";
@@ -619,7 +618,7 @@ const Products = () => {
             return <span className="text-gray-400 italic">No Image</span>;
           }
           return (
-            <div className="flex items-center justify-center w-50">
+            <div className="flex items-center justify-center w-30">
               <img
                 src={p.imageUrl || resolveImageUrl(primaryImage)}
                 alt={p.title}
