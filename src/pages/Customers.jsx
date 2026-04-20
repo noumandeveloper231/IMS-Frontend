@@ -38,7 +38,6 @@ import {
   DrawerTrigger,
   DrawerFooter,
 } from "@/components/UI/drawer";
-import Loader from "@/components/Loader";
 
 const TEMPLATE_COLUMNS = [
   "Name",
@@ -1242,15 +1241,12 @@ const Customers = () => {
           </DrawerContent>
         </Drawer>
 
-        {tableLoading ? (
-          <div className="flex justify-center items-center py-10"><Loader /></div>
-        ) : (
-          <DataTable
-            columns={customerColumns}
-            data={customers}
-            addPagination={false}
-          />
-        )}
+        <DataTable
+          columns={customerColumns}
+          data={customers}
+          isLoading={tableLoading}
+          addPagination={false}
+        />
       </div>
 
       <DeleteModel

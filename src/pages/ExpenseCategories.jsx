@@ -12,7 +12,6 @@ import { Label } from "@/components/UI/label";
 import { DeleteModel } from "@/components/DeleteModel";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-import Loader from "@/components/Loader";
 
 import {
   Drawer,
@@ -957,17 +956,14 @@ const ExpenseCategories = () => {
             </div>
           </div>
 
-          {categoriesLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-              <DataTable
-                columns={columns}
-                data={filteredCategories}
-                pageSize={effectiveItemsPerPage}
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+            <DataTable
+              columns={columns}
+              data={filteredCategories}
+              isLoading={categoriesLoading}
+              pageSize={effectiveItemsPerPage}
+            />
+          </div>
         </div>
       </div>
 

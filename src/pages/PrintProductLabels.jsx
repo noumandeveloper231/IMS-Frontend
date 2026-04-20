@@ -21,7 +21,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/UI/collapsible";
 import { DataTable } from "@/components/DataTable";
-import Loader from "@/components/Loader";
 
 const columns = [
   { accessorKey: "sku", header: "SKU", cell: ({ getValue }) => getValue() ?? "—" },
@@ -241,14 +240,13 @@ export default function PrintProductLabels() {
             </div>
           </div>
 
-          {isLoading ? (
-            <div className="flex justify-center py-4"><Loader /></div>
-          ) : isError ? (
+          {isError ? (
             <p className="text-sm text-destructive">Failed to load products.</p>
           ) : (
             <DataTable
               columns={columns}
               data={filteredProducts}
+              isLoading={isLoading}
               enableSelection={true}
               rowSelection={rowSelection}
               onRowSelectionChange={setRowSelection}

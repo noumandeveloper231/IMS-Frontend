@@ -27,7 +27,6 @@ import {
   DialogTitle,
 } from "@/components/UI/dialog";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/UI/tooltip";
-import Loader from "@/components/Loader";
 
 const PurchaseReceiveList = () => {
   const [search, setSearch] = useState("");
@@ -459,18 +458,15 @@ const PurchaseReceiveList = () => {
           </Field>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-10"><Loader /></div>
-        ) : (
-          <DataTable
-            columns={listColumns}
-            data={filteredReceives}
-            addPagination={false}
-            enableSelection={false}
-            enableHeaderContextMenu={false}
-            // containerClassName="overflow-x-auto rounded-lg border border-gray-300"
-          />
-        )}
+        <DataTable
+          columns={listColumns}
+          data={filteredReceives}
+          isLoading={isLoading}
+          addPagination={false}
+          enableSelection={false}
+          enableHeaderContextMenu={false}
+          // containerClassName="overflow-x-auto rounded-lg border border-gray-300"
+        />
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>

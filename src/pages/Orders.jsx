@@ -499,14 +499,16 @@ const Orders = () => {
         </div>
 
         <div className="">
-          {isLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <DataTable columns={orderColumns} data={filteredOrders} pageSize={effectiveItemsPerPage} />
-              </div>
-              {totalPages > 1 && (
+          <>
+            <div className="overflow-x-auto">
+              <DataTable
+                columns={orderColumns}
+                data={filteredOrders}
+                isLoading={isLoading}
+                pageSize={effectiveItemsPerPage}
+              />
+            </div>
+            {!isLoading && totalPages > 1 && (
                 <Pagination className="mt-6">
                   <PaginationContent>
                     <PaginationItem>
@@ -545,9 +547,8 @@ const Orders = () => {
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>
-              )}
-            </>
-          )}
+            )}
+          </>
         </div>
       </div>
 

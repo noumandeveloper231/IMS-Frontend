@@ -57,7 +57,6 @@ import { DataTable } from "@/components/UI/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { cn } from "@/lib/utils";
-import Loader from "@/components/Loader";
 
 const TEMPLATE_COLUMNS = ["Name", "Category"];
 const REQUIRED_FILE_COLUMNS = ["Name", "Category"];
@@ -1457,22 +1456,19 @@ const Subcategories = () => {
             </div>
           </div>
 
-          {subcategoriesLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-              <DataTable
-                columns={subcategoryColumns}
-                data={filtered}
-                pageSize={effectiveItemsPerPage}
-                initialPageIndex={initialPageIndex}
-                onPageChange={handlePageChange}
-                rowSelection={tableRowSelection}
-                onRowSelectionChange={setTableRowSelection}
-                onSelectionChange={(rows) => setSelectedSubcategoryIds(rows.map((r) => r._id))}
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+            <DataTable
+              columns={subcategoryColumns}
+              data={filtered}
+              isLoading={subcategoriesLoading}
+              pageSize={effectiveItemsPerPage}
+              initialPageIndex={initialPageIndex}
+              onPageChange={handlePageChange}
+              rowSelection={tableRowSelection}
+              onRowSelectionChange={setTableRowSelection}
+              onSelectionChange={(rows) => setSelectedSubcategoryIds(rows.map((r) => r._id))}
+            />
+          </div>
         </div>
       </div>
 

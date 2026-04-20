@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, memo } from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
 import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
@@ -42,12 +42,11 @@ import {
 } from "@/components/UI/select";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-import { MediaGalleryModal } from "@/components/media";
+import { ConditionFormDrawer } from "@/components/ConditionFormDrawer";
 import { useImageModal } from "@/context/ImageModalContext";
 import { useUploadQueue } from "@/context/UploadQueueContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
-import Loader from "@/components/Loader";
 import axios from "axios";
 
 const resolveImageUrl = (src) => {
@@ -55,6 +54,19 @@ const resolveImageUrl = (src) => {
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
   return `${API_HOST}${src}`;
 };
+
+const ConditionImageCell = memo(({ src, alt, onClick }) => (
+  <div className="flex items-center">
+    <img
+      src={src}
+      alt={alt}
+      onClick={onClick}
+      className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+    />
+  </div>
+));
+
+ConditionImageCell.displayName = "ConditionImageCell";
 
 const TEMPLATE_COLUMNS = ["Name", "Image"];
 /** Only Name is required in the file; Image column is optional. */
@@ -130,30 +142,16 @@ const DescriptionField = forwardRef(function DescriptionField(
 
 const Conditions = () => {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef(null);
-  const nameInputRef = useRef(null);
-  const descriptionFieldRef = useRef(null);
   const navigate = useNavigate();
   const { page: pageParam } = useParams();
   const { openImageModal } = useImageModal();
   const { addUploads } = useUploadQueue();
 
-  const DESCRIPTION_MIN = 100;
-  const DESCRIPTION_MAX = 350;
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [tags, setTags] = useState([]);
-  const [exampleProductImages, setExampleProductImages] = useState([]);
-  const [editingId, setEditingId] = useState(null);
+  const [editingCondition, setEditingCondition] = useState(null);
   const [search, setSearch] = useState("");
-  const [image, setImage] = useState(null);
-  const [imageMediaId, setImageMediaId] = useState(null);
-  const [preview, setPreview] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [conditionDrawerOpen, setConditionDrawerOpen] = useState(false);
-  const [showOptionalDetails, setShowOptionalDetails] = useState(false);
   const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [importRows, setImportRows] = useState([]);
   const [importColumns, setImportColumns] = useState([]);
@@ -177,7 +175,6 @@ const Conditions = () => {
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
   const [imageUploadState, setImageUploadState] = useState(null);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
-  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const imageUploadAbortRef = useRef(null);
   const conditionsRef = useRef(EMPTY_ARRAY);
   const conditionDrawerOpenRef = useRef(conditionDrawerOpen);
@@ -268,7 +265,7 @@ const Conditions = () => {
         toast.success(data?.message || "Condition created ✅");
         queryClient.invalidateQueries({ queryKey: ["conditions"] });
         setConditionDrawerOpen(false);
-        handleClearForm();
+        setEditingCondition(null);
       } else {
         toast.error(data?.message || "Failed to create ❌");
       }
@@ -283,12 +280,7 @@ const Conditions = () => {
         error?.response?.status === 409 ||
         /already exists?/i.test(messageFromServer || "")
       ) {
-        const trimmedName = name.trim();
-        toast.error(
-          trimmedName
-            ? `Condition "${trimmedName}" already exists ❌`
-            : "Condition already exists ❌",
-        );
+        toast.error("Condition already exists ❌");
       } else if (messageFromServer) {
         toast.error(messageFromServer);
       } else {
@@ -307,7 +299,7 @@ const Conditions = () => {
         toast.success(data?.message || "Condition updated ✅");
         queryClient.invalidateQueries({ queryKey: ["conditions"] });
         setConditionDrawerOpen(false);
-        handleClearForm();
+        setEditingCondition(null);
       } else {
         toast.error(data?.message || "Failed to update ❌");
       }
@@ -322,12 +314,7 @@ const Conditions = () => {
         error?.response?.status === 409 ||
         /already exists?/i.test(messageFromServer || "")
       ) {
-        const trimmedName = name.trim();
-        toast.error(
-          trimmedName
-            ? `Condition "${trimmedName}" already exists ❌`
-            : "Condition already exists ❌",
-        );
+        toast.error("Condition already exists ❌");
       } else if (messageFromServer) {
         toast.error(messageFromServer);
       } else {
@@ -401,88 +388,14 @@ const Conditions = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
   }, [bulkManagerOpen]);
 
-  const handleClick = (id) => {
+  const handleClick = useCallback((id) => {
     navigate(`/products/list?filterType=condition&filter=${id}`);
-  };
+  }, [navigate]);
 
-  const handleClearForm = () => {
-    setName("");
-    setImage(null);
-    setImageMediaId(null);
-    setPreview(null);
-    setDescription("");
-    setTags([]);
-    setExampleProductImages([]);
-    setExampleProductImagesPreview(null);
-    setShowOptionalDetails(false);
-    setEditingId(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const trimmedName = name.trim();
-
-    if (!trimmedName) {
-      toast.error("Condition name is required ❌");
-      return;
-    }
-
-    if (trimmedName.length < 2) {
-      toast.error("Condition name must be at least 2 characters long ❌");
-      return;
-    }
-
-    if (trimmedName.length > 50) {
-      toast.error("Condition name must be at most 50 characters ❌");
-      return;
-    }
-
-    const normalizedNewName = normalizeConditionName(trimmedName);
-
-    const hasDuplicateOnCreate =
-      !editingId &&
-      conditions.some(
-        (c) => normalizeConditionName(c.name) === normalizedNewName,
-      );
-
-    if (hasDuplicateOnCreate) {
-      toast.error(`Condition "${trimmedName}" already exists ❌`);
-      return;
-    }
-
-    if (editingId) {
-      const hasDuplicateOnUpdate = conditions.some(
-        (c) =>
-          c._id !== editingId &&
-          normalizeConditionName(c.name) === normalizedNewName,
-      );
-
-      if (hasDuplicateOnUpdate) {
-        toast.error(
-          `Another condition with name "${trimmedName}" already exists ❌`,
-        );
-        return;
-      }
-    }
-
-    const desc = descriptionFieldRef.current?.getValue?.() ?? description ?? "";
-    const trimmedDesc = desc.trim();
-    if (trimmedDesc.length > 0) {
-      if (trimmedDesc.length < DESCRIPTION_MIN) {
-        toast.error(`Description must be at least ${DESCRIPTION_MIN} characters when provided ❌`);
-        return;
-      }
-      if (trimmedDesc.length > DESCRIPTION_MAX) {
-        toast.error(`Description must be at most ${DESCRIPTION_MAX} characters ❌`);
-        return;
-      }
-    }
-
+  const handleSubmitForm = async ({ name, description, tags, exampleProductImages, image, imageMediaId }) => {
     const formData = new FormData();
-    formData.append("name", trimmedName);
-    formData.append("description", desc);
+    formData.append("name", name);
+    formData.append("description", description);
     formData.append("tags", JSON.stringify(Array.isArray(tags) ? tags : []));
     formData.append("exampleProductImages", JSON.stringify(Array.isArray(exampleProductImages) ? exampleProductImages : []));
     if (imageMediaId) {
@@ -491,47 +404,25 @@ const Conditions = () => {
       formData.append("image", image);
     }
 
-    if (editingId) {
-      await updateMutation.mutateAsync({ id: editingId, formData });
+    if (editingCondition) {
+      await updateMutation.mutateAsync({ id: editingCondition._id, formData });
     } else {
       await createMutation.mutateAsync(formData);
     }
   };
 
-  const handleEdit = (cond) => {
-    setName(cond.name ?? "");
-    setDescription(cond.description ?? "");
-    setTags(Array.isArray(cond.tags) ? [...cond.tags] : []);
-    setExampleProductImages(Array.isArray(cond.exampleProductImages) ? [...cond.exampleProductImages] : []);
-    setShowOptionalDetails(Boolean(
-      (cond.description && cond.description.trim()) ||
-      (Array.isArray(cond.tags) && cond.tags.length > 0) ||
-      (Array.isArray(cond.exampleProductImages) && cond.exampleProductImages.length > 0)
-    ));
-    setEditingId(cond._id);
-    const imageUrl = cond.imageUrl || (cond.imageRef?.url) || (cond.image && resolveImageUrl(cond.image));
-    setPreview(imageUrl || null);
-    setImageMediaId(
-      cond.imageRef?._id != null
-        ? String(cond.imageRef._id)
-        : typeof cond.imageRef === "string" && cond.imageRef
-          ? String(cond.imageRef)
-          : null
-    );
-    setImage(null);
+  const handleEdit = useCallback((cond) => {
+    setEditingCondition(cond);
     setConditionDrawerOpen(true);
     toast.info(`Editing condition: ${cond.name}`);
-    setTimeout(() => {
-      if (nameInputRef.current) nameInputRef.current.focus();
-    }, 100);
-  };
+  }, []);
 
-  const confirmDelete = async (id) => {
+  const confirmDelete = useCallback(async (id) => {
     try {
       const res = await api.get(`/conditions/dependencies/${id}`);
       const data = res.data;
       const hasDependencies = data?.hasDependencies === true;
-      const condName = (conditions || []).find((c) => c._id === id)?.name ?? "Condition";
+      const condName = (conditionsRef.current || []).find((c) => c._id === id)?.name ?? "Condition";
       if (hasDependencies) {
         setDeleteWithDepsData({
           id,
@@ -552,7 +443,7 @@ const Conditions = () => {
       }
       toast.error(err?.response?.data?.message || "Could not check condition dependencies");
     }
-  };
+  }, []);
 
   const handleCascadeDeleteConfirmed = async () => {
     if (!deleteId) return;
@@ -606,48 +497,10 @@ const Conditions = () => {
     }
   };
 
-  const handleDeleteConfirmed = () => {
+  const handleDeleteConfirmed = useCallback(() => {
     if (!deleteId) return;
     deleteMutation.mutate(deleteId);
-  };
-
-  const handleDropFile = (file) => {
-    if (!file) return;
-    if (!file.type?.startsWith("image/")) {
-      toast.error("Please upload a valid image file ❌");
-      return;
-    }
-    addUploads([file], undefined, {
-      onComplete: (created) => {
-        const m = created[0];
-        if (m) {
-          setPreview(m.url);
-          setImageMediaId(m._id);
-          setImage(null);
-        }
-      },
-    });
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type?.startsWith("image/")) {
-      toast.error("Please upload a valid image file ❌");
-      return;
-    }
-    addUploads([file], undefined, {
-      onComplete: (created) => {
-        const m = created[0];
-        if (m) {
-          setPreview(m.url);
-          setImageMediaId(m._id);
-          setImage(null);
-        }
-      },
-    });
-    e.target.value = "";
-  };
+  }, [deleteId, deleteMutation]);
 
   const filteredConditions = useMemo(
     () =>
@@ -1085,37 +938,6 @@ const Conditions = () => {
     }
   };
 
-  const [exampleProductImagesPreview, setExampleProductImagesPreview] = useState(null);
-
-  const handleExampleProductImagesSelect = useCallback(async (files) => {
-    const fileList = Array.isArray(files) ? files : files ? [files] : [];
-    const toAdd = fileList.slice(0, Math.max(0, 2 - exampleProductImages.length));
-    if (!toAdd.length) {
-      if (fileList.length > 0) toast.error("Maximum 2 example product images allowed");
-      return;
-    }
-    for (const file of toAdd) {
-      if (!file?.type?.startsWith("image/")) {
-        toast.error("Please select valid image files");
-        continue;
-      }
-      try {
-        const fd = new FormData();
-        fd.append("image", file);
-        const res = await api.post("/conditions/upload-image", fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        const url = res.data?.url;
-        if (url) {
-          setExampleProductImages((prev) => (prev.length >= 2 ? prev : [...prev, url].slice(0, 2)));
-          setExampleProductImagesPreview(url);
-        }
-      } catch (err) {
-        toast.error(err?.response?.data?.message || "Image upload failed");
-      }
-    }
-  }, [exampleProductImages.length]);
-
   const handleImportValidSubmit = async () => {
     const validRows = importRows.filter((row) => row.__status === "valid");
     if (!validRows.length) {
@@ -1193,19 +1015,16 @@ const Conditions = () => {
         accessorKey: "image",
         cell: ({ row }) => {
           const cond = row.original;
-          if (!cond.imageUrl && !cond.image) {
+          if (!cond.imageUrl && !cond.imageRef && !cond.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
-          const src = cond.imageUrl || resolveImageUrl(cond.image);
+          const src = cond.imageUrl || (cond.imageRef?.url) || resolveImageUrl(cond.image);
           return (
-            <div className="flex items-center">
-              <img
-                src={src}
-                alt={cond.name}
-                onClick={() => openImageModal(src)}
-                className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
-              />
-            </div>
+            <ConditionImageCell
+              src={src}
+              alt={cond.name}
+              onClick={() => openImageModal(src)}
+            />
           );
         },
       },
@@ -1528,8 +1347,9 @@ const Conditions = () => {
                 </Label>
                 <Button
                   type="button"
+                  variant="default"
                   onClick={() => {
-                    handleClearForm();
+                    setEditingCondition(null);
                     setConditionDrawerOpen(true);
                   }}
                   className="px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
@@ -1539,176 +1359,16 @@ const Conditions = () => {
               </div>
             </div>
 
-            <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
-              <DrawerHeader className="px-4 sm:px-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <DrawerTitle>
-                      {editingId ? "Edit Condition" : "Add New Condition"}
-                    </DrawerTitle>
-                    <DrawerDescription>
-                      {editingId
-                        ? "Update the condition details."
-                        : "Fill in the details below to add a new condition."}
-                    </DrawerDescription>
-                  </div>
-                  <DrawerClose asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Close">
-                      ✕
-                    </Button>
-                  </DrawerClose>
-                </div>
-              </DrawerHeader>
-              <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 pb-6 sm:pb-8">
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex flex-col gap-6"
-                >
-                  <Field>
-                    <FieldLabel htmlFor="condition-name">Name</FieldLabel>
-                    <Input
-                      id="condition-name"
-                      type="text"
-                      placeholder="Condition Name"
-                      ref={nameInputRef}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="mt-1"
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Image</FieldLabel>
-                    <div className="flex flex-wrap gap-2 items-center mt-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setMediaGalleryOpen(true)}
-                      >
-                        Select from gallery
-                      </Button>
-                    </div>
-                    <ImageUploadDropzone
-                      onFileSelect={handleDropFile}
-                      previewUrl={preview}
-                      showPreview
-                      onRemove={() => {
-                        setPreview(null);
-                        setImage(null);
-                        setImageMediaId(null);
-                      }}
-                      className="mt-1"
-                      accept="image/*"
-                    />
-                  </Field>
-                  <MediaGalleryModal
-                    open={mediaGalleryOpen}
-                    onOpenChange={setMediaGalleryOpen}
-                    multiple={false}
-                    title="Select condition image"
-                    onConfirm={(media) => {
-                      if (media) {
-                        setImageMediaId(media._id != null ? String(media._id) : null);
-                        setPreview(media.url);
-                        setImage(null);
-                      }
-                      setMediaGalleryOpen(false);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowOptionalDetails((v) => !v)}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline decoration-1"
-                  >
-                    {showOptionalDetails ? "Hide optional details" : "Add Optional Details"}
-                  </button>
-                  {showOptionalDetails && (
-                    <>
-                  <Field>
-                    <FieldLabel>Description</FieldLabel>
-                    <DescriptionField
-                      ref={descriptionFieldRef}
-                      key={editingId ?? "new"}
-                      initialValue={description}
-                      min={DESCRIPTION_MIN}
-                      max={DESCRIPTION_MAX}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Tags</FieldLabel>
-                    <Combobox
-                      placeholder="Type tags and press Enter, or select"
-                      value={Array.isArray(tags) ? tags : []}
-                      onChange={(val) => setTags(Array.isArray(val) ? val : [])}
-                      multiselect={true}
-                      maxItems={4}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Example Product Images (max 2)</FieldLabel>
-                    <ImageUploadDropzone
-                      onFileSelect={handleExampleProductImagesSelect}
-                      className="mt-1"
-                      accept="image/*"
-                      multiple
-                      limit={2}
-                      disabled={exampleProductImages.length >= 2}
-                      label={exampleProductImages.length >= 2 ? "Maximum 2 images" : "Add example image"}
-                      description={exampleProductImages.length >= 2 ? "" : "or click to browse"}
-                    />
-                    {exampleProductImages.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {exampleProductImages.map((url, idx) => (
-                          <div key={idx} className="relative inline-block">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setExampleProductImages((prev) => prev.filter((_, i) => i !== idx));
-                                setExampleProductImagesPreview(null);
-                              }}
-                              className="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white text-[10px] hover:bg-black"
-                              aria-label="Remove image"
-                            >
-                              ×
-                            </button>
-                            <img
-                              src={url}
-                              alt={`Example ${idx + 1}`}
-                              className="w-24 h-24 object-contain rounded-lg border border-[#cdcdcd] bg-white"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Field>
-                    </>
-                  )}
-                  <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
-                    <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
-                      {loading
-                        ? "Please wait..."
-                        : editingId
-                          ? "Update Condition"
-                          : "Add Condition"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      onClick={handleClearForm}
-                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md w-full sm:w-auto"
-                    >
-                      Clear
-                    </Button>
-                    <DrawerClose asChild>
-                      <Button type="button" variant="outline" className="w-full sm:w-auto sm:ml-auto">
-                        Cancel
-                      </Button>
-                    </DrawerClose>
-                  </div>
-                </form>
-              </div>
-            </DrawerContent>
+            <ConditionFormDrawer
+              open={conditionDrawerOpen}
+              editingCondition={editingCondition}
+              onClose={() => {
+                setConditionDrawerOpen(false);
+                setEditingCondition(null);
+              }}
+              onSubmit={handleSubmitForm}
+              loading={loading}
+            />
           </Drawer>
         </div>
 
@@ -1767,22 +1427,19 @@ const Conditions = () => {
             </div>
           </div>
 
-          {conditionsLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-              <DataTable
-                columns={conditionColumns}
-                data={filteredConditions}
-                pageSize={effectiveItemsPerPage}
-                initialPageIndex={initialPageIndex}
-                onPageChange={handlePageChange}
-                rowSelection={tableRowSelection}
-                onRowSelectionChange={setTableRowSelection}
-                onSelectionChange={(rows) => setSelectedConditionIds(rows.map((r) => r._id))}
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+            <DataTable
+              columns={conditionColumns}
+              data={filteredConditions}
+              isLoading={conditionsLoading}
+              pageSize={effectiveItemsPerPage}
+              initialPageIndex={initialPageIndex}
+              onPageChange={handlePageChange}
+              rowSelection={tableRowSelection}
+              onRowSelectionChange={setTableRowSelection}
+              onSelectionChange={(rows) => setSelectedConditionIds(rows.map((r) => r._id))}
+            />
+          </div>
         </div>
       </div>
 

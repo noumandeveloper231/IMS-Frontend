@@ -42,7 +42,6 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { Trash2, Pencil, Check, X } from "lucide-react";
 import { Textarea } from "@/components/UI/textarea";
-import Loader from "@/components/Loader";
 import { InputGroup, InputGroupInput, InputGroupAddon } from "@/components/UI/input-group";
 import { useSettings } from "@/context/SettingsContext";
 
@@ -1389,21 +1388,18 @@ const Vendors = () => {
             </div>
           </div>
 
-          {vendorsLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <div className="overflow-x-auto">
-              <DataTable
-                columns={vendorColumns}
-                data={filteredVendors}
-                pageSize={effectiveItemsPerPage}
-                getRowId={(row) => row._id}
-                rowSelection={tableRowSelection}
-                onRowSelectionChange={setTableRowSelection}
-                onSelectionChange={(rows) => setSelectedVendorIds(rows.map((r) => r._id))}
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto">
+            <DataTable
+              columns={vendorColumns}
+              data={filteredVendors}
+              isLoading={vendorsLoading}
+              pageSize={effectiveItemsPerPage}
+              getRowId={(row) => row._id}
+              rowSelection={tableRowSelection}
+              onRowSelectionChange={setTableRowSelection}
+              onSelectionChange={(rows) => setSelectedVendorIds(rows.map((r) => r._id))}
+            />
+          </div>
         </div>
       </div>
       <DeleteModel

@@ -41,7 +41,6 @@ import { DataTable } from "@/components/UI/data-table";
 import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-import Loader from "@/components/Loader";
 
 const TEMPLATE_COLUMNS = ["Name", "Phone", "Email", "Role", "Salary", "Status"];
 
@@ -1159,23 +1158,20 @@ const Employees = () => {
               </div>
             </div>
           </div>
-          {employeesLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <div className="overflow-x-auto">
-              <DataTable
-                columns={employeeColumns}
-                data={filteredEmployees}
-                pageSize={effectiveItemsPerPage}
-                initialPageIndex={initialPageIndex}
-                onPageChange={handlePageChange}
-                getRowId={(row) => row._id}
-                rowSelection={tableRowSelection}
-                onRowSelectionChange={setTableRowSelection}
-                onSelectionChange={(rows) => setSelectedEmployeeIds(rows.map((r) => r._id))}
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto">
+            <DataTable
+              columns={employeeColumns}
+              data={filteredEmployees}
+              isLoading={employeesLoading}
+              pageSize={effectiveItemsPerPage}
+              initialPageIndex={initialPageIndex}
+              onPageChange={handlePageChange}
+              getRowId={(row) => row._id}
+              rowSelection={tableRowSelection}
+              onRowSelectionChange={setTableRowSelection}
+              onSelectionChange={(rows) => setSelectedEmployeeIds(rows.map((r) => r._id))}
+            />
+          </div>
         </div>
       </div>
       <DeleteModel

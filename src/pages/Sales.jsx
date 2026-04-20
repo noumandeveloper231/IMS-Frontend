@@ -310,11 +310,13 @@ const Sales = () => {
           const item = row.original;
           return (
             <Combobox
-              options={products.map((p) => ({
-                value: p._id,
-                label: p.title || p.sku || "Unnamed product",
-                qrcode: p.image,
-              }))}
+              options={products
+                .filter((p) => Number(p.quantity ?? 0) > 0)
+                .map((p) => ({
+                  value: p._id,
+                  label: p.title || p.sku || "Unnamed product",
+                  qrcode: p.image,
+                }))}
               value={item.productId}
               onChange={(id) => updateItem(index, "productId", id)}
               placeholder="Search product..."

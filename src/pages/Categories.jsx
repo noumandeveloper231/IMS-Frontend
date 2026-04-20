@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useRef, useMemo, useCallback, useEffect, memo } from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
 import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
@@ -40,12 +40,11 @@ import {
 } from "@/components/UI/select";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-import { MediaGalleryModal } from "@/components/media";
+import { CategoryFormDrawer } from "@/components/CategoryFormDrawer";
 import { useImageModal } from "@/context/ImageModalContext";
 import { useUploadQueue } from "@/context/UploadQueueContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
-import Loader from "@/components/Loader";
 import axios from "axios";
 
 const resolveImageUrl = (src) => {
@@ -53,6 +52,19 @@ const resolveImageUrl = (src) => {
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
   return `${API_HOST}${src}`;
 };
+
+const CategoryImageCell = memo(({ src, alt, onClick }) => (
+  <div className="flex items-center">
+    <img
+      src={src}
+      alt={alt}
+      onClick={onClick}
+      className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+    />
+  </div>
+));
+
+CategoryImageCell.displayName = "CategoryImageCell";
 
 const TEMPLATE_COLUMNS = ["Name", "Image"];
 /** Only Name is required in the file; Image column is optional. */
@@ -86,19 +98,13 @@ const isValidImageUrl = (value) => {
 
 const Categories = () => {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef(null);
-  const nameInputRef = useRef(null);
   const navigate = useNavigate();
   const { page: pageParam } = useParams();
   const { openImageModal } = useImageModal();
   const { addUploads } = useUploadQueue();
 
-  const [name, setName] = useState("");
-  const [editingId, setEditingId] = useState(null);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [search, setSearch] = useState("");
-  const [image, setImage] = useState(null);
-  const [imageMediaId, setImageMediaId] = useState(null);
-  const [preview, setPreview] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
@@ -125,7 +131,6 @@ const Categories = () => {
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
   const [imageUploadState, setImageUploadState] = useState(null);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
-  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const imageUploadAbortRef = useRef(null);
   const categoriesRef = useRef(EMPTY_ARRAY);
   const categoryDrawerOpenRef = useRef(categoryDrawerOpen);
@@ -220,7 +225,7 @@ const Categories = () => {
         queryClient.invalidateQueries({ queryKey: ["categories"] });
         queryClient.invalidateQueries({ queryKey: ["categories-list"] });
         setCategoryDrawerOpen(false);
-        handleClearForm();
+        setEditingCategory(null);
       } else {
         toast.error("Failed to create category ❌");
       }
@@ -235,12 +240,7 @@ const Categories = () => {
         error?.response?.status === 409 ||
         /already exists?/i.test(messageFromServer || "")
       ) {
-        const trimmedName = name.trim();
-        toast.error(
-          trimmedName
-            ? `Category "${trimmedName}" already exists ❌`
-            : "Category already exists ❌",
-        );
+        toast.error("Category already exists ❌");
       } else if (messageFromServer) {
         toast.error(messageFromServer);
       } else {
@@ -260,7 +260,7 @@ const Categories = () => {
         queryClient.invalidateQueries({ queryKey: ["categories"] });
         queryClient.invalidateQueries({ queryKey: ["categories-list"] });
         setCategoryDrawerOpen(false);
-        handleClearForm();
+        setEditingCategory(null);
       } else {
         toast.error("Failed to update category ❌");
       }
@@ -275,12 +275,7 @@ const Categories = () => {
         error?.response?.status === 409 ||
         /already exists?/i.test(messageFromServer || "")
       ) {
-        const trimmedName = name.trim();
-        toast.error(
-          trimmedName
-            ? `Category "${trimmedName}" already exists ❌`
-            : "Category already exists ❌",
-        );
+        toast.error("Category already exists ❌");
       } else if (messageFromServer) {
         toast.error(messageFromServer);
       } else {
@@ -349,106 +344,42 @@ const Categories = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
   }, [bulkManagerOpen]);
 
-  const handleClick = (id) => {
+  const handleClick = useCallback((id) => {
     navigate(`/products/list?filterType=category&filter=${id}`);
-  };
+  }, [navigate]);
 
-  const handleClearForm = () => {
-    setName("");
-    setImage(null);
-    setImageMediaId(null);
-    setPreview(null);
-    setEditingId(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const trimmedName = name.trim();
-
-    if (!trimmedName) {
-      toast.error("Category name is required ❌");
-      return;
-    }
-
-    if (trimmedName.length < 2) {
-      toast.error("Category name must be at least 2 characters long ❌");
-      return;
-    }
-
-    if (trimmedName.length > 50) {
-      toast.error("Category name must be at most 50 characters ❌");
-      return;
-    }
-
-    const normalizedNewName = normalizeCategoryName(trimmedName);
-
-    const hasDuplicateOnCreate =
-      !editingId &&
-      categories.some(
-        (c) => normalizeCategoryName(c.name) === normalizedNewName,
-      );
-
-    if (hasDuplicateOnCreate) {
-      toast.error(`Category "${trimmedName}" already exists ❌`);
-      return;
-    }
-
-    if (editingId) {
-      const hasDuplicateOnUpdate = categories.some(
-        (c) =>
-          c._id !== editingId &&
-          normalizeCategoryName(c.name) === normalizedNewName,
-      );
-
-      if (hasDuplicateOnUpdate) {
-        toast.error(
-          `Another category with name "${trimmedName}" already exists ❌`,
-        );
-        return;
-      }
-    }
-
+  const handleSubmitForm = async ({ name, image, imageMediaId }) => {
     const formData = new FormData();
-    formData.append("name", trimmedName);
+    formData.append("name", name);
     if (imageMediaId) {
       formData.append("image", String(imageMediaId));
     } else if (image) {
       formData.append("image", image);
     }
 
-    if (editingId) {
-      await updateMutation.mutateAsync({ id: editingId, formData });
+    if (editingCategory) {
+      await updateMutation.mutateAsync({ id: editingCategory._id, formData });
     } else {
       await createMutation.mutateAsync(formData);
     }
   };
 
-  const handleEdit = (cat) => {
-    setName(cat.name);
-    setEditingId(cat._id);
-    const imageUrl = cat.imageUrl || (cat.image?.url) || (cat.image && resolveImageUrl(cat.image));
-    setPreview(imageUrl || null);
-    setImageMediaId(cat.image?._id != null ? String(cat.image._id) : (typeof cat.image === "string" && cat.image ? String(cat.image) : null));
-    setImage(null);
+  const handleEdit = useCallback((cat) => {
+    setEditingCategory(cat);
     setCategoryDrawerOpen(true);
     toast.info(`Editing Category: ${cat.name}`);
-    setTimeout(() => {
-      if (nameInputRef.current) nameInputRef.current.focus();
-    }, 100);
-  };
+  }, []);
 
-  const confirmDelete = async (id) => {
+  const confirmDelete = useCallback(async (id) => {
     try {
       const res = await api.get(`/categories/dependencies/${id}`);
       const data = res.data;
       const hasDependencies = data?.hasDependencies === true;
-      const name = (categories || []).find((c) => c._id === id)?.name ?? "Category";
+      const catName = (categoriesRef.current || []).find((c) => c._id === id)?.name ?? "Category";
       if (hasDependencies) {
         setDeleteWithDepsData({
           id,
-          name,
+          name: catName,
           subcategoriesCount: data.subcategoriesCount ?? 0,
           productsCount: data.productsCount ?? 0,
         });
@@ -465,7 +396,7 @@ const Categories = () => {
       }
       toast.error(err?.response?.data?.message || "Could not check category dependencies");
     }
-  };
+  }, []);
 
   const handleCascadeDeleteConfirmed = async () => {
     if (!deleteId) return;
@@ -521,28 +452,10 @@ const Categories = () => {
     }
   };
 
-  const handleDeleteConfirmed = () => {
+  const handleDeleteConfirmed = useCallback(() => {
     if (!deleteId) return;
     deleteMutation.mutate(deleteId);
-  };
-
-  const handleDropFile = (file) => {
-    if (!file) return;
-    if (!file.type?.startsWith("image/")) {
-      toast.error("Please upload a valid image file ❌");
-      return;
-    }
-    addUploads([file], undefined, {
-      onComplete: (created) => {
-        const m = created[0];
-        if (m) {
-          setPreview(m.url);
-          setImageMediaId(m._id);
-          setImage(null);
-        }
-      },
-    });
-  };
+  }, [deleteId, deleteMutation]);
 
   const filteredCategories = useMemo(
     () =>
@@ -1076,15 +989,13 @@ const Categories = () => {
           if (!cat.imageUrl && !cat.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
+          const imageUrl = cat.imageUrl || resolveImageUrl(cat.image);
           return (
-            <div className="flex items-center">
-              <img
-                src={cat.imageUrl || resolveImageUrl(cat.image)}
-                alt={cat.name}
-                onClick={() => openImageModal(cat.imageUrl || resolveImageUrl(cat.image))}
-                className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
-              />
-            </div>
+            <CategoryImageCell
+              src={imageUrl}
+              alt={cat.name}
+              onClick={() => openImageModal(imageUrl)}
+            />
           );
         },
       },
@@ -1412,7 +1323,7 @@ const Categories = () => {
                   type="button"
                   variant="default"
                   onClick={() => {
-                    handleClearForm();
+                    setEditingCategory(null);
                     setCategoryDrawerOpen(true);
                   }}
                   className="px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
@@ -1423,109 +1334,16 @@ const Categories = () => {
             </div>
 
             {/* Right-side drawer: Add/Edit Category form */}
-            <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
-              <DrawerHeader className="px-4 sm:px-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col gap-2">
-                    <DrawerTitle>
-                      {editingId ? "Edit Category" : "Add New Category"}
-                    </DrawerTitle>
-                    <DrawerDescription>
-                      {editingId
-                        ? "Update the category details."
-                        : "Fill in the details below to add a new category."}
-                    </DrawerDescription>
-                  </div>
-                  <DrawerClose asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Close">
-                      ✕
-                    </Button>
-                  </DrawerClose>
-                </div>
-              </DrawerHeader>
-              <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 pb-6 sm:pb-8">
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex flex-col gap-6"
-                >
-                  <Field>
-                    <FieldLabel htmlFor="category-name">Name</FieldLabel>
-                    <Input
-                      id="category-name"
-                      type="text"
-                      placeholder="Category Name"
-                      ref={nameInputRef}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="mt-1"
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Image</FieldLabel>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setMediaGalleryOpen(true)}
-                      >
-                        Select from gallery
-                      </Button>
-                    </div>
-                    <ImageUploadDropzone
-                      onFileSelect={handleDropFile}
-                      previewUrl={preview}
-                      showPreview
-                      onRemove={() => {
-                        setPreview(null);
-                        setImage(null);
-                        setImageMediaId(null);
-                      }}
-                      className="mt-1"
-                      accept="image/*"
-                    />
-
-                  </Field>
-                  <MediaGalleryModal
-                    open={mediaGalleryOpen}
-                    onOpenChange={setMediaGalleryOpen}
-                    multiple={false}
-                    title="Select category image"
-                    onConfirm={(media) => {
-                      if (media) {
-                        setImageMediaId(media._id != null ? String(media._id) : null);
-                        setPreview(media.url);
-                        setImage(null);
-                      }
-                      setMediaGalleryOpen(false);
-                    }}
-                  />
-                  <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
-                    <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
-                      {loading
-                        ? "Please wait..."
-                        : editingId
-                          ? "Update Category"
-                          : "Add Category"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      onClick={handleClearForm}
-                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md w-full sm:w-auto"
-                    >
-                      Clear
-                    </Button>
-                    <DrawerClose asChild>
-                      <Button type="button" variant="outline" className="w-full sm:w-auto sm:ml-auto">
-                        Cancel
-                      </Button>
-                    </DrawerClose>
-                  </div>
-                </form>
-              </div>
-            </DrawerContent>
+            <CategoryFormDrawer
+              open={categoryDrawerOpen}
+              editingCategory={editingCategory}
+              onClose={() => {
+                setCategoryDrawerOpen(false);
+                setEditingCategory(null);
+              }}
+              onSubmit={handleSubmitForm}
+              loading={loading}
+            />
           </Drawer>
         </div>
 
@@ -1588,22 +1406,19 @@ const Categories = () => {
             </div>
           </div>
 
-          {categoriesLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-              <DataTable
-                columns={categoryColumns}
-                data={filteredCategories}
-                pageSize={effectiveItemsPerPage}
-                initialPageIndex={initialPageIndex}
-                onPageChange={handlePageChange}
-                rowSelection={tableRowSelection}
-                onRowSelectionChange={setTableRowSelection}
-                onSelectionChange={(rows) => setSelectedCategoryIds(rows.map((r) => r._id))}
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+            <DataTable
+              columns={categoryColumns}
+              data={filteredCategories}
+              isLoading={categoriesLoading}
+              pageSize={effectiveItemsPerPage}
+              initialPageIndex={initialPageIndex}
+              onPageChange={handlePageChange}
+              rowSelection={tableRowSelection}
+              onRowSelectionChange={setTableRowSelection}
+              onSelectionChange={(rows) => setSelectedCategoryIds(rows.map((r) => r._id))}
+            />
+          </div>
         </div>
       </div>
 

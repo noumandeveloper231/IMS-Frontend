@@ -44,7 +44,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/UI/context-menu";
 import { DefaultHeader } from "@/components/DefaultHeader";
-import Loader from "@/components/Loader";
+import { Skeleton } from "@/components/UI/skeleton";
 
 export function DataTable({
   columns,
@@ -70,10 +70,12 @@ export function DataTable({
   queryKey,
   queryFn,
   queryOptions = {},
+  loading,
+  isLoading: isLoadingProp,
 }) {
   const hasQuery = Boolean(queryKey && queryFn);
 
-  const { data: queryData, isLoading, isError, error } = useQuery({
+  const { data: queryData, isLoading: queryIsLoading, isError, error } = useQuery({
     queryKey: queryKey ?? ["data-table"],
     queryFn: queryFn ?? (async () => []),
     enabled: hasQuery,
@@ -81,6 +83,7 @@ export function DataTable({
   });
 
   const data = hasQuery ? (queryData ?? []) : (dataProp ?? []);
+  const isLoading = isLoadingProp ?? loading ?? queryIsLoading;
   const onSelectionChangeRef = React.useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
 
@@ -400,16 +403,23 @@ export function DataTable({
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={table.getVisibleLeafColumns().length}
-                    className="h-24 text-sm text-muted-foreground"
-                  >
-                    <div className="flex justify-center">
-                      <Loader />
-                    </div>
-                  </TableCell>
-                </TableRow>
+                Array.from({
+                  length: Math.max(
+                    3,
+                    Math.min(8, table.getState().pagination?.pageSize || pageSizeProp || 5),
+                  ),
+                }).map((_, rowIndex) => (
+                  <TableRow key={`skeleton-row-${rowIndex}`}>
+                    {table.getVisibleLeafColumns().map((column) => (
+                      <TableCell
+                        key={`skeleton-cell-${rowIndex}-${column.id}`}
+                        className="px-4 py-3"
+                      >
+                        <Skeleton className="h-8 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
               ) : isError ? (
                 <TableRow>
                   <TableCell

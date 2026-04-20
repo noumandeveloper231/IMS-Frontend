@@ -38,7 +38,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/UI/alert-dialog";
-import Loader from "@/components/Loader";
 
 const EMPTY_ARRAY = [];
 
@@ -900,17 +899,14 @@ const UserManagement = () => {
           </DrawerContent>
         </Drawer>
 
-        {tableLoading ? (
-          <div className="flex justify-center items-center py-10"><Loader /></div>
-        ) : (
-          <DataTable
-            columns={userColumns}
-            data={users}
-            addPagination={false}
-            enableSelection={false}
-            containerClassName="flex flex-col overflow-hidden rounded-md border border-gray-200 bg-background min-h-[200px]"
-          />
-        )}
+        <DataTable
+          columns={userColumns}
+          data={users}
+          isLoading={tableLoading}
+          addPagination={false}
+          enableSelection={false}
+          containerClassName="flex flex-col overflow-hidden rounded-md border border-gray-200 bg-background min-h-[200px]"
+        />
 
         {pagination.pages > 1 && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">

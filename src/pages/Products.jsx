@@ -79,7 +79,6 @@ import axios from "axios";
 import { ProductFormDrawer } from "@/components/ProductFormDrawer";
 import { RichTextEditor } from "@/components/UI/RichTextEditor";
 import { Combobox } from "@/components/UI/combobox";
-import Loader from "@/components/Loader";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -501,7 +500,8 @@ const Products = () => {
     const query = search.toLowerCase();
     const matchesSearch =
       (p.title || "").toLowerCase().includes(query) ||
-      (p.asin || "").toLowerCase().includes(query);
+      (p.asin || "").toLowerCase().includes(query) ||
+      (p.sku || "").toLowerCase().includes(query);
 
     let matchesStock = true;
     if (stockFilter === "in-stock") {
@@ -2019,23 +2019,20 @@ const Products = () => {
             </div>
           </div>
 
-          {productsLoading ? (
-            <Loader />
-          ) : (
-            <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-              <DataTable
-                columns={productColumns}
-                data={filteredProducts}
-                pageSize={effectiveItemsPerPage}
-                initialPageIndex={initialPageIndex}
-                onPageChange={handlePageChange}
-                rowSelection={tableRowSelection}
-                onRowSelectionChange={setTableRowSelection}
-                onSelectionChange={(rows) => setSelectedProductIds(rows.map((r) => r._id))}
-                containerClassName="h-[630px]!"
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+            <DataTable
+              columns={productColumns}
+              data={filteredProducts}
+              isLoading={productsLoading}
+              pageSize={effectiveItemsPerPage}
+              initialPageIndex={initialPageIndex}
+              onPageChange={handlePageChange}
+              rowSelection={tableRowSelection}
+              onRowSelectionChange={setTableRowSelection}
+              onSelectionChange={(rows) => setSelectedProductIds(rows.map((r) => r._id))}
+              containerClassName="h-[630px]!"
+            />
+          </div>
         </div>
       </div>
 

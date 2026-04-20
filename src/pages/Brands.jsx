@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
 import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
@@ -40,12 +40,11 @@ import {
 } from "@/components/UI/select";
 import { DataTable } from "@/components/UI/data-table";
 import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
-import { MediaGalleryModal } from "@/components/media";
+import { BrandFormDrawer } from "@/components/BrandFormDrawer";
 import { useImageModal } from "@/context/ImageModalContext";
 import { useUploadQueue } from "@/context/UploadQueueContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
-import Loader from "@/components/Loader";
 import axios from "axios";
 
 const resolveImageUrl = (src) => {
@@ -53,6 +52,19 @@ const resolveImageUrl = (src) => {
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
   return `${API_HOST}${src}`;
 };
+
+const BrandImageCell = memo(({ src, alt, onClick }) => (
+  <div className="flex items-center">
+    <img
+      src={src}
+      alt={alt}
+      onClick={onClick}
+      className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
+    />
+  </div>
+));
+
+BrandImageCell.displayName = "BrandImageCell";
 
 const TEMPLATE_COLUMNS = ["Name", "Image"];
 /** Stable empty array so brands don't get new ref when data is undefined (avoids column remount / focus loss). */
@@ -86,19 +98,13 @@ const normalizeKey = (key) =>
 
 const Brands = () => {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef(null);
-  const nameInputRef = useRef(null);
   const navigate = useNavigate();
   const { page: pageParam } = useParams();
   const { openImageModal } = useImageModal();
-
   const { addUploads } = useUploadQueue();
-  const [name, setName] = useState("");
-  const [editingId, setEditingId] = useState(null);
+
+  const [editingBrand, setEditingBrand] = useState(null);
   const [search, setSearch] = useState("");
-  const [image, setImage] = useState(null);
-  const [imageLogoId, setImageLogoId] = useState(null);
-  const [preview, setPreview] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [brandDrawerOpen, setBrandDrawerOpen] = useState(false);
@@ -125,7 +131,6 @@ const Brands = () => {
   const [cascadeDeleteLoading, setCascadeDeleteLoading] = useState(false);
   const [imageUploadState, setImageUploadState] = useState(null);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
-  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
   const imageUploadAbortRef = useRef(null);
   const brandsRef = useRef(EMPTY_ARRAY);
   const brandDrawerOpenRef = useRef(brandDrawerOpen);
@@ -216,7 +221,7 @@ const Brands = () => {
         toast.success(data?.message || "Brand created ✅");
         queryClient.invalidateQueries({ queryKey: ["brands"] });
         setBrandDrawerOpen(false);
-        handleClearForm();
+        setEditingBrand(null);
       } else {
         toast.error(data?.message || "Failed to create ❌");
       }
@@ -231,12 +236,7 @@ const Brands = () => {
         error?.response?.status === 409 ||
         /already exists?/i.test(messageFromServer || "")
       ) {
-        const trimmedName = name.trim();
-        toast.error(
-          trimmedName
-            ? `Brand "${trimmedName}" already exists ❌`
-            : "Brand already exists ❌",
-        );
+        toast.error("Brand already exists ❌");
       } else if (messageFromServer) {
         toast.error(messageFromServer);
       } else {
@@ -255,7 +255,7 @@ const Brands = () => {
         toast.success(data?.message || "Brand updated ✅");
         queryClient.invalidateQueries({ queryKey: ["brands"] });
         setBrandDrawerOpen(false);
-        handleClearForm();
+        setEditingBrand(null);
       } else {
         toast.error(data?.message || "Failed to update ❌");
       }
@@ -270,12 +270,7 @@ const Brands = () => {
         error?.response?.status === 409 ||
         /already exists?/i.test(messageFromServer || "")
       ) {
-        const trimmedName = name.trim();
-        toast.error(
-          trimmedName
-            ? `Brand "${trimmedName}" already exists ❌`
-            : "Brand already exists ❌",
-        );
+        toast.error("Brand already exists ❌");
       } else if (messageFromServer) {
         toast.error(messageFromServer);
       } else {
@@ -349,103 +344,37 @@ const Brands = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
   }, [bulkManagerOpen]);
 
-  const handleClick = (id) => {
+  const handleClick = useCallback((id) => {
     navigate(`/products/list?filterType=brand&filter=${id}`);
-  };
+  }, [navigate]);
 
-  const handleClearForm = () => {
-    setName("");
-    setImage(null);
-    setImageLogoId(null);
-    setPreview(null);
-    setEditingId(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const trimmedName = name.trim();
-
-    if (!trimmedName) {
-      toast.error("Brand name is required ❌");
-      return;
-    }
-
-    if (trimmedName.length < 2) {
-      toast.error("Brand name must be at least 2 characters long ❌");
-      return;
-    }
-
-    if (trimmedName.length > 50) {
-      toast.error("Brand name must be at most 50 characters ❌");
-      return;
-    }
-
-    const normalizedNewName = normalizeBrandName(trimmedName);
-
-    const hasDuplicateOnCreate =
-      !editingId &&
-      brands.some(
-        (b) => normalizeBrandName(b.name) === normalizedNewName,
-      );
-
-    if (hasDuplicateOnCreate) {
-      toast.error(`Brand "${trimmedName}" already exists ❌`);
-      return;
-    }
-
-    if (editingId) {
-      const hasDuplicateOnUpdate = brands.some(
-        (b) =>
-          b._id !== editingId &&
-          normalizeBrandName(b.name) === normalizedNewName,
-      );
-
-      if (hasDuplicateOnUpdate) {
-        toast.error(
-          `Another brand with name "${trimmedName}" already exists ❌`,
-        );
-        return;
-      }
-    }
-
+  const handleSubmitForm = async ({ name, image, imageLogoId }) => {
     const formData = new FormData();
-    formData.append("name", trimmedName);
+    formData.append("name", name);
     if (imageLogoId) {
       formData.append("logo", String(imageLogoId));
     } else if (image) {
       formData.append("image", image);
     }
-    if (editingId) {
-      await updateMutation.mutateAsync({ id: editingId, formData });
+    if (editingBrand) {
+      await updateMutation.mutateAsync({ id: editingBrand._id, formData });
     } else {
       await createMutation.mutateAsync(formData);
     }
   };
 
-  const handleEdit = (brand) => {
-    setName(brand.name);
-    setEditingId(brand._id);
-    const imageUrl = brand.imageUrl || (brand.logo?.url) || (brand.image && resolveImageUrl(brand.image));
-    setPreview(imageUrl || null);
-    setImageLogoId(
-      brand.logo?._id != null ? String(brand.logo._id) : typeof brand.logo === "string" && brand.logo ? String(brand.logo) : null
-    );
-    setImage(null);
+  const handleEdit = useCallback((brand) => {
+    setEditingBrand(brand);
     setBrandDrawerOpen(true);
     toast.info(`Editing brand: ${brand.name}`);
-    setTimeout(() => {
-      if (nameInputRef.current) nameInputRef.current.focus();
-    }, 100);
-  };
+  }, []);
 
-  const confirmDelete = async (id) => {
+  const confirmDelete = useCallback(async (id) => {
     try {
       const res = await api.get(`/brands/dependencies/${id}`);
       const data = res.data;
       const hasDependencies = data?.hasDependencies === true;
-      const brandName = (brands || []).find((b) => b._id === id)?.name ?? "Brand";
+      const brandName = (brandsRef.current || []).find((b) => b._id === id)?.name ?? "Brand";
       if (hasDependencies) {
         setDeleteWithDepsData({
           id,
@@ -466,7 +395,7 @@ const Brands = () => {
       }
       toast.error(err?.response?.data?.message || "Could not check brand dependencies");
     }
-  };
+  }, []);
 
   const handleCascadeDeleteConfirmed = async () => {
     if (!deleteId) return;
@@ -520,48 +449,10 @@ const Brands = () => {
     }
   };
 
-  const handleDeleteConfirmed = () => {
+  const handleDeleteConfirmed = useCallback(() => {
     if (!deleteId) return;
     deleteMutation.mutate(deleteId);
-  };
-
-  const handleDropFile = (file) => {
-    if (!file) return;
-    if (!file.type?.startsWith("image/")) {
-      toast.error("Please upload a valid image file ❌");
-      return;
-    }
-    addUploads([file], undefined, {
-      onComplete: (created) => {
-        const m = created[0];
-        if (m) {
-          setPreview(m.url);
-          setImageLogoId(m._id);
-          setImage(null);
-        }
-      },
-    });
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type?.startsWith("image/")) {
-      toast.error("Please upload a valid image file ❌");
-      return;
-    }
-    addUploads([file], undefined, {
-      onComplete: (created) => {
-        const m = created[0];
-        if (m) {
-          setPreview(m.url);
-          setImageLogoId(m._id);
-          setImage(null);
-        }
-      },
-    });
-    e.target.value = "";
-  };
+  }, [deleteId, deleteMutation]);
 
   const filteredBrands = useMemo(
     () =>
@@ -1094,15 +985,13 @@ const Brands = () => {
           if (!brand.imageUrl && !brand.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
+          const imageUrl = brand.imageUrl || resolveImageUrl(brand.image);
           return (
-            <div className="flex items-center">
-              <img
-                src={brand.imageUrl || resolveImageUrl(brand.image)}
-                alt={brand.name}
-                onClick={() => openImageModal(brand.imageUrl || resolveImageUrl(brand.image))}
-                className="w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
-              />
-            </div>
+            <BrandImageCell
+              src={imageUrl}
+              alt={brand.name}
+              onClick={() => openImageModal(imageUrl)}
+            />
           );
         },
       },
@@ -1427,7 +1316,7 @@ const Brands = () => {
                   type="button"
                   variant="default"
                   onClick={() => {
-                    handleClearForm();
+                    setEditingBrand(null);
                     setBrandDrawerOpen(true);
                   }}
                   className="px-3 sm:px-4 py-1.5 rounded-md cursor-pointer whitespace-nowrap text-sm sm:text-base"
@@ -1437,110 +1326,16 @@ const Brands = () => {
               </div>
             </div>
 
-            <DrawerContent className="ml-auto h-full w-full max-w-[100vw] sm:max-w-2xl lg:max-w-3xl">
-              <DrawerHeader className="px-4 sm:px-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <DrawerTitle>
-                      {editingId ? "Edit Brand" : "Add New Brand"}
-                    </DrawerTitle>
-                    <DrawerDescription>
-                      {editingId
-                        ? "Update the brand details."
-                        : "Fill in the details below to add a new brand."}
-                    </DrawerDescription>
-                  </div>
-                  <DrawerClose asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Close">
-                      ✕
-                    </Button>
-                  </DrawerClose>
-                </div>
-              </DrawerHeader>
-              <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 pb-6 sm:pb-8">
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex flex-col gap-6"
-                >
-                  <Field>
-                    <FieldLabel htmlFor="brand-name">Name</FieldLabel>
-                    <Input
-                      id="brand-name"
-                      type="text"
-                      placeholder="Brand Name"
-                      ref={nameInputRef}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="mt-1"
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Image</FieldLabel>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setMediaGalleryOpen(true)}
-                      >
-                        Select from gallery
-                      </Button>
-                    </div>
-                    <ImageUploadDropzone
-                      onFileSelect={handleDropFile}
-                      previewUrl={preview}
-                      showPreview
-                      onRemove={() => {
-                        setPreview(null);
-                        setImage(null);
-                        setImageLogoId(null);
-                      }}
-                      className="mt-1"
-                      accept="image/*"
-                    />
-                  </Field>
-                  <MediaGalleryModal
-                    open={mediaGalleryOpen}
-                    onOpenChange={setMediaGalleryOpen}
-                    multiple={false}
-                    title="Select brand logo"
-                    onConfirm={(media) => {
-                      if (media) {
-                        setImageLogoId(media._id != null ? String(media._id) : null);
-                        setPreview(media.url);
-                        setImage(null);
-                      }
-                      setMediaGalleryOpen(false);
-                    }}
-                  />
-                  <section className="sticky bottom-0 -mx-4 sm:-mx-6 mt-6 border-t border-border z-99 bg-background/95 backdrop-blur px-4 sm:px-6 py-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 items-stretch sm:items-center flex-wrap">
-                    <Button type="submit" variant="default" disabled={loading} className="w-full sm:w-auto">
-                      {loading
-                        ? "Please wait..."
-                        : editingId
-                          ? "Update Brand"
-                          : "Add Brand"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      onClick={handleClearForm}
-                      className="bg-red-600 text-white shadow hover:bg-red-600/90 px-4 py-3.5 rounded-md w-full sm:w-auto"
-                    >
-                      Clear
-                    </Button>
-                    <DrawerClose asChild>
-                      <Button type="button" variant="outline" className="w-full sm:w-auto sm:ml-auto">
-                        Cancel
-                      </Button>
-                    </DrawerClose>
-                  </div>
-                  </section>
-                </form>
-              </div>
-            </DrawerContent>
+            <BrandFormDrawer
+              open={brandDrawerOpen}
+              editingBrand={editingBrand}
+              onClose={() => {
+                setBrandDrawerOpen(false);
+                setEditingBrand(null);
+              }}
+              onSubmit={handleSubmitForm}
+              loading={loading}
+            />
           </Drawer>
         </div>
 
@@ -1599,22 +1394,19 @@ const Brands = () => {
             </div>
           </div>
 
-          {brandsLoading ? (
-            <div className="flex justify-center items-center py-10"><Loader /></div>
-          ) : (
-            <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-              <DataTable
-                columns={brandColumns}
-                data={filteredBrands}
-                pageSize={effectiveItemsPerPage}
-                initialPageIndex={initialPageIndex}
-                onPageChange={handlePageChange}
-                rowSelection={tableRowSelection}
-                onRowSelectionChange={setTableRowSelection}
-                onSelectionChange={(rows) => setSelectedBrandIds(rows.map((r) => r._id))}
-              />
-            </div>
-          )}
+          <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+            <DataTable
+              columns={brandColumns}
+              data={filteredBrands}
+              isLoading={brandsLoading}
+              pageSize={effectiveItemsPerPage}
+              initialPageIndex={initialPageIndex}
+              onPageChange={handlePageChange}
+              rowSelection={tableRowSelection}
+              onRowSelectionChange={setTableRowSelection}
+              onSelectionChange={(rows) => setSelectedBrandIds(rows.map((r) => r._id))}
+            />
+          </div>
         </div>
       </div>
 
