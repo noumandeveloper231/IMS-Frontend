@@ -44,6 +44,7 @@ import { Trash2, Pencil, Check, X } from "lucide-react";
 import { Textarea } from "@/components/UI/textarea";
 import { InputGroup, InputGroupInput, InputGroupAddon } from "@/components/UI/input-group";
 import { useSettings } from "@/context/SettingsContext";
+import { useSearchParams } from "react-router-dom";
 
 const TEMPLATE_COLUMNS = ["Name", "Company Name", "Email", "Phone", "Address", "City", "Country", "Opening Balance", "Notes", "Status"];
 
@@ -84,6 +85,8 @@ const Vendors = () => {
   const [tableRowSelection, setTableRowSelection] = useState({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedVendorId, setHighlightedVendorId] = useState(null);
   const vendorsRef = useRef(EMPTY_ARRAY);
   const vendorDrawerOpenRef = useRef(vendorDrawerOpen);
 
@@ -397,6 +400,31 @@ const Vendors = () => {
   const filteredVendors = vendors.filter((v) =>
     (v.name || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId || vendorsLoading || vendors.length === 0) return;
+    const highlightedVendor = vendors.find((v) => v._id === highlightId);
+    if (!highlightedVendor) return;
+
+    setHighlightedVendorId(highlightedVendor._id);
+    requestAnimationFrame(() => {
+      const rowEl = document.querySelector(
+        `[data-highlight-target="${highlightedVendor._id}"]`,
+      );
+      rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("highlight");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, vendorsLoading, vendors]);
+
+  useEffect(() => {
+    if (!highlightedVendorId) return;
+    const timer = setTimeout(() => setHighlightedVendorId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedVendorId]);
 
   const normalizeKey = (key) =>
     key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1394,6 +1422,13 @@ const Vendors = () => {
               data={filteredVendors}
               isLoading={vendorsLoading}
               pageSize={effectiveItemsPerPage}
+              getRowProps={(row) => ({
+                "data-highlight-target": row.original?._id,
+                className:
+                  row.original?._id === highlightedVendorId
+                    ? "search-highlight-row"
+                    : "",
+              })}
               getRowId={(row) => row._id}
               rowSelection={tableRowSelection}
               onRowSelectionChange={setTableRowSelection}

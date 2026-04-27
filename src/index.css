@@ -160,3 +160,20 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
   }
+
+@keyframes row-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.12);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.search-highlight-row {
+  border: 2px solid rgb(59 130 246);
+  animation: row-focus-pulse 0.75s ease-in-out 2;
+}

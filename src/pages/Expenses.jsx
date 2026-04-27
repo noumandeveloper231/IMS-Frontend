@@ -1,8 +1,15 @@
-import React, { useMemo, useState, useCallback, useRef } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
 import api from "../utils/api";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
@@ -35,17 +42,30 @@ import {
   SelectValue,
 } from "@/components/UI/select";
 
-const TEMPLATE_COLUMNS = ["Title", "Category", "Amount", "Payment Method", "Date", "Status", "Notes"];
+const TEMPLATE_COLUMNS = [
+  "Title",
+  "Category",
+  "Amount",
+  "Payment Method",
+  "Date",
+  "Status",
+  "Notes",
+];
 const REQUIRED_FILE_COLUMNS = ["Title", "Amount"];
 
 const normalizeKey = (key) =>
-  key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  key
+    ?.toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
 const normalizeCategoryName = (value) =>
   (value ?? "").toString().trim().toLowerCase();
 
 const Expenses = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -63,6 +83,7 @@ const Expenses = () => {
   const [expenseDate, setExpenseDate] = useState("");
   const [status, setStatus] = useState("paid");
   const [notes, setNotes] = useState("");
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState(null);
 
   const titleInputRef = useRef(null);
 
@@ -82,10 +103,7 @@ const Expenses = () => {
     return itemsPerPage;
   }, [itemsPerPage, customItemsPerPage]);
 
-  const {
-    data: expensesData,
-    isLoading: expensesLoading,
-  } = useQuery({
+  const { data: expensesData, isLoading: expensesLoading } = useQuery({
     queryKey: ["expenses"],
     queryFn: async () => {
       const res = await api.get("/expenses/getall");
@@ -93,19 +111,44 @@ const Expenses = () => {
     },
   });
 
-  const {
-    data: expenseCategoriesData,
-    isLoading: expenseCategoriesLoading,
-  } = useQuery({
-    queryKey: ["expenseCategories"],
-    queryFn: async () => {
-      const res = await api.get("/expense-categories/getall");
-      return res.data?.categories ?? res.data ?? [];
-    },
-  });
+  const { data: expenseCategoriesData, isLoading: expenseCategoriesLoading } =
+    useQuery({
+      queryKey: ["expenseCategories"],
+      queryFn: async () => {
+        const res = await api.get("/expense-categories/getall");
+        return res.data?.categories ?? res.data ?? [];
+      },
+    });
 
   const expenses = expensesData ?? [];
   const expenseCategories = expenseCategoriesData ?? [];
+
+  // Handle highlight parameter from search
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (highlightId && !expensesLoading && expenses.length > 0) {
+      const highlightedExpense = expenses.find((e) => e._id === highlightId);
+      if (highlightedExpense) {
+        setHighlightedExpenseId(highlightedExpense._id);
+        requestAnimationFrame(() => {
+          const rowEl = document.querySelector(
+            `[data-highlight-target="${highlightedExpense._id}"]`,
+          );
+          rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        // Clear the highlight parameter from URL
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("highlight");
+        setSearchParams(nextParams, { replace: true });
+      }
+    }
+  }, [searchParams, expensesLoading, expenses, setSearchParams]);
+
+  useEffect(() => {
+    if (!highlightedExpenseId) return;
+    const timer = setTimeout(() => setHighlightedExpenseId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedExpenseId]);
 
   const createMutation = useMutation({
     mutationFn: async (payload) => {
@@ -123,7 +166,9 @@ const Expenses = () => {
         error?.response?.data?.message ||
         error?.response?.data?.error ||
         error?.message;
-      toast.error(messageFromServer || "Unable to create expense. Please try again ❌");
+      toast.error(
+        messageFromServer || "Unable to create expense. Please try again ❌",
+      );
     },
   });
 
@@ -143,7 +188,9 @@ const Expenses = () => {
         error?.response?.data?.message ||
         error?.response?.data?.error ||
         error?.message;
-      toast.error(messageFromServer || "Unable to update expense. Please try again ❌");
+      toast.error(
+        messageFromServer || "Unable to update expense. Please try again ❌",
+      );
     },
   });
 
@@ -163,14 +210,18 @@ const Expenses = () => {
         error?.response?.data?.message ||
         error?.response?.data?.error ||
         error?.message;
-      toast.error(messageFromServer || "Unable to delete expense. Please try again ❌");
+      toast.error(
+        messageFromServer || "Unable to delete expense. Please try again ❌",
+      );
       setDeleteOpen(false);
       setDeleteId(null);
     },
   });
 
   const loading =
-    createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
 
   const handleClearForm = () => {
     setEditingId(null);
@@ -265,8 +316,9 @@ const Expenses = () => {
       filteredExpenses.map((exp) => ({
         Title: exp.title || "",
         Category:
-          expenseCategories.find((c) => c._id === (exp.category?._id ?? exp.category))
-            ?.name ??
+          expenseCategories.find(
+            (c) => c._id === (exp.category?._id ?? exp.category),
+          )?.name ??
           exp.category?.name ??
           exp.category ??
           "",
@@ -822,9 +874,7 @@ const Expenses = () => {
                             </Button>
                             <p className="text-xs text-muted-foreground">
                               Supported formats:{" "}
-                              <span className="font-medium">
-                                .csv, .xlsx
-                              </span>
+                              <span className="font-medium">.csv, .xlsx</span>
                             </p>
                           </div>
                           {importRows.length > 0 && (
@@ -970,10 +1020,7 @@ const Expenses = () => {
                 </div>
               </DrawerHeader>
               <div className="no-scrollbar overflow-y-auto px-4 sm:px-6 pb-6 sm:pb-8">
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex flex-col gap-6"
-                >
+                <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                   <Field>
                     <FieldLabel htmlFor="expense-title">Title</FieldLabel>
                     <Input
@@ -1077,8 +1124,8 @@ const Expenses = () => {
                       {loading
                         ? "Please wait..."
                         : editingId
-                        ? "Update Expense"
-                        : "Add Expense"}
+                          ? "Update Expense"
+                          : "Add Expense"}
                     </Button>
                     <Button
                       type="button"
@@ -1122,9 +1169,9 @@ const Expenses = () => {
                     customItemsPerPage !== ""
                       ? "custom"
                       : effectiveItemsPerPage <= 100 &&
-                        [10, 20, 50, 100].includes(effectiveItemsPerPage)
-                      ? String(effectiveItemsPerPage)
-                      : "10"
+                          [10, 20, 50, 100].includes(effectiveItemsPerPage)
+                        ? String(effectiveItemsPerPage)
+                        : "10"
                   }
                   onValueChange={(value) => {
                     if (value === "custom") return;
@@ -1182,6 +1229,13 @@ const Expenses = () => {
               data={filteredExpenses}
               isLoading={expensesLoading || expenseCategoriesLoading}
               pageSize={effectiveItemsPerPage}
+              getRowProps={(row) => ({
+                "data-highlight-target": row.original?._id,
+                className:
+                  row.original?._id === highlightedExpenseId
+                    ? "search-highlight-row"
+                    : "",
+              })}
             />
           </div>
         </div>
@@ -1200,4 +1254,3 @@ const Expenses = () => {
 };
 
 export default Expenses;
-

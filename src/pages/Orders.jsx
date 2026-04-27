@@ -33,8 +33,13 @@ import {
 } from "@/components/UI/pagination";
 import { DataTable } from "@/components/DataTable";
 import { CustomRowsPerPageInput } from "@/components/UI/custom-rows-per-page-input";
-import { useParams, useNavigate } from "react-router-dom";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/UI/tooltip";
 import { DeleteModel } from "@/components/DeleteModel";
 import { useSettings } from "@/context/SettingsContext";
 import {
@@ -50,6 +55,7 @@ const Orders = () => {
   const { settings } = useSettings();
   const { page: pageParam } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const currency = settings?.currency || "AED";
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -60,6 +66,7 @@ const Orders = () => {
   const [viewOpen, setViewOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [highlightedRowId, setHighlightedRowId] = useState(null);
 
   const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
   const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : "";
@@ -71,7 +78,15 @@ const Orders = () => {
   }, [itemsPerPage, customItemsPerPage]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["orders", "sales", currentPage, effectiveItemsPerPage, searchTerm, startDate, endDate],
+    queryKey: [
+      "orders",
+      "sales",
+      currentPage,
+      effectiveItemsPerPage,
+      searchTerm,
+      startDate,
+      endDate,
+    ],
     queryFn: async () => {
       const res = await api.get("/sales/getall", {
         params: {
@@ -110,10 +125,38 @@ const Orders = () => {
 
   const filteredOrders = orders.filter((order) => {
     const createdAt = order.createdAt ? new Date(order.createdAt) : null;
-    const matchesStart = !startDateObj || (createdAt && createdAt >= startDateObj);
+    const matchesStart =
+      !startDateObj || (createdAt && createdAt >= startDateObj);
     const matchesEnd = !endDateObj || (createdAt && createdAt <= endDateObj);
     return matchesStart && matchesEnd;
   });
+
+  // Handle highlight parameter from search
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (highlightId && !isLoading && orders.length > 0) {
+      const highlightedOrder = orders.find((o) => o._id === highlightId);
+      if (highlightedOrder) {
+        setHighlightedRowId(highlightId);
+        requestAnimationFrame(() => {
+          const rowEl = document.querySelector(
+            `[data-highlight-target="${highlightedOrder._id}"]`,
+          );
+          rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        // Clear the highlight parameter from URL
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("highlight");
+        setSearchParams(nextParams, { replace: true });
+      }
+    }
+  }, [searchParams, isLoading, orders, setSearchParams]);
+
+  useEffect(() => {
+    if (!highlightedRowId) return;
+    const timer = setTimeout(() => setHighlightedRowId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedRowId]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
@@ -135,7 +178,7 @@ const Orders = () => {
       if (error?.response?.status === 409) {
         toast.error(
           messageFromServer ||
-          "Cannot delete order because it is linked with other records ❌",
+            "Cannot delete order because it is linked with other records ❌",
         );
       } else if (messageFromServer) {
         toast.error(messageFromServer);
@@ -221,7 +264,8 @@ const Orders = () => {
 
   useEffect(() => {
     const pageNumber = parseInt(pageParam || "1", 10);
-    const normalized = Number.isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    const normalized =
+      Number.isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
     setCurrentPage((prev) => (prev === normalized ? prev : normalized));
   }, [pageParam]);
 
@@ -243,7 +287,9 @@ const Orders = () => {
         header: "Invoice No",
         accessorKey: "invoiceNo",
         cell: ({ row }) => (
-          <span className="font-medium text-blue-600">{row.original.invoiceNo}</span>
+          <span className="font-medium text-blue-600">
+            {row.original.invoiceNo}
+          </span>
         ),
       },
       {
@@ -251,14 +297,18 @@ const Orders = () => {
         header: "Customer",
         accessorKey: "customer",
         cell: ({ row }) => (
-          <span className="text-sm text-gray-900">{row.original.customer?.name ?? "—"}</span>
+          <span className="text-sm text-gray-900">
+            {row.original.customer?.name ?? "—"}
+          </span>
         ),
       },
       {
         id: "phone",
         header: "Phone",
         cell: ({ row }) => (
-          <span className="text-sm text-gray-900">{row.original.customer?.phone ?? "—"}</span>
+          <span className="text-sm text-gray-900">
+            {row.original.customer?.phone ?? "—"}
+          </span>
         ),
       },
       {
@@ -280,8 +330,11 @@ const Orders = () => {
           const isCash = pm === "cash" || pm === "Cash";
           return (
             <span
-              className={`inline-flex px-2 capitalize py-0.5 text-xs font-semibold rounded-full ${isCash ? "bg-green-100 text-green-800" : "bg-indigo-100 text-indigo-800"
-                }`}
+              className={`inline-flex px-2 capitalize py-0.5 text-xs font-semibold rounded-full ${
+                isCash
+                  ? "bg-green-100 text-green-800"
+                  : "bg-indigo-100 text-indigo-800"
+              }`}
             >
               {pm ?? "—"}
             </span>
@@ -294,7 +347,9 @@ const Orders = () => {
         accessorKey: "createdAt",
         cell: ({ row }) => (
           <span className="text-sm text-gray-500">
-            {row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : "—"}
+            {row.original.createdAt
+              ? new Date(row.original.createdAt).toLocaleDateString()
+              : "—"}
           </span>
         ),
       },
@@ -359,7 +414,12 @@ const Orders = () => {
 
   const orderItemsColumns = useMemo(
     () => [
-      { id: "index", header: "#", cell: ({ row }) => row.index + 1, filter: false },
+      {
+        id: "index",
+        header: "#",
+        cell: ({ row }) => row.index + 1,
+        filter: false,
+      },
       {
         id: "product",
         header: "Product",
@@ -368,13 +428,17 @@ const Orders = () => {
       {
         id: "quantity",
         header: "Qty",
-        cell: ({ row }) => <span className="block text-center">{row.original.quantity}</span>,
+        cell: ({ row }) => (
+          <span className="block text-center">{row.original.quantity}</span>
+        ),
       },
       {
         id: "price",
         header: "Price",
         cell: ({ row }) => (
-          <span className="block text-center">{currency} {Number(row.original.price).toFixed(2)}</span>
+          <span className="block text-center">
+            {currency} {Number(row.original.price).toFixed(2)}
+          </span>
         ),
       },
       {
@@ -429,7 +493,8 @@ const Orders = () => {
                   {dateRange?.from ? (
                     dateRange.to ? (
                       <>
-                        {format(dateRange.from, "LLL dd, y")} – {format(dateRange.to, "LLL dd, y")}
+                        {format(dateRange.from, "LLL dd, y")} –{" "}
+                        {format(dateRange.to, "LLL dd, y")}
                       </>
                     ) : (
                       format(dateRange.from, "LLL dd, y")
@@ -455,7 +520,14 @@ const Orders = () => {
           </div>
           <div className="flex-1 w-full md:w-auto">
             <Select
-              value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "10")}
+              value={
+                customItemsPerPage !== ""
+                  ? "custom"
+                  : effectiveItemsPerPage <= 100 &&
+                      [10, 20, 50, 100].includes(effectiveItemsPerPage)
+                    ? String(effectiveItemsPerPage)
+                    : "10"
+              }
               onValueChange={(v) => {
                 if (v === "custom") return;
                 setItemsPerPage(Number(v));
@@ -466,9 +538,7 @@ const Orders = () => {
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Rows per page" />
               </SelectTrigger>
-              <SelectContent
-                className="min-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]"
-              >
+              <SelectContent className="min-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]">
                 <SelectGroup>
                   <SelectLabel>Rows per page</SelectLabel>
                   <SelectItem value="10">10 per page</SelectItem>
@@ -476,12 +546,19 @@ const Orders = () => {
                   <SelectItem value="50">50 per page</SelectItem>
                   <SelectItem value="100">100 per page</SelectItem>
                   <SelectItem value="custom" disabled>
-                    Custom{customItemsPerPage ? ` (${effectiveItemsPerPage})` : ""}
+                    Custom
+                    {customItemsPerPage ? ` (${effectiveItemsPerPage})` : ""}
                   </SelectItem>
                 </SelectGroup>
                 <SelectSeparator />
-                <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                  <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
+                <div
+                  className="px-2 py-2"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <p className="text-xs text-muted-foreground mb-1.5 font-medium">
+                    Custom
+                  </p>
                   <CustomRowsPerPageInput
                     type="number"
                     min={1}
@@ -506,47 +583,54 @@ const Orders = () => {
                 data={filteredOrders}
                 isLoading={isLoading}
                 pageSize={effectiveItemsPerPage}
+                getRowProps={(row) => ({
+                  "data-highlight-target": row.original?._id,
+                  className:
+                    row.original?._id === highlightedRowId
+                      ? "search-highlight-row"
+                      : "",
+                })}
               />
             </div>
             {!isLoading && totalPages > 1 && (
-                <Pagination className="mt-6">
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
+              <Pagination className="mt-6">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setPageAndNavigate(currentPage - 1);
+                      }}
+                      disabled={currentPage === 1}
+                    />
+                  </PaginationItem>
+                  {[...Array(totalPages)].map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink
                         href="#"
+                        isActive={currentPage === i + 1}
                         onClick={(e) => {
                           e.preventDefault();
-                          setPageAndNavigate(currentPage - 1);
+                          setPageAndNavigate(i + 1);
                         }}
-                        disabled={currentPage === 1}
-                      />
+                      >
+                        {i + 1}
+                      </PaginationLink>
                     </PaginationItem>
-                    {[...Array(totalPages)].map((_, i) => (
-                      <PaginationItem key={i}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === i + 1}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setPageAndNavigate(i + 1);
-                          }}
-                        >
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setPageAndNavigate(currentPage + 1);
-                        }}
-                        disabled={currentPage === totalPages}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setPageAndNavigate(currentPage + 1);
+                      }}
+                      disabled={currentPage === totalPages}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             )}
           </>
         </div>
@@ -560,32 +644,55 @@ const Orders = () => {
           {selectedOrder && (
             <div className="space-y-6">
               {viewOrderLoading ? (
-                <div className="flex justify-center items-center py-12"><Loader /></div>
+                <div className="flex justify-center items-center py-12">
+                  <Loader />
+                </div>
               ) : (
                 <>
                   {/* Top Section */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
                     <div className="lg:col-span-2 bg-white border border-gray-300 rounded-xl p-6 space-y-4 shadow-sm max-w-sm">
-                      <h3 className="text-lg font-semibold border-b border-gray-300 pb-2">Order Details</h3>
+                      <h3 className="text-lg font-semibold border-b border-gray-300 pb-2">
+                        Order Details
+                      </h3>
 
                       <div className="grid grid-cols-2 gap-y-3 text-sm">
                         <p className="text-gray-500">Invoice</p>
-                        <p className="font-medium">{selectedOrder?.invoiceNo}</p>
+                        <p className="font-medium">
+                          {selectedOrder?.invoiceNo}
+                        </p>
 
                         <p className="text-gray-500">Payment Method</p>
-                        <p>{viewOrderDetail?.paymentMethod ?? selectedOrder.paymentMethod ?? "—"}</p>
+                        <p>
+                          {viewOrderDetail?.paymentMethod ??
+                            selectedOrder.paymentMethod ??
+                            "—"}
+                        </p>
 
                         <p className="text-gray-500">Sell At</p>
-                        <p>{viewOrderDetail?.sellat ?? viewOrderDetail?.sellAt ?? selectedOrder.sellAt ?? selectedOrder.sellat ?? "—"}</p>
+                        <p>
+                          {viewOrderDetail?.sellat ??
+                            viewOrderDetail?.sellAt ??
+                            selectedOrder.sellAt ??
+                            selectedOrder.sellat ??
+                            "—"}
+                        </p>
 
                         <p className="text-gray-500">Status</p>
-                        <p className="capitalize">{viewOrderDetail?.status ?? selectedOrder.status ?? "—"}</p>
+                        <p className="capitalize">
+                          {viewOrderDetail?.status ??
+                            selectedOrder.status ??
+                            "—"}
+                        </p>
 
                         <p className="text-gray-500">Date</p>
                         <p>
-                          {viewOrderDetail?.createdAt ?? selectedOrder.createdAt
-                            ? new Date(viewOrderDetail?.createdAt ?? selectedOrder.createdAt).toLocaleString()
+                          {(viewOrderDetail?.createdAt ??
+                          selectedOrder.createdAt)
+                            ? new Date(
+                                viewOrderDetail?.createdAt ??
+                                  selectedOrder.createdAt,
+                              ).toLocaleString()
                             : "—"}
                         </p>
 
@@ -599,7 +706,9 @@ const Orders = () => {
 
                       {viewOrderDetail?.salesnote && (
                         <div className="pt-3 border-t border-gray-300">
-                          <p className="text-gray-500 text-sm mb-1">Sales Note</p>
+                          <p className="text-gray-500 text-sm mb-1">
+                            Sales Note
+                          </p>
                           <p className="text-sm">{viewOrderDetail.salesnote}</p>
                         </div>
                       )}
@@ -607,20 +716,28 @@ const Orders = () => {
 
                     {/* Customer Info */}
                     <div className="bg-white border border-gray-300 rounded-xl p-6 space-y-4 shadow-sm">
-                      <h3 className="text-lg font-semibold border-b border-gray-300 pb-2">Customer</h3>
+                      <h3 className="text-lg font-semibold border-b border-gray-300 pb-2">
+                        Customer
+                      </h3>
 
                       <div className="space-y-2 text-sm">
                         <div>
                           <p className="text-gray-500">Name</p>
                           <p className="font-medium">
-                            {(viewOrderDetail?.customer ?? selectedOrder.customer)?.name ?? "—"}
+                            {(
+                              viewOrderDetail?.customer ??
+                              selectedOrder.customer
+                            )?.name ?? "—"}
                           </p>
                         </div>
 
                         <div>
                           <p className="text-gray-500">Phone</p>
                           <p>
-                            {(viewOrderDetail?.customer ?? selectedOrder.customer)?.phone ?? "—"}
+                            {(
+                              viewOrderDetail?.customer ??
+                              selectedOrder.customer
+                            )?.phone ?? "—"}
                           </p>
                         </div>
                       </div>
@@ -630,13 +747,20 @@ const Orders = () => {
                   {/* Items Table */}
                   <div className="bg-white border rounded-md border-gray-300">
                     <div className="p-4 border-b border-gray-300">
-                      <h3 className="text-lg font-semibold">Order Items ({viewOrderDetail?.items?.length ?? selectedOrder.items?.length})</h3>
+                      <h3 className="text-lg font-semibold">
+                        Order Items (
+                        {viewOrderDetail?.items?.length ??
+                          selectedOrder.items?.length}
+                        )
+                      </h3>
                     </div>
 
                     <div className="overflow-x-auto">
                       <DataTable
                         columns={orderItemsColumns}
-                        data={(viewOrderDetail?.items ?? selectedOrder.items) || []}
+                        data={
+                          (viewOrderDetail?.items ?? selectedOrder.items) || []
+                        }
                         enableSelection={false}
                         addPagination={false}
                         fixedHeight={false}
@@ -651,28 +775,59 @@ const Orders = () => {
                     <div className="max-w-sm ml-auto space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Sub Total</span>
-                        <span>{currency} {Number(viewOrderDetail?.subTotal ?? selectedOrder.subTotal ?? 0).toFixed(2)}</span>
+                        <span>
+                          {currency}{" "}
+                          {Number(
+                            viewOrderDetail?.subTotal ??
+                              selectedOrder.subTotal ??
+                              0,
+                          ).toFixed(2)}
+                        </span>
                       </div>
 
                       <div className="flex justify-between">
                         <span className="text-gray-500">VAT</span>
-                        <span>{currency} {Number(viewOrderDetail?.vat ?? selectedOrder.vat ?? 0).toFixed(2)}</span>
+                        <span>
+                          {currency}{" "}
+                          {Number(
+                            viewOrderDetail?.vat ?? selectedOrder.vat ?? 0,
+                          ).toFixed(2)}
+                        </span>
                       </div>
 
                       <div className="flex justify-between">
                         <span className="text-gray-500">Shipping</span>
-                        <span>{currency} {Number(viewOrderDetail?.shipping ?? selectedOrder.shipping ?? 0).toFixed(2)}</span>
+                        <span>
+                          {currency}{" "}
+                          {Number(
+                            viewOrderDetail?.shipping ??
+                              selectedOrder.shipping ??
+                              0,
+                          ).toFixed(2)}
+                        </span>
                       </div>
 
                       <div className="flex justify-between">
                         <span className="text-gray-500">Discount</span>
-                        <span>{currency} {Number(viewOrderDetail?.discount ?? selectedOrder.discount ?? 0).toFixed(2)}</span>
+                        <span>
+                          {currency}{" "}
+                          {Number(
+                            viewOrderDetail?.discount ??
+                              selectedOrder.discount ??
+                              0,
+                          ).toFixed(2)}
+                        </span>
                       </div>
 
                       <div className="flex justify-between border-t border-gray-300 pt-3 text-base font-semibold">
                         <span>Grand Total</span>
                         <span>
-                          {currency} {Number(viewOrderDetail?.grandTotal ?? selectedOrder.grandTotal ?? 0).toFixed(2)}
+                          {currency}{" "}
+                          {Number(
+                            viewOrderDetail?.grandTotal ??
+                              selectedOrder.grandTotal ??
+                              0,
+                          ).toFixed(2)}
                         </span>
                       </div>
                     </div>

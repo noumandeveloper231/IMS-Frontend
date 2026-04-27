@@ -5,7 +5,7 @@ import axios from "axios";
 import { ChevronDown, Check, Trash2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
@@ -71,6 +71,7 @@ const Subcategories = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { page: pageParam } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const nameInputRef = useRef(null);
   /** Refs to keep import callbacks stable so columns useMemo does not change every render (prevents input focus loss). */
   const categoriesRef = useRef(EMPTY_ARRAY);
@@ -91,6 +92,7 @@ const Subcategories = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState([]);
+  const [highlightedSubcategoryId, setHighlightedSubcategoryId] = useState(null);
   const [tableRowSelection, setTableRowSelection] = useState({});
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkManagerOpen, setBulkManagerOpen] = useState(false);
@@ -551,6 +553,39 @@ const Subcategories = () => {
       (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
       (s.category?.name || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId || subcategoriesLoading || subcategoriesWithCounts.length === 0)
+      return;
+    const highlightedSubcategory = subcategoriesWithCounts.find(
+      (s) => s._id === highlightId,
+    );
+    if (!highlightedSubcategory) return;
+
+    setHighlightedSubcategoryId(highlightedSubcategory._id);
+    requestAnimationFrame(() => {
+      const rowEl = document.querySelector(
+        `[data-highlight-target="${highlightedSubcategory._id}"]`,
+      );
+      rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("highlight");
+    setSearchParams(nextParams, { replace: true });
+  }, [
+    searchParams,
+    setSearchParams,
+    subcategoriesLoading,
+    subcategoriesWithCounts,
+  ]);
+
+  useEffect(() => {
+    if (!highlightedSubcategoryId) return;
+    const timer = setTimeout(() => setHighlightedSubcategoryId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedSubcategoryId]);
 
   const normalizeKey = (key) =>
     key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1462,6 +1497,13 @@ const Subcategories = () => {
               data={filtered}
               isLoading={subcategoriesLoading}
               pageSize={effectiveItemsPerPage}
+              getRowProps={(row) => ({
+                "data-highlight-target": row.original?._id,
+                className:
+                  row.original?._id === highlightedSubcategoryId
+                    ? "search-highlight-row"
+                    : "",
+              })}
               initialPageIndex={initialPageIndex}
               onPageChange={handlePageChange}
               rowSelection={tableRowSelection}

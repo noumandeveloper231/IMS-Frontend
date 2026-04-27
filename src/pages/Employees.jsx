@@ -50,7 +50,7 @@ const EMPTY_ARRAY = [];
 const ROLES = ["salesman", "cashier", "manager", "admin"];
 const STATUSES = ["active", "inactive"];
 
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 
 const Employees = () => {
   const queryClient = useQueryClient();
@@ -75,6 +75,8 @@ const Employees = () => {
   const employeeDrawerOpenRef = useRef(employeeDrawerOpen);
   const { page: pageParam } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedEmployeeId, setHighlightedEmployeeId] = useState(null);
 
   useEffect(() => {
     employeeDrawerOpenRef.current = employeeDrawerOpen;
@@ -424,6 +426,31 @@ const Employees = () => {
       (emp.phone || "").includes(search) ||
       (emp.role || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId || employeesLoading || employees.length === 0) return;
+    const highlightedEmployee = employees.find((e) => e._id === highlightId);
+    if (!highlightedEmployee) return;
+
+    setHighlightedEmployeeId(highlightedEmployee._id);
+    requestAnimationFrame(() => {
+      const rowEl = document.querySelector(
+        `[data-highlight-target="${highlightedEmployee._id}"]`,
+      );
+      rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("highlight");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, employeesLoading, employees]);
+
+  useEffect(() => {
+    if (!highlightedEmployeeId) return;
+    const timer = setTimeout(() => setHighlightedEmployeeId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedEmployeeId]);
 
   const normalizeKey = (key) =>
     key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1164,6 +1191,13 @@ const Employees = () => {
               data={filteredEmployees}
               isLoading={employeesLoading}
               pageSize={effectiveItemsPerPage}
+              getRowProps={(row) => ({
+                "data-highlight-target": row.original?._id,
+                className:
+                  row.original?._id === highlightedEmployeeId
+                    ? "search-highlight-row"
+                    : "",
+              })}
               initialPageIndex={initialPageIndex}
               onPageChange={handlePageChange}
               getRowId={(row) => row._id}

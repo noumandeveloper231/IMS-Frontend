@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../utils/api";
 import { Eye, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -21,7 +21,12 @@ import {
   SelectValue,
 } from "@/components/UI/select";
 import { Button } from "@/components/UI/button";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/UI/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +35,7 @@ import {
 } from "@/components/UI/dialog";
 import { DataTable } from "@/components/DataTable";
 import { useImageModal } from "@/context/ImageModalContext";
+import { useSearchParams } from "react-router-dom";
 
 const PurchaseOrderList = () => {
   const [search, setSearch] = useState("");
@@ -37,6 +43,8 @@ const PurchaseOrderList = () => {
   const [dateRange, setDateRange] = useState(undefined);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedOrderId, setHighlightedOrderId] = useState(null);
 
   const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
   const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : "";
@@ -65,6 +73,33 @@ const PurchaseOrderList = () => {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
+  // Handle highlight parameter from search
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (highlightId && !isLoading && orders.length > 0) {
+      const highlightedOrder = orders.find((o) => o._id === highlightId);
+      if (highlightedOrder) {
+        setHighlightedOrderId(highlightedOrder._id);
+        requestAnimationFrame(() => {
+          const rowEl = document.querySelector(
+            `[data-highlight-target="${highlightedOrder._id}"]`,
+          );
+          rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        // Clear the highlight parameter from URL
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("highlight");
+        setSearchParams(nextParams, { replace: true });
+      }
+    }
+  }, [searchParams, isLoading, orders, setSearchParams]);
+
+  useEffect(() => {
+    if (!highlightedOrderId) return;
+    const timer = setTimeout(() => setHighlightedOrderId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedOrderId]);
+
   const openDetail = React.useCallback(async (order) => {
     try {
       const res = await api.get(`/purchase-orders/${order._id}`);
@@ -76,7 +111,10 @@ const PurchaseOrderList = () => {
   }, []);
 
   const items = selectedOrder?.items ?? [];
-  const totalQty = items.reduce((acc, i) => acc + (Number(i.orderedQty) || 0), 0);
+  const totalQty = items.reduce(
+    (acc, i) => acc + (Number(i.orderedQty) || 0),
+    0,
+  );
   const grandTotal = items.reduce((acc, i) => acc + (Number(i.total) || 0), 0);
 
   const orderColumns = React.useMemo(
@@ -181,7 +219,7 @@ const PurchaseOrderList = () => {
         },
       },
     ],
-    [openDetail]
+    [openDetail],
   );
 
   const { openImageModal } = useImageModal();
@@ -192,52 +230,47 @@ const PurchaseOrderList = () => {
         id: "serial",
         header: "S.No",
         meta: { label: "S.No" },
-        cell: ({ row }) => (
-          <span className="font-medium">{row.index + 1}</span>
-        ),
+        cell: ({ row }) => <span className="font-medium">{row.index + 1}</span>,
       },
       {
         id: "qrCode",
         header: "QR Code",
         meta: { label: "QR Code" },
         cell: ({ row }) => (
-          <img onClick={() => openImageModal(row.original.product?.qrCode)} src={row.original.product?.qrCode || "N/A"} alt="QR Code" className="w-20 h-20" />
+          <img
+            onClick={() => openImageModal(row.original.product?.qrCode)}
+            src={row.original.product?.qrCode || "N/A"}
+            alt="QR Code"
+            className="w-20 h-20"
+          />
         ),
       },
       {
         accessorKey: "title",
         header: "Product",
         meta: { label: "Product" },
-        cell: ({ row }) =>
+        cell: ({ row }) => (
           <div className="flex items-center gap-2 whitespace-nowrap min-w-[200px]">
-            {
-              row.original.product?.title ||
-              row.original.product?.asin ||
-              "N/A"
-            }
+            {row.original.product?.title || row.original.product?.asin || "N/A"}
           </div>
+        ),
       },
       {
         id: "sku",
         header: "SKU",
         meta: { label: "SKU" },
-        cell: ({ row }) =>
+        cell: ({ row }) => (
           <div className="flex items-center gap-2 whitespace-nowrap">
-            {
-              row.original.product?.sku ||
-              row.original.product?.asin ||
-              "N/A"
-            }
+            {row.original.product?.sku || row.original.product?.asin || "N/A"}
           </div>
+        ),
       },
       {
         id: "orderedQty",
         header: "Quantity",
         meta: { label: "Quantity" },
         cell: ({ row }) => (
-          <span className="block text-center">
-            {row.original.orderedQty}
-          </span>
+          <span className="block text-center">{row.original.orderedQty}</span>
         ),
       },
       {
@@ -261,7 +294,7 @@ const PurchaseOrderList = () => {
         ),
       },
     ],
-    []
+    [],
   );
 
   return (
@@ -313,7 +346,8 @@ const PurchaseOrderList = () => {
                   {dateRange?.from ? (
                     dateRange.to ? (
                       <>
-                        {format(dateRange.from, "LLL dd, y")} – {format(dateRange.to, "LLL dd, y")}
+                        {format(dateRange.from, "LLL dd, y")} –{" "}
+                        {format(dateRange.to, "LLL dd, y")}
                       </>
                     ) : (
                       format(dateRange.from, "LLL dd, y")
@@ -345,6 +379,13 @@ const PurchaseOrderList = () => {
             isLoading={isLoading}
             addPagination={false}
             enableSelection={false}
+            getRowProps={(row) => ({
+              "data-highlight-target": row.original?._id,
+              className:
+                row.original?._id === highlightedOrderId
+                  ? "search-highlight-row"
+                  : "",
+            })}
             containerClassName="overflow-x-auto rounded-md border border-gray-300"
           />
         )}
@@ -378,12 +419,13 @@ const PurchaseOrderList = () => {
                 <p>
                   <strong className="text-gray-900">Status:</strong>{" "}
                   <span
-                    className={`capitalize inline-flex px-2 py-0.5 rounded text-xs font-medium ${selectedOrder.status === "completed"
-                      ? "bg-green-100 text-green-800"
-                      : selectedOrder.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-blue-100 text-blue-800"
-                      }`}
+                    className={`capitalize inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                      selectedOrder.status === "completed"
+                        ? "bg-green-100 text-green-800"
+                        : selectedOrder.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-blue-100 text-blue-800"
+                    }`}
                   >
                     {selectedOrder.status}
                   </span>

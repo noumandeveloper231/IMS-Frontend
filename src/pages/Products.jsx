@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ChevronDown,
@@ -9,6 +15,7 @@ import {
   Trash2,
   CloudUpload,
   Wand2,
+  Eye,
 } from "lucide-react";
 import api from "../utils/api";
 import { API_HOST } from "../config/api";
@@ -72,13 +79,19 @@ import {
   CommandList,
 } from "@/components/UI/command";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/UI/tooltip";
 import { useImageModal } from "@/context/ImageModalContext";
 import { useSettings } from "@/context/SettingsContext";
 import axios from "axios";
 import { ProductFormDrawer } from "@/components/ProductFormDrawer";
 import { RichTextEditor } from "@/components/UI/RichTextEditor";
 import { Combobox } from "@/components/UI/combobox";
+import ImageWithFallback from "@/components/UI/ImageWithFallback";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -109,9 +122,9 @@ const isValidImageUrl = (value) => {
 const CONDITION_CODE_MAP = {
   "Brand New": "BN",
   "Like New": "LN",
-  "Used": "US",
-  "Refurbished": "RF",
-  "Max": "MX",
+  Used: "US",
+  Refurbished: "RF",
+  Max: "MX",
 };
 
 const getConditionCodeFromName = (name) => {
@@ -178,7 +191,7 @@ function ProductCombobox({
           className={cn(
             "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background min-w-[200px]",
             "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-            !selected && "text-muted-foreground"
+            !selected && "text-muted-foreground",
           )}
         >
           <span className="truncate">{displayLabel}</span>
@@ -199,7 +212,10 @@ function ProductCombobox({
           </div>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+      >
         <Command>
           <CommandInput placeholder="Search..." />
           <CommandList>
@@ -214,7 +230,7 @@ function ProductCombobox({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === opt.value ? "opacity-100" : "opacity-0"
+                      value === opt.value ? "opacity-100" : "opacity-0",
                     )}
                   />
                   {opt.label}
@@ -267,7 +283,8 @@ const Products = () => {
   const [existingSkusFromDb, setExistingSkusFromDb] = useState(new Set());
   const [importLoading, setImportLoading] = useState(false);
   const [descriptionModalOpen, setDescriptionModalOpen] = useState(false);
-  const [descriptionModalRowIndex, setDescriptionModalRowIndex] = useState(null);
+  const [descriptionModalRowIndex, setDescriptionModalRowIndex] =
+    useState(null);
   const [descriptionModalColumn, setDescriptionModalColumn] = useState(null);
   const [descriptionModalValue, setDescriptionModalValue] = useState("");
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -301,7 +318,8 @@ const Products = () => {
     const onDragLeave = (e) => {
       if (!hasFiles(e)) return;
       if (productDrawerOpenRef.current) return;
-      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget))
+        return;
       setImportDrawerOpen(false);
     };
     const onDrop = (e) => {
@@ -427,11 +445,20 @@ const Products = () => {
     label: c.name ?? "",
   }));
   const brandOptions = brands.map((b) => ({ value: b._id, label: b.name }));
-  const conditionOptions = conditions.map((c) => ({ value: c._id, label: c.name }));
+  const conditionOptions = conditions.map((c) => ({
+    value: c._id,
+    label: c.name,
+  }));
 
-  const tableCategoryOptions = useMemo(() => categoryOptions, [categoryOptions]);
+  const tableCategoryOptions = useMemo(
+    () => categoryOptions,
+    [categoryOptions],
+  );
   const tableBrandOptions = useMemo(() => brandOptions, [brandOptions]);
-  const tableConditionOptions = useMemo(() => conditionOptions, [conditionOptions]);
+  const tableConditionOptions = useMemo(
+    () => conditionOptions,
+    [conditionOptions],
+  );
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
@@ -457,7 +484,7 @@ const Products = () => {
       if (error?.response?.status === 409) {
         toast.error(
           messageFromServer ||
-          "Cannot delete product because it is linked with other records ❌",
+            "Cannot delete product because it is linked with other records ❌",
         );
       } else if (messageFromServer) {
         toast.error(messageFromServer);
@@ -483,7 +510,11 @@ const Products = () => {
   });
 
   useEffect(() => {
-    if (bulkManagerOpen && selectedProductIds.length > 0 && productBulkManager.status === "idle") {
+    if (
+      bulkManagerOpen &&
+      selectedProductIds.length > 0 &&
+      productBulkManager.status === "idle"
+    ) {
       productBulkManager.startAnalysis(selectedProductIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
@@ -491,10 +522,13 @@ const Products = () => {
 
   const loading = deleteMutation.isPending;
 
-  const handleEdit = React.useCallback((p) => {
-    setEditingProduct(p);
-    setProductDrawerOpen(true);
-  }, [setEditingProduct, setProductDrawerOpen]);
+  const handleEdit = React.useCallback(
+    (p) => {
+      setEditingProduct(p);
+      setProductDrawerOpen(true);
+    },
+    [setEditingProduct, setProductDrawerOpen],
+  );
 
   const filteredProducts = (products || []).filter((p) => {
     const query = search.toLowerCase();
@@ -511,27 +545,38 @@ const Products = () => {
     }
 
     const productBrandId = typeof p.brand === "object" ? p.brand?._id : p.brand;
-    const productBrandName = typeof p.brand === "object" ? p.brand?.name : p.brand;
+    const productBrandName =
+      typeof p.brand === "object" ? p.brand?.name : p.brand;
     const matchesBrand =
       !brandFilter ||
       String(productBrandId ?? "").trim() === brandFilter ||
       String(productBrandName ?? "").trim() === brandFilter;
 
-    const productConditionId = typeof p.condition === "object" ? p.condition?._id : p.condition;
-    const productConditionName = typeof p.condition === "object" ? p.condition?.name : p.condition;
+    const productConditionId =
+      typeof p.condition === "object" ? p.condition?._id : p.condition;
+    const productConditionName =
+      typeof p.condition === "object" ? p.condition?.name : p.condition;
     const matchesCondition =
       !conditionFilter ||
       String(productConditionId ?? "").trim() === conditionFilter ||
       String(productConditionName ?? "").trim() === conditionFilter;
 
-    const productCategoryId = typeof p.category === "object" ? p.category?._id : p.category;
-    const productCategoryName = typeof p.category === "object" ? p.category?.name : p.category;
+    const productCategoryId =
+      typeof p.category === "object" ? p.category?._id : p.category;
+    const productCategoryName =
+      typeof p.category === "object" ? p.category?.name : p.category;
     const matchesCategory =
       !categoryFilter ||
       String(productCategoryId ?? "").trim() === categoryFilter ||
       String(productCategoryName ?? "").trim() === categoryFilter;
 
-    return matchesSearch && matchesStock && matchesBrand && matchesCondition && matchesCategory;
+    return (
+      matchesSearch &&
+      matchesStock &&
+      matchesBrand &&
+      matchesCondition &&
+      matchesCategory
+    );
   });
 
   const confirmDelete = async (id) => {
@@ -558,7 +603,9 @@ const Products = () => {
         toast.error("Product not found");
         return;
       }
-      toast.error(err?.response?.data?.message || "Could not check product dependencies");
+      toast.error(
+        err?.response?.data?.message || "Could not check product dependencies",
+      );
     }
   };
 
@@ -573,14 +620,18 @@ const Products = () => {
     try {
       const res = await api.delete(`/products/delete/${deleteId}?cascade=true`);
       if (res.data?.success) {
-        toast.success("Product removed from orders and deleted successfully ✅");
+        toast.success(
+          "Product removed from orders and deleted successfully ✅",
+        );
         queryClient.invalidateQueries({ queryKey: ["products"] });
         queryClient.invalidateQueries({ queryKey: ["orders", "sales"] });
       } else {
         toast.error("Failed to delete product ❌");
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to delete product ❌");
+      toast.error(
+        err?.response?.data?.message || "Failed to delete product ❌",
+      );
     } finally {
       setCascadeDeleteLoading(false);
       setCascadeConfirmOpen(false);
@@ -589,7 +640,6 @@ const Products = () => {
       setDeleteWithDepsData(null);
     }
   };
-
 
   const productColumns = useMemo(
     () => [
@@ -619,10 +669,12 @@ const Products = () => {
           }
           return (
             <div className="flex items-center justify-center w-30">
-              <img
+              <ImageWithFallback
                 src={p.imageUrl || resolveImageUrl(primaryImage)}
                 alt={p.title}
-                onClick={() => openImageModal(p.imageUrl || resolveImageUrl(primaryImage))}
+                onClick={() =>
+                  openImageModal(p.imageUrl || resolveImageUrl(primaryImage))
+                }
                 className="aspect-square w-24 h-24 object-contain rounded-lg border border-gray-300 shadow cursor-pointer"
               />
             </div>
@@ -639,7 +691,9 @@ const Products = () => {
             typeof p.brand === "object" ? p.brand?.name : p.brand,
             typeof p.condition === "object" ? p.condition?.name : p.condition,
             typeof p.category === "object" ? p.category?.name : p.category,
-            typeof p.subcategory === "object" ? p.subcategory?.name : p.subcategory,
+            typeof p.subcategory === "object"
+              ? p.subcategory?.name
+              : p.subcategory,
           ]
             .filter(Boolean)
             .join(" "),
@@ -665,8 +719,12 @@ const Products = () => {
                 )}
                 {p.condition && (
                   <p className="text-xs text-gray-600">
-                    <span className="font-medium text-gray-700">Condition:</span>{" "}
-                    {typeof p.condition === "object" ? p.condition.name : p.condition}
+                    <span className="font-medium text-gray-700">
+                      Condition:
+                    </span>{" "}
+                    {typeof p.condition === "object"
+                      ? p.condition.name
+                      : p.condition}
                   </p>
                 )}
                 {(p.category || p.subcategory) && (
@@ -698,7 +756,7 @@ const Products = () => {
         cell: ({ row }) => {
           const p = row.original;
           return (
-            <img
+            <ImageWithFallback
               src={p.qrCode}
               onClick={() => openImageModal(p.qrCode)}
               alt="QR Code"
@@ -714,7 +772,11 @@ const Products = () => {
         type: "number",
         cell: ({ row }) => {
           const p = row.original;
-          return <span className="text-sm text-gray-500">{currency} {Number(p.purchasePrice).toFixed(2)}</span>;
+          return (
+            <span className="text-sm text-gray-500">
+              {currency} {Number(p.purchasePrice).toFixed(2)}
+            </span>
+          );
         },
       },
       {
@@ -724,7 +786,11 @@ const Products = () => {
         type: "number",
         cell: ({ row }) => {
           const p = row.original;
-          return <span className="text-sm text-gray-500 whitespace-nowrap">{currency} {Number(p.salePrice).toFixed(2)}</span>;
+          return (
+            <span className="text-sm text-gray-500 whitespace-nowrap">
+              {currency} {Number(p.salePrice).toFixed(2)}
+            </span>
+          );
         },
       },
       {
@@ -769,6 +835,23 @@ const Products = () => {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
+                      onClick={() => navigate(`/products/${p._id}`)}
+                      aria-label="View product"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">View product</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
                       onClick={() => handleEdit(p)}
                       aria-label="Edit product"
                     >
@@ -800,7 +883,7 @@ const Products = () => {
         },
       },
     ],
-    [openImageModal, handleEdit, confirmDelete, currency]
+    [openImageModal, handleEdit, confirmDelete, currency],
   );
 
   // Export
@@ -863,23 +946,38 @@ const Products = () => {
             return acc;
           }, {});
         })(),
-        Categories: p.category ? (typeof p.category === "object" ? p.category.name : p.category) : "",
-        Subcategories: p.subcategory ? (typeof p.subcategory === "object" ? p.subcategory.name : p.subcategory) : "",
-        Brands: p.brand ? (typeof p.brand === "object" ? p.brand.name : p.brand) : "",
-        Conditions: p.condition ? (typeof p.condition === "object" ? p.condition.name : p.condition) : "",
+        Categories: p.category
+          ? typeof p.category === "object"
+            ? p.category.name
+            : p.category
+          : "",
+        Subcategories: p.subcategory
+          ? typeof p.subcategory === "object"
+            ? p.subcategory.name
+            : p.subcategory
+          : "",
+        Brands: p.brand
+          ? typeof p.brand === "object"
+            ? p.brand.name
+            : p.brand
+          : "",
+        Conditions: p.condition
+          ? typeof p.condition === "object"
+            ? p.condition.name
+            : p.condition
+          : "",
         Returnable: p.returnable !== false ? "Yes" : "No",
         Images: (() => {
-          const imgs = Array.isArray(p.images) && p.images.length
-            ? p.images
-            : p.image
-              ? [p.image]
-              : [];
+          const imgs =
+            Array.isArray(p.images) && p.images.length
+              ? p.images
+              : p.image
+                ? [p.image]
+                : [];
           if (!imgs.length) return "";
-          return imgs
-            .map((img) => resolveImageUrl(img))
-            .join(", ");
+          return imgs.map((img) => resolveImageUrl(img)).join(", ");
         })(),
-      }))
+      })),
     );
 
     const workbook = XLSX.utils.book_new();
@@ -888,7 +986,11 @@ const Products = () => {
   };
 
   const normalizeKey = (key) =>
-    key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    key
+      ?.toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
 
   const deriveSkuFromRow = (row) => {
     const prefix = normalizeSkuPrefix(skuPrefixDefault) || "AR";
@@ -904,19 +1006,29 @@ const Products = () => {
     let conditionName = "";
     if (conditionValue) {
       const found = (conditions || []).find(
-        (c) => c._id === conditionValue || (c.name && String(c.name).trim() === conditionValue)
+        (c) =>
+          c._id === conditionValue ||
+          (c.name && String(c.name).trim() === conditionValue),
       );
       conditionName = found ? (found.name || "").trim() : conditionValue;
     }
     const conditionCode = getConditionCodeFromName(conditionName);
 
     if (!asin) return "";
-    return conditionCode ? `${prefix}-${asin}-${conditionCode}` : `${prefix}-${asin}`;
+    return conditionCode
+      ? `${prefix}-${asin}-${conditionCode}`
+      : `${prefix}-${asin}`;
   };
 
   const validateImportedRows = (rows, existingSkusSet = null) => {
     // existingSkusSet: Set of SKUs that exist in DB (from POST /products/check-skus). If null, fall back to in-memory products list.
-    const dbCheckSet = existingSkusSet ?? new Set((products || []).map((p) => (p.sku || "").toString().trim()).filter(Boolean));
+    const dbCheckSet =
+      existingSkusSet ??
+      new Set(
+        (products || [])
+          .map((p) => (p.sku || "").toString().trim())
+          .filter(Boolean),
+      );
     // Count by generated SKU (derived from ASIN+Condition, or explicit from Excel) — used for duplicate-in-file check
     const skuCounts = {};
     rows.forEach((row) => {
@@ -934,14 +1046,18 @@ const Products = () => {
 
       const skuKey = Object.keys(row).find((k) => normalizeKey(k) === "sku");
       const nameKey =
-        Object.keys(row).find((k) => ["name", "title"].includes(normalizeKey(k))) ?? null;
+        Object.keys(row).find((k) =>
+          ["name", "title"].includes(normalizeKey(k)),
+        ) ?? null;
       const priceKey =
         Object.keys(row).find((k) =>
-          ["price", "saleprice", "sale_price", "purchaseprice"].includes(normalizeKey(k))
+          ["price", "saleprice", "sale_price", "purchaseprice"].includes(
+            normalizeKey(k),
+          ),
         ) ?? null;
       const stockKey =
         Object.keys(row).find((k) =>
-          ["stock", "qty", "quantity"].includes(normalizeKey(k))
+          ["stock", "qty", "quantity"].includes(normalizeKey(k)),
         ) ?? null;
 
       const derivedSku = deriveSkuFromRow(row);
@@ -954,7 +1070,7 @@ const Products = () => {
 
       const imagesKey =
         Object.keys(row).find((k) =>
-          ["images", "image"].includes(normalizeKey(k))
+          ["images", "image"].includes(normalizeKey(k)),
         ) ?? null;
       const imagesVal = imagesKey ? String(row[imagesKey] ?? "").trim() : "";
       const imageFromUpload = row.__imageUrl || "";
@@ -976,14 +1092,28 @@ const Products = () => {
         }
       }
 
-      const resolvedImageUrl = normalizedImages.length ? normalizedImages[0] : "";
+      const resolvedImageUrl = normalizedImages.length
+        ? normalizedImages[0]
+        : "";
 
-      const returnableKey = Object.keys(row).find((k) => normalizeKey(k) === "returnable" || normalizeKey(k) === "refundable") ?? null;
-      const returnableRaw = returnableKey ? String(row[returnableKey] ?? "").trim().toLowerCase() : "";
-      const __returnable = ["no", "false", "0", "n"].includes(returnableRaw) ? false : true;
+      const returnableKey =
+        Object.keys(row).find(
+          (k) =>
+            normalizeKey(k) === "returnable" ||
+            normalizeKey(k) === "refundable",
+        ) ?? null;
+      const returnableRaw = returnableKey
+        ? String(row[returnableKey] ?? "")
+            .trim()
+            .toLowerCase()
+        : "";
+      const __returnable = ["no", "false", "0", "n"].includes(returnableRaw)
+        ? false
+        : true;
 
       if (!effectiveSku) {
-        fieldErrors[skuKey || "SKU"] = "ASIN and condition required to generate SKU";
+        fieldErrors[skuKey || "SKU"] =
+          "ASIN and condition required to generate SKU";
       }
       if (!name) fieldErrors[nameKey || "Name"] = "Required";
       if (!Number.isFinite(price) || price <= 0) {
@@ -1045,7 +1175,9 @@ const Products = () => {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.SheetNames[0];
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { defval: "" });
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], {
+        defval: "",
+      });
 
       if (!rows.length) {
         toast.error("File is empty ❌");
@@ -1058,23 +1190,23 @@ const Products = () => {
 
       // Check which SKUs already exist in DB (so we mark "Already in DB" in preview)
       const skusToCheck = [
-        ...new Set(
-          rows
-            .map((row) => deriveSkuFromRow(row))
-            .filter(Boolean)
-        ),
+        ...new Set(rows.map((row) => deriveSkuFromRow(row)).filter(Boolean)),
       ];
 
       let existingFromApi = [];
       if (skusToCheck.length > 0) {
         try {
-          const res = await api.post("/products/check-skus", { skus: skusToCheck });
+          const res = await api.post("/products/check-skus", {
+            skus: skusToCheck,
+          });
           existingFromApi = res.data?.existing ?? [];
         } catch (e) {
           console.warn("check-skus failed, using in-memory list", e);
         }
       }
-      const existingSet = new Set((existingFromApi || []).map((s) => String(s).trim()));
+      const existingSet = new Set(
+        (existingFromApi || []).map((s) => String(s).trim()),
+      );
       setExistingSkusFromDb(existingSet);
 
       const validatedRows = validateImportedRows(rows, existingSet);
@@ -1107,7 +1239,9 @@ const Products = () => {
   const handleAddImportRow = () => {
     const cols = importColumns.length ? importColumns : TEMPLATE_COLUMNS;
     const newRow = Object.fromEntries(cols.map((h) => [h, ""]));
-    setImportRows((prev) => validateImportedRows([...prev, newRow], existingSkusFromDb));
+    setImportRows((prev) =>
+      validateImportedRows([...prev, newRow], existingSkusFromDb),
+    );
   };
 
   const handleRemoveImportRow = useCallback((rowIndex) => {
@@ -1124,71 +1258,83 @@ const Products = () => {
   const handleImportCellChange = useCallback((rowIndex, columnKey, value) => {
     setImportRows((prev) => {
       const next = prev.map((r, i) =>
-        i === rowIndex ? { ...r, [columnKey]: value } : r
+        i === rowIndex ? { ...r, [columnKey]: value } : r,
       );
       return validateImportedRows(next, existingSkusFromDb);
     });
   }, []);
 
-  const handleImportImageUrlChange = useCallback((rowIndex, columnKey, value) => {
-    setImportRows((prev) => {
-      const next = prev.map((r, i) =>
-        i === rowIndex ? { ...r, [columnKey]: value, __imageUrl: value } : r
-      );
-      return validateImportedRows(next, existingSkusFromDb);
-    });
-  }, []);
-
-  const handleImportImageUpload = useCallback(async (rowIndex, file, prevImageUrl) => {
-    if (!file?.type?.startsWith("image/")) {
-      toast.error("Please select a valid image file");
-      return;
-    }
-    const controller = new AbortController();
-    imageUploadAbortRef.current = controller;
-    setImageUploadState({ rowIndex, fileName: file.name });
-    setImageUploadProgress(0);
-    try {
-      const prevUrl = (prevImageUrl ?? "").toString().trim();
-      if (prevUrl && /^https?:\/\//i.test(prevUrl)) {
-        try {
-          await api.post("/products/delete-image-by-url", { imageUrl: prevUrl });
-        } catch (_) { }
-      }
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await api.post("/products/upload-image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        signal: controller.signal,
-        onUploadProgress: (ev) => {
-          const pct = ev.total ? Math.round((ev.loaded / ev.total) * 100) : 0;
-          setImageUploadProgress(pct);
-        },
+  const handleImportImageUrlChange = useCallback(
+    (rowIndex, columnKey, value) => {
+      setImportRows((prev) => {
+        const next = prev.map((r, i) =>
+          i === rowIndex ? { ...r, [columnKey]: value, __imageUrl: value } : r,
+        );
+        return validateImportedRows(next, existingSkusFromDb);
       });
-      const url = res.data?.url;
-      if (url) {
-        setImageUploadProgress(100);
-        setImportRows((prev) => {
-          const next = prev.map((r, i) => {
-            if (i !== rowIndex) return r;
-            const col = importColumns.find((c) => normalizeKey(c) === "images" || normalizeKey(c) === "image") || "Images";
-            return { ...r, [col]: url, __imageUrl: url };
-          });
-          return validateImportedRows(next, existingSkusFromDb);
-        });
-        toast.success("Image uploaded");
+    },
+    [],
+  );
+
+  const handleImportImageUpload = useCallback(
+    async (rowIndex, file, prevImageUrl) => {
+      if (!file?.type?.startsWith("image/")) {
+        toast.error("Please select a valid image file");
+        return;
       }
-      setImageUploadState(null);
+      const controller = new AbortController();
+      imageUploadAbortRef.current = controller;
+      setImageUploadState({ rowIndex, fileName: file.name });
       setImageUploadProgress(0);
-    } catch (err) {
-      if (axios.isCancel(err)) return;
-      setImageUploadState(null);
-      setImageUploadProgress(0);
-      toast.error(err?.response?.data?.message || "Image upload failed");
-    } finally {
-      imageUploadAbortRef.current = null;
-    }
-  }, [importColumns]);
+      try {
+        const prevUrl = (prevImageUrl ?? "").toString().trim();
+        if (prevUrl && /^https?:\/\//i.test(prevUrl)) {
+          try {
+            await api.post("/products/delete-image-by-url", {
+              imageUrl: prevUrl,
+            });
+          } catch (_) {}
+        }
+        const formData = new FormData();
+        formData.append("image", file);
+        const res = await api.post("/products/upload-image", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          signal: controller.signal,
+          onUploadProgress: (ev) => {
+            const pct = ev.total ? Math.round((ev.loaded / ev.total) * 100) : 0;
+            setImageUploadProgress(pct);
+          },
+        });
+        const url = res.data?.url;
+        if (url) {
+          setImageUploadProgress(100);
+          setImportRows((prev) => {
+            const next = prev.map((r, i) => {
+              if (i !== rowIndex) return r;
+              const col =
+                importColumns.find(
+                  (c) =>
+                    normalizeKey(c) === "images" || normalizeKey(c) === "image",
+                ) || "Images";
+              return { ...r, [col]: url, __imageUrl: url };
+            });
+            return validateImportedRows(next, existingSkusFromDb);
+          });
+          toast.success("Image uploaded");
+        }
+        setImageUploadState(null);
+        setImageUploadProgress(0);
+      } catch (err) {
+        if (axios.isCancel(err)) return;
+        setImageUploadState(null);
+        setImageUploadProgress(0);
+        toast.error(err?.response?.data?.message || "Image upload failed");
+      } finally {
+        imageUploadAbortRef.current = null;
+      }
+    },
+    [importColumns],
+  );
 
   const handleImportImageUrlBlur = useCallback((rowIndex, columnKey, value) => {
     const trimmed = (value ?? "").toString().trim();
@@ -1202,7 +1348,9 @@ const Products = () => {
     if (normalized === trimmed) return;
     setImportRows((prev) => {
       const next = prev.map((r, i) =>
-        i === rowIndex ? { ...r, [columnKey]: normalized, __imageUrl: normalized } : r
+        i === rowIndex
+          ? { ...r, [columnKey]: normalized, __imageUrl: normalized }
+          : r,
       );
       return validateImportedRows(next, existingSkusFromDb);
     });
@@ -1213,7 +1361,9 @@ const Products = () => {
       id: "__index",
       header: "#",
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">{Number(row.id) + 1}</span>
+        <span className="text-xs text-muted-foreground">
+          {Number(row.id) + 1}
+        </span>
       ),
       enableSorting: false,
       enableHiding: false,
@@ -1225,22 +1375,43 @@ const Products = () => {
       enableHiding: false,
       cell: ({ row }) => {
         const rowData = row.original;
-        const skuErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "sku");
+        const skuErrorKey =
+          rowData.__errors &&
+          Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "sku");
         const skuFulfilled = Boolean(rowData.__sku) && !skuErrorKey;
-        const skuErrorMsg = skuErrorKey ? (rowData.__errors[skuErrorKey] === "Already in DB" ? "Already in database" : rowData.__errors[skuErrorKey] === "Duplicate in file" ? "Duplicate in file" : rowData.__errors[skuErrorKey] === "Required" ? "Required" : rowData.__errors[skuErrorKey]) : "Required";
+        const skuErrorMsg = skuErrorKey
+          ? rowData.__errors[skuErrorKey] === "Already in DB"
+            ? "Already in database"
+            : rowData.__errors[skuErrorKey] === "Duplicate in file"
+              ? "Duplicate in file"
+              : rowData.__errors[skuErrorKey] === "Required"
+                ? "Required"
+                : rowData.__errors[skuErrorKey]
+          : "Required";
         return (
           <div className="flex items-center gap-2 py-1.5 min-w-0">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${skuFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`} aria-hidden>
-                    {skuFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                  <span
+                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${skuFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                    aria-hidden
+                  >
+                    {skuFulfilled ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <X className="h-3 w-3" />
+                    )}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[200px]">{skuFulfilled ? "SKU valid" : skuErrorMsg}</TooltipContent>
+                <TooltipContent side="top" className="max-w-[200px]">
+                  {skuFulfilled ? "SKU valid" : skuErrorMsg}
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <span className="text-xs whitespace-nowrap">{rowData.__sku || "Auto"}</span>
+            <span className="text-xs whitespace-nowrap">
+              {rowData.__sku || "Auto"}
+            </span>
           </div>
         );
       },
@@ -1261,51 +1432,119 @@ const Products = () => {
       const isReturnable = nk === "returnable" || nk === "refundable";
       return {
         id: col,
-        header: isReturnable ? "Returnable" : isSubcategory ? "Subcategories (optional)" : col,
+        header: isReturnable
+          ? "Returnable"
+          : isSubcategory
+            ? "Subcategories (optional)"
+            : col,
         enableSorting: false,
         enableHiding: false,
         cell: ({ row }) => {
           const rowIndex = Number(row.id);
           const rowData = row.original;
-          const errorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => col === k || normalizeKey(k) === nk);
+          const errorKey =
+            rowData.__errors &&
+            Object.keys(rowData.__errors).find(
+              (k) => col === k || normalizeKey(k) === nk,
+            );
           const hasError = Boolean(errorKey);
           const errorMsg = errorKey ? rowData.__errors[errorKey] : "";
           const val = (rowData[col] ?? "").toString().trim();
           const isOptionalField = isSubcategory;
           const fulfilled = isOptionalField
             ? !hasError
-            : (val.length > 0 || (isCategory || isBrand || isCondition || isReturnable ? Boolean(rowData[col] ?? (isReturnable ? rowData.__returnable : undefined)) : false)) && !hasError;
-          const indicatorLabel = isOptionalField && !val && !rowData[col]
-            ? "Optional"
-            : fulfilled
-              ? "Field fulfilled"
-              : errorMsg || "Required";
+            : (val.length > 0 ||
+                (isCategory || isBrand || isCondition || isReturnable
+                  ? Boolean(
+                      rowData[col] ??
+                      (isReturnable ? rowData.__returnable : undefined),
+                    )
+                  : false)) &&
+              !hasError;
+          const indicatorLabel =
+            isOptionalField && !val && !rowData[col]
+              ? "Optional"
+              : fulfilled
+                ? "Field fulfilled"
+                : errorMsg || "Required";
           const indicator = (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${fulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`} aria-hidden>
-                    {fulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                  <span
+                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${fulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                    aria-hidden
+                  >
+                    {fulfilled ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <X className="h-3 w-3" />
+                    )}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[200px]">{indicatorLabel}</TooltipContent>
+                <TooltipContent side="top" className="max-w-[200px]">
+                  {indicatorLabel}
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           );
           if (isTitle) {
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-[120px]" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
-                <Input value={rowData[col] ?? ""} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === " " || e.key === "Tab") { e.preventDefault(); const input = e.target; const start = input.selectionStart ?? input.value.length; const end = input.selectionEnd ?? input.value.length; const v = (rowData[col] ?? "").toString(); handleImportCellChange(rowIndex, col, v.slice(0, start) + (e.key === "Tab" ? "\t" : " ") + v.slice(end)); requestAnimationFrame(() => { input.selectionStart = input.selectionEnd = start + 1; }); } }} onKeyUp={(e) => e.stopPropagation()} className="h-8 text-xs flex-1 min-w-[250px] w-full" placeholder="Title" />
+              <div
+                className="flex items-center gap-2 py-1.5 min-w-[120px]"
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
+                <Input
+                  value={rowData[col] ?? ""}
+                  onChange={(e) =>
+                    handleImportCellChange(rowIndex, col, e.target.value)
+                  }
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === " " || e.key === "Tab") {
+                      e.preventDefault();
+                      const input = e.target;
+                      const start = input.selectionStart ?? input.value.length;
+                      const end = input.selectionEnd ?? input.value.length;
+                      const v = (rowData[col] ?? "").toString();
+                      handleImportCellChange(
+                        rowIndex,
+                        col,
+                        v.slice(0, start) +
+                          (e.key === "Tab" ? "\t" : " ") +
+                          v.slice(end),
+                      );
+                      requestAnimationFrame(() => {
+                        input.selectionStart = input.selectionEnd = start + 1;
+                      });
+                    }
+                  }}
+                  onKeyUp={(e) => e.stopPropagation()}
+                  className="h-8 text-xs flex-1 min-w-[250px] w-full"
+                  placeholder="Title"
+                />
                 {indicator}
               </div>
             );
           }
           if (isDescription) {
             const raw = (rowData[col] ?? "").toString().trim();
-            const display = raw.length > 0 ? raw.slice(0, 40) + (raw.length > 40 ? "…" : "") : "Click to edit";
+            const display =
+              raw.length > 0
+                ? raw.slice(0, 40) + (raw.length > 40 ? "…" : "")
+                : "Click to edit";
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-0">
-                <Button type="button" size="sm" variant="outline" className="h-9 text-xs flex-1 min-w-0 justify-start" onClick={() => handleOpenDescriptionModal(rowIndex, col)}>{display}</Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs flex-1 min-w-0 justify-start"
+                  onClick={() => handleOpenDescriptionModal(rowIndex, col)}
+                >
+                  {display}
+                </Button>
                 {indicator}
               </div>
             );
@@ -1313,109 +1552,268 @@ const Products = () => {
           if (isReturnable) {
             const returnable = rowData.__returnable !== false;
             return (
-              <div className="flex items-center gap-2 py-1.5" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+              <div
+                className="flex items-center gap-2 py-1.5"
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
                 {indicator}
                 <Switch
                   checked={returnable}
                   onCheckedChange={(checked) =>
-                    handleImportCellChange(rowIndex, col, checked ? "Yes" : "No")
+                    handleImportCellChange(
+                      rowIndex,
+                      col,
+                      checked ? "Yes" : "No",
+                    )
                   }
                 />
-                <span className="text-xs text-muted-foreground">{returnable ? "Yes" : "No"}</span>
+                <span className="text-xs text-muted-foreground">
+                  {returnable ? "Yes" : "No"}
+                </span>
               </div>
             );
           }
           if (isImages) {
-            const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "").toString().trim();
-            const imgFulfilled = imgVal.length > 0 && (!rowData.__errors || !Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "images" || normalizeKey(k) === "image"));
+            const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "")
+              .toString()
+              .trim();
+            const imgFulfilled =
+              imgVal.length > 0 &&
+              (!rowData.__errors ||
+                !Object.keys(rowData.__errors).find(
+                  (k) =>
+                    normalizeKey(k) === "images" || normalizeKey(k) === "image",
+                ));
             return (
               <div className="flex gap-2 py-1.5 min-w-[500px] items-center w-full">
                 <div className="flex flex-1 items-center gap-2 min-w-0">
-                  <Input value={rowData.__imageUrl ?? rowData[col] ?? ""} onChange={(e) => handleImportImageUrlChange(rowIndex, col, e.target.value)} onBlur={(e) => handleImportImageUrlBlur(rowIndex, col, e.target.value)} onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()} className="h-8 text-xs flex-1 min-w-0 w-full" placeholder="Image URL" />
+                  <Input
+                    value={rowData.__imageUrl ?? rowData[col] ?? ""}
+                    onChange={(e) =>
+                      handleImportImageUrlChange(rowIndex, col, e.target.value)
+                    }
+                    onBlur={(e) =>
+                      handleImportImageUrlBlur(rowIndex, col, e.target.value)
+                    }
+                    onKeyDown={(e) => e.stopPropagation()}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    className="h-8 text-xs flex-1 min-w-0 w-full"
+                    placeholder="Image URL"
+                  />
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${imgFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`} aria-hidden>
-                          {imgFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                        <span
+                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${imgFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
+                          aria-hidden
+                        >
+                          {imgFulfilled ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[200px]">{imgFulfilled ? "Field fulfilled" : (rowData.__errors && (rowData.__errors["Images"] || rowData.__errors["Image"])) || "Invalid URL or required"}</TooltipContent>
+                      <TooltipContent side="top" className="max-w-[200px]">
+                        {imgFulfilled
+                          ? "Field fulfilled"
+                          : (rowData.__errors &&
+                              (rowData.__errors["Images"] ||
+                                rowData.__errors["Image"])) ||
+                            "Invalid URL or required"}
+                      </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <input id={`import-image-product-${rowIndex}`} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportImageUpload(rowIndex, f, rowData.__imageUrl ?? rowData[col] ?? ""); e.target.value = ""; }} />
-                <Button type="button" variant="outline" className="text-xs" onClick={() => document.getElementById(`import-image-product-${rowIndex}`)?.click()}>
-                  <CloudUpload
-                    className="w-4 h-4"
-                  />
+                <input
+                  id={`import-image-product-${rowIndex}`}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f)
+                      handleImportImageUpload(
+                        rowIndex,
+                        f,
+                        rowData.__imageUrl ?? rowData[col] ?? "",
+                      );
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() =>
+                    document
+                      .getElementById(`import-image-product-${rowIndex}`)
+                      ?.click()
+                  }
+                >
+                  <CloudUpload className="w-4 h-4" />
                   Choose from device
                 </Button>
               </div>
             );
           }
           if (isCategory) {
-            const current = categoryOptions.find((o) => o.value === rowData[col]) || categoryOptions.find((o) => o.label === rowData[col]);
+            const current =
+              categoryOptions.find((o) => o.value === rowData[col]) ||
+              categoryOptions.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
-                <Combobox options={categoryOptions.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Category" clearable className="flex-1 min-w-0 w-full" />
+                <Combobox
+                  options={categoryOptions.map((o) => ({
+                    value: o.value,
+                    label: o.label,
+                  }))}
+                  value={selectedValue}
+                  onChange={(opt) =>
+                    handleImportCellChange(rowIndex, col, opt?.value ?? "")
+                  }
+                  placeholder="Select Category"
+                  clearable
+                  className="flex-1 min-w-0 w-full"
+                />
                 {indicator}
               </div>
             );
           }
           if (isSubcategory) {
-            const subOpts = (subcategories || []).map((s) => ({ value: s._id, label: s.name }));
-            const current = subOpts.find((o) => o.value === rowData[col]) || subOpts.find((o) => o.label === rowData[col]);
+            const subOpts = (subcategories || []).map((s) => ({
+              value: s._id,
+              label: s.name,
+            }));
+            const current =
+              subOpts.find((o) => o.value === rowData[col]) ||
+              subOpts.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
-                <Combobox options={subOpts.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select subcategory (optional)" clearable className="flex-1 min-w-0 w-full" />
+                <Combobox
+                  options={subOpts.map((o) => ({
+                    value: o.value,
+                    label: o.label,
+                  }))}
+                  value={selectedValue}
+                  onChange={(opt) =>
+                    handleImportCellChange(rowIndex, col, opt?.value ?? "")
+                  }
+                  placeholder="Select subcategory (optional)"
+                  clearable
+                  className="flex-1 min-w-0 w-full"
+                />
                 {indicator}
               </div>
             );
           }
           if (isBrand) {
-            const current = brandOptions.find((o) => o.value === rowData[col]) || brandOptions.find((o) => o.label === rowData[col]);
+            const current =
+              brandOptions.find((o) => o.value === rowData[col]) ||
+              brandOptions.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
-                <Combobox options={brandOptions.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Brand" clearable className="flex-1 min-w-0 w-full" />
+                <Combobox
+                  options={brandOptions.map((o) => ({
+                    value: o.value,
+                    label: o.label,
+                  }))}
+                  value={selectedValue}
+                  onChange={(opt) =>
+                    handleImportCellChange(rowIndex, col, opt?.value ?? "")
+                  }
+                  placeholder="Select Brand"
+                  clearable
+                  className="flex-1 min-w-0 w-full"
+                />
                 {indicator}
               </div>
             );
           }
           if (isCondition) {
-            const current = conditionOptions.find((o) => o.value === rowData[col]) || conditionOptions.find((o) => o.label === rowData[col]);
+            const current =
+              conditionOptions.find((o) => o.value === rowData[col]) ||
+              conditionOptions.find((o) => o.label === rowData[col]);
             const selectedValue = current?.value ?? "";
             return (
               <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full">
-                <Combobox options={conditionOptions.map((o) => ({ value: o.value, label: o.label }))} value={selectedValue} onChange={(opt) => handleImportCellChange(rowIndex, col, opt?.value ?? "")} placeholder="Select Condition" clearable className="flex-1 min-w-0 w-full" />
+                <Combobox
+                  options={conditionOptions.map((o) => ({
+                    value: o.value,
+                    label: o.label,
+                  }))}
+                  value={selectedValue}
+                  onChange={(opt) =>
+                    handleImportCellChange(rowIndex, col, opt?.value ?? "")
+                  }
+                  placeholder="Select Condition"
+                  clearable
+                  className="flex-1 min-w-0 w-full"
+                />
                 {indicator}
               </div>
             );
           }
           if (isPurchasePrice || isSalePrice) {
             const numVal = rowData[col];
-            const displayVal = numVal === "" || numVal == null ? "" : String(numVal);
+            const displayVal =
+              numVal === "" || numVal == null ? "" : String(numVal);
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-0 w-full" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
-                <Input type="number" min={0} step={0.01} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")} placeholder={isPurchasePrice ? "0.00" : "0.00"} />
+              <div
+                className="flex items-center gap-2 py-1.5 min-w-0 w-full"
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={displayVal}
+                  onChange={(e) =>
+                    handleImportCellChange(rowIndex, col, e.target.value)
+                  }
+                  className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")}
+                  placeholder={isPurchasePrice ? "0.00" : "0.00"}
+                />
                 {indicator}
               </div>
             );
           }
           if (isQuantity) {
             const numVal = rowData[col];
-            const displayVal = numVal === "" || numVal == null ? "" : String(numVal);
+            const displayVal =
+              numVal === "" || numVal == null ? "" : String(numVal);
             return (
-              <div className="flex items-center gap-2 py-1.5 min-w-0" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+              <div
+                className="flex items-center gap-2 py-1.5 min-w-0"
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+              >
                 {indicator}
-                <Input type="number" min={0} step={1} value={displayVal} onChange={(e) => handleImportCellChange(rowIndex, col, e.target.value)} className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")} placeholder="0" />
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={displayVal}
+                  onChange={(e) =>
+                    handleImportCellChange(rowIndex, col, e.target.value)
+                  }
+                  className={cn("h-8 text-xs flex-1 min-w-[100px] w-full")}
+                  placeholder="0"
+                />
               </div>
             );
           }
           return (
-            <div className="flex items-center gap-2 py-1.5 min-w-[250px] w-full" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
+            <div
+              className="flex items-center gap-2 py-1.5 min-w-[250px] w-full"
+              onKeyDown={(e) => e.stopPropagation()}
+              onKeyUp={(e) => e.stopPropagation()}
+            >
               <Input
                 value={rowData[col] ?? ""}
                 onChange={(e) =>
@@ -1437,8 +1835,8 @@ const Products = () => {
                       rowIndex,
                       col,
                       v.slice(0, start) +
-                      (e.key === "Tab" ? "\t" : " ") +
-                      v.slice(end)
+                        (e.key === "Tab" ? "\t" : " ") +
+                        v.slice(end),
                     );
 
                     requestAnimationFrame(() => {
@@ -1447,10 +1845,7 @@ const Products = () => {
                   }
                 }}
                 onKeyUp={(e) => e.stopPropagation()}
-                className={cn(
-                  "text-xs min-w-0",
-                  hasError && "border-red-500"
-                )}
+                className={cn("text-xs min-w-0", hasError && "border-red-500")}
               />
               {indicator}
             </div>
@@ -1469,9 +1864,21 @@ const Products = () => {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className={r.__status === "valid" ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700" : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"}>{r.__status === "valid" ? "Valid" : "Error"}</span>
+                <span
+                  className={
+                    r.__status === "valid"
+                      ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700"
+                      : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700"
+                  }
+                >
+                  {r.__status === "valid" ? "Valid" : "Error"}
+                </span>
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[200px]">{r.__status === "valid" ? "Ready to import" : (r.__statusMessage || "Validation error")}</TooltipContent>
+              <TooltipContent side="top" className="max-w-[200px]">
+                {r.__status === "valid"
+                  ? "Ready to import"
+                  : r.__statusMessage || "Validation error"}
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         );
@@ -1484,13 +1891,27 @@ const Products = () => {
       enableSorting: false,
       enableHiding: false,
       cell: ({ row }) => (
-        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleRemoveImportRow(Number(row.id))} aria-label="Remove row">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={() => handleRemoveImportRow(Number(row.id))}
+          aria-label="Remove row"
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       ),
     };
     return [indexCol, skuCol, ...dynamicCols, statusCol, actionsCol];
-  }, [importColumns, handleImportCellChange, handleImportImageUrlChange, handleImportImageUpload, handleImportImageUrlBlur, handleRemoveImportRow]);
+  }, [
+    importColumns,
+    handleImportCellChange,
+    handleImportImageUrlChange,
+    handleImportImageUpload,
+    handleImportImageUrlBlur,
+    handleRemoveImportRow,
+  ]);
 
   const handleImportImageUploadCancel = () => {
     if (imageUploadAbortRef.current) imageUploadAbortRef.current.abort();
@@ -1507,65 +1928,85 @@ const Products = () => {
 
     setImportLoading(true);
     try {
-      const payload = validRows.map(({ __errors, __status, __sku, __imageUrl, __images, __returnable, ...rest }) => {
-        const title = rest.Title ?? rest.title ?? "";
-        const asin = rest.ASIN ?? rest.asin ?? "";
-        const purchasePrice = rest["Purchase Price"] ?? rest.purchasePrice ?? 0;
-        const salePrice = rest["Sale Price"] ?? rest.salePrice ?? 0;
-        const quantity = rest.Quantity ?? rest.quantity ?? 0;
-        const modelno = rest["Model No."] ?? rest.modelno ?? "";
-        const description = rest.Description ?? rest.description ?? "";
-        const amazonUrl = rest["Amazon URL"] ?? rest.amazonUrl ?? "";
-        const noonUrl = rest["Noon URL"] ?? rest.noonUrl ?? "";
-        const sharafdgUrl = rest["SharafDG URL"] ?? rest.sharafdgUrl ?? "";
-        const carrefourUrl = rest["Carrefour URL"] ?? rest.carrefourUrl ?? "";
-        const category = rest.Categories ?? rest.category ?? rest.categories;
-        const subcategory = rest.Subcategories ?? rest.subcategory ?? rest.subcategories;
-        const brand = rest.Brands ?? rest.brand ?? rest.brands;
-        const condition = rest.Conditions ?? rest.condition ?? rest.conditions;
-        const imagesArray =
-          Array.isArray(__images) && __images.length
-            ? __images
-            : (() => {
-              const raw = (__imageUrl || rest.Images || rest.Image || "").toString();
-              const parts = raw
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean);
-              return parts;
-            })();
-        return {
-          title,
-          sku: __sku,
-          asin: asin || null,
-          purchasePrice: Number(purchasePrice) || 0,
-          salePrice: Number(salePrice) || 0,
-          quantity: Number(quantity) || 0,
-          modelno: modelno || null,
-          description: description || null,
-          specification: null,
-          amazonUrl,
-          noonUrl,
-          sharafdgUrl,
-          carrefourUrl,
-          category,
-          subcategory,
-          brand,
-          condition,
-          returnable: __returnable !== false,
-          images: imagesArray,
-          image: imagesArray[0] || "",
-        };
-      });
+      const payload = validRows.map(
+        ({
+          __errors,
+          __status,
+          __sku,
+          __imageUrl,
+          __images,
+          __returnable,
+          ...rest
+        }) => {
+          const title = rest.Title ?? rest.title ?? "";
+          const asin = rest.ASIN ?? rest.asin ?? "";
+          const purchasePrice =
+            rest["Purchase Price"] ?? rest.purchasePrice ?? 0;
+          const salePrice = rest["Sale Price"] ?? rest.salePrice ?? 0;
+          const quantity = rest.Quantity ?? rest.quantity ?? 0;
+          const modelno = rest["Model No."] ?? rest.modelno ?? "";
+          const description = rest.Description ?? rest.description ?? "";
+          const amazonUrl = rest["Amazon URL"] ?? rest.amazonUrl ?? "";
+          const noonUrl = rest["Noon URL"] ?? rest.noonUrl ?? "";
+          const sharafdgUrl = rest["SharafDG URL"] ?? rest.sharafdgUrl ?? "";
+          const carrefourUrl = rest["Carrefour URL"] ?? rest.carrefourUrl ?? "";
+          const category = rest.Categories ?? rest.category ?? rest.categories;
+          const subcategory =
+            rest.Subcategories ?? rest.subcategory ?? rest.subcategories;
+          const brand = rest.Brands ?? rest.brand ?? rest.brands;
+          const condition =
+            rest.Conditions ?? rest.condition ?? rest.conditions;
+          const imagesArray =
+            Array.isArray(__images) && __images.length
+              ? __images
+              : (() => {
+                  const raw = (
+                    __imageUrl ||
+                    rest.Images ||
+                    rest.Image ||
+                    ""
+                  ).toString();
+                  const parts = raw
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  return parts;
+                })();
+          return {
+            title,
+            sku: __sku,
+            asin: asin || null,
+            purchasePrice: Number(purchasePrice) || 0,
+            salePrice: Number(salePrice) || 0,
+            quantity: Number(quantity) || 0,
+            modelno: modelno || null,
+            description: description || null,
+            specification: null,
+            amazonUrl,
+            noonUrl,
+            sharafdgUrl,
+            carrefourUrl,
+            category,
+            subcategory,
+            brand,
+            condition,
+            returnable: __returnable !== false,
+            images: imagesArray,
+            image: imagesArray[0] || "",
+          };
+        },
+      );
 
       // Final DB check: ensure no SKU in payload exists in DB (avoid "No new products to insert" on submit)
       const skusToCheck = payload.map((p) => p.sku).filter(Boolean);
       if (skusToCheck.length > 0) {
-        const res = await api.post("/products/check-skus", { skus: skusToCheck });
+        const res = await api.post("/products/check-skus", {
+          skus: skusToCheck,
+        });
         const existing = res.data?.existing ?? [];
         if (existing.length > 0) {
           toast.error(
-            `These SKUs already exist in DB. Remove or fix them: ${existing.slice(0, 5).join(", ")}${existing.length > 5 ? "…" : ""} ❌`
+            `These SKUs already exist in DB. Remove or fix them: ${existing.slice(0, 5).join(", ")}${existing.length > 5 ? "…" : ""} ❌`,
           );
           setImportLoading(false);
           return;
@@ -1598,7 +2039,9 @@ const Products = () => {
 
   const handleViewTemplate = () => {
     setImportColumns(TEMPLATE_COLUMNS);
-    const templateRow = [Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))];
+    const templateRow = [
+      Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""])),
+    ];
     setImportRows(validateImportedRows(templateRow, existingSkusFromDb));
   };
 
@@ -1689,7 +2132,9 @@ const Products = () => {
                       <SelectContent>
                         <SelectGroup>
                           <SelectLabel>Select action</SelectLabel>
-                          <SelectItem value="bulk-delete">Bulk delete</SelectItem>
+                          <SelectItem value="bulk-delete">
+                            Bulk delete
+                          </SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </UiSelect>
@@ -1714,7 +2159,8 @@ const Products = () => {
                           <div>
                             <DrawerTitle>Bulk Product Import</DrawerTitle>
                             <DrawerDescription>
-                              Upload CSV or Excel file to create multiple products.
+                              Upload CSV or Excel file to create multiple
+                              products.
                             </DrawerDescription>
                           </div>
                           <DrawerClose asChild>
@@ -1742,7 +2188,9 @@ const Products = () => {
                               Download Template
                             </Button>
                             <p className="text-xs text-muted-foreground">
-                              Supported formats: <span className="font-medium">.csv, .xlsx</span>. Subcategories column is optional.
+                              Supported formats:{" "}
+                              <span className="font-medium">.csv, .xlsx</span>.
+                              Subcategories column is optional.
                             </p>
                           </div>
                           {importRows.length > 0 && (
@@ -1793,14 +2241,18 @@ const Products = () => {
                                 </Button>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                Valid: {importStats.valid} | Errors: {importStats.errors}
-                                {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
+                                Valid: {importStats.valid} | Errors:{" "}
+                                {importStats.errors}
+                                {importStats.duplicates > 0 &&
+                                  ` | Duplicates: ${importStats.duplicates}`}
                               </p>
                             </div>
                             <div className="border w-full rounded-md max-h-80 overflow-y-hidden">
                               <DataTable
                                 columns={importTableColumns}
-                                data={importRows?.length ? importRows : EMPTY_ARRAY}
+                                data={
+                                  importRows?.length ? importRows : EMPTY_ARRAY
+                                }
                                 enableSelection={false}
                                 addPagination={false}
                                 pageSize={5}
@@ -1843,7 +2295,9 @@ const Products = () => {
                               onClick={handleImportValidSubmit}
                               disabled={!importStats.valid || importLoading}
                             >
-                              {importLoading ? "Importing..." : "Import Valid Only"}
+                              {importLoading
+                                ? "Importing..."
+                                : "Import Valid Only"}
                             </Button>
                             <DrawerClose asChild>
                               <Button type="button" variant="ghost">
@@ -1978,7 +2432,14 @@ const Products = () => {
               </div>
               <div className="w-full sm:w-auto min-w-0 sm:min-w-[220px]">
                 <UiSelect
-                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
+                  value={
+                    customItemsPerPage !== ""
+                      ? "custom"
+                      : effectiveItemsPerPage <= 100 &&
+                          [10, 20, 50, 100].includes(effectiveItemsPerPage)
+                        ? String(effectiveItemsPerPage)
+                        : "custom"
+                  }
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
@@ -1996,12 +2457,21 @@ const Products = () => {
                       <SelectItem value="50">50 per page</SelectItem>
                       <SelectItem value="100">100 per page</SelectItem>
                       <SelectItem value="custom" disabled>
-                        Custom{customItemsPerPage ? ` (${effectiveItemsPerPage})` : ""}
+                        Custom
+                        {customItemsPerPage
+                          ? ` (${effectiveItemsPerPage})`
+                          : ""}
                       </SelectItem>
                     </SelectGroup>
                     <SelectSeparator />
-                    <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                      <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
+                    <div
+                      className="px-2 py-2"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <p className="text-xs text-muted-foreground mb-1.5 font-medium">
+                        Custom
+                      </p>
                       <CustomRowsPerPageInput
                         type="number"
                         min={1}
@@ -2029,14 +2499,19 @@ const Products = () => {
               onPageChange={handlePageChange}
               rowSelection={tableRowSelection}
               onRowSelectionChange={setTableRowSelection}
-              onSelectionChange={(rows) => setSelectedProductIds(rows.map((r) => r._id))}
+              onSelectionChange={(rows) =>
+                setSelectedProductIds(rows.map((r) => r._id))
+              }
               containerClassName="h-[630px]!"
             />
           </div>
         </div>
       </div>
 
-      <AlertDialog open={descriptionModalOpen} onOpenChange={setDescriptionModalOpen}>
+      <AlertDialog
+        open={descriptionModalOpen}
+        onOpenChange={setDescriptionModalOpen}
+      >
         <AlertDialogContent className="max-w-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Edit Description</AlertDialogTitle>

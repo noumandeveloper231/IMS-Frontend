@@ -38,6 +38,7 @@ import {
   DrawerTrigger,
   DrawerFooter,
 } from "@/components/UI/drawer";
+import { useSearchParams } from "react-router-dom";
 
 const TEMPLATE_COLUMNS = [
   "Name",
@@ -80,6 +81,8 @@ const Customers = () => {
     duplicates: 0,
   });
   const [importLoading, setImportLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedCustomerId, setHighlightedCustomerId] = useState(null);
 
   const customersRef = useRef(EMPTY_ARRAY);
   const customerDrawerOpenRef = useRef(customerDrawerOpen);
@@ -108,6 +111,31 @@ const Customers = () => {
   const customers = data?.customers ?? EMPTY_ARRAY;
   const pagination = data?.pagination ?? { total: 0, pages: 1 };
   customersRef.current = customers;
+
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId || isLoading || isFetching || customers.length === 0) return;
+    const highlightedCustomer = customers.find((c) => c._id === highlightId);
+    if (!highlightedCustomer) return;
+
+    setHighlightedCustomerId(highlightedCustomer._id);
+    requestAnimationFrame(() => {
+      const rowEl = document.querySelector(
+        `[data-highlight-target="${highlightedCustomer._id}"]`,
+      );
+      rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("highlight");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, isLoading, isFetching, customers]);
+
+  useEffect(() => {
+    if (!highlightedCustomerId) return;
+    const timer = setTimeout(() => setHighlightedCustomerId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedCustomerId]);
 
   useEffect(() => {
     customerDrawerOpenRef.current = customerDrawerOpen;
@@ -1246,6 +1274,13 @@ const Customers = () => {
           data={customers}
           isLoading={tableLoading}
           addPagination={false}
+          getRowProps={(row) => ({
+            "data-highlight-target": row.original?._id,
+            className:
+              row.original?._id === highlightedCustomerId
+                ? "search-highlight-row"
+                : "",
+          })}
         />
       </div>
 

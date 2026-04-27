@@ -1,10 +1,19 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, memo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+  memo,
+} from "react";
 import api from "../utils/api";
 import { API_BASE_URL, API_HOST } from "../config/api";
 import { Trash2, Pencil, Check, X, CloudUpload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel } from "@/components/UI/field";
 import { Input } from "@/components/UI/input";
@@ -45,9 +54,15 @@ import { ImageUploadDropzone } from "@/components/UI/image-upload-dropzone";
 import { ConditionFormDrawer } from "@/components/ConditionFormDrawer";
 import { useImageModal } from "@/context/ImageModalContext";
 import { useUploadQueue } from "@/context/UploadQueueContext";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/UI/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/UI/tooltip";
 import { UploadAlert } from "@/components/UploadAlert";
 import axios from "axios";
+import ImageWithFallback from "@/components/UI/ImageWithFallback";
 
 const resolveImageUrl = (src) => {
   if (!src) return null;
@@ -57,7 +72,7 @@ const resolveImageUrl = (src) => {
 
 const ConditionImageCell = memo(({ src, alt, onClick }) => (
   <div className="flex items-center">
-    <img
+    <ImageWithFallback
       src={src}
       alt={alt}
       onClick={onClick}
@@ -97,21 +112,29 @@ const isValidImageUrl = (value) => {
 };
 
 const normalizeKey = (key) =>
-  key?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  key
+    ?.toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
 /** Description textarea with local state so parent doesn't re-render on every keystroke. */
 const DescriptionField = forwardRef(function DescriptionField(
   { initialValue = "", min: minChars, max: maxChars },
-  ref
+  ref,
 ) {
   const [value, setValue] = useState(initialValue);
   useEffect(() => {
     setValue(initialValue);
   }, [initialValue]);
 
-  useImperativeHandle(ref, () => ({
-    getValue: () => value,
-  }), [value]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      getValue: () => value,
+    }),
+    [value],
+  );
 
   return (
     <>
@@ -132,7 +155,8 @@ const DescriptionField = forwardRef(function DescriptionField(
           }`}
         >
           {value.length} / {maxChars} characters
-          {value.length > 0 && value.length < minChars &&
+          {value.length > 0 &&
+            value.length < minChars &&
             ` — min ${minChars} required`}
         </p>
       )}
@@ -144,6 +168,7 @@ const Conditions = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { page: pageParam } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { openImageModal } = useImageModal();
   const { addUploads } = useUploadQueue();
 
@@ -165,6 +190,7 @@ const Conditions = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [customItemsPerPage, setCustomItemsPerPage] = useState("");
   const [selectedConditionIds, setSelectedConditionIds] = useState([]);
+  const [highlightedConditionId, setHighlightedConditionId] = useState(null);
   const [tableRowSelection, setTableRowSelection] = useState({});
   const [bulkManagerOpen, setBulkManagerOpen] = useState(false);
   const [deleteWithDepsOpen, setDeleteWithDepsOpen] = useState(false);
@@ -219,7 +245,8 @@ const Conditions = () => {
     const onDragLeave = (e) => {
       if (!hasFiles(e)) return;
       if (conditionDrawerOpenRef.current) return;
-      if (e.relatedTarget != null && document.body.contains(e.relatedTarget)) return;
+      if (e.relatedTarget != null && document.body.contains(e.relatedTarget))
+        return;
       setImportDrawerOpen(false);
     };
     const onDrop = (e) => {
@@ -347,7 +374,7 @@ const Conditions = () => {
       if (error?.response?.status === 409) {
         toast.error(
           messageFromServer ||
-          "Cannot delete condition because it is linked with other records ❌",
+            "Cannot delete condition because it is linked with other records ❌",
         );
       } else if (messageFromServer) {
         toast.error(messageFromServer);
@@ -388,16 +415,31 @@ const Conditions = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only start when modal opens
   }, [bulkManagerOpen]);
 
-  const handleClick = useCallback((id) => {
-    navigate(`/products/list?filterType=condition&filter=${id}`);
-  }, [navigate]);
+  const handleClick = useCallback(
+    (id) => {
+      navigate(`/products/list?filterType=condition&filter=${id}`);
+    },
+    [navigate],
+  );
 
-  const handleSubmitForm = async ({ name, description, tags, exampleProductImages, image, imageMediaId }) => {
+  const handleSubmitForm = async ({
+    name,
+    description,
+    tags,
+    exampleProductImages,
+    image,
+    imageMediaId,
+  }) => {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("description", description);
     formData.append("tags", JSON.stringify(Array.isArray(tags) ? tags : []));
-    formData.append("exampleProductImages", JSON.stringify(Array.isArray(exampleProductImages) ? exampleProductImages : []));
+    formData.append(
+      "exampleProductImages",
+      JSON.stringify(
+        Array.isArray(exampleProductImages) ? exampleProductImages : [],
+      ),
+    );
     if (imageMediaId) {
       formData.append("image", String(imageMediaId));
     } else if (image) {
@@ -422,7 +464,9 @@ const Conditions = () => {
       const res = await api.get(`/conditions/dependencies/${id}`);
       const data = res.data;
       const hasDependencies = data?.hasDependencies === true;
-      const condName = (conditionsRef.current || []).find((c) => c._id === id)?.name ?? "Condition";
+      const condName =
+        (conditionsRef.current || []).find((c) => c._id === id)?.name ??
+        "Condition";
       if (hasDependencies) {
         setDeleteWithDepsData({
           id,
@@ -441,7 +485,10 @@ const Conditions = () => {
         toast.error("Condition not found");
         return;
       }
-      toast.error(err?.response?.data?.message || "Could not check condition dependencies");
+      toast.error(
+        err?.response?.data?.message ||
+          "Could not check condition dependencies",
+      );
     }
   }, []);
 
@@ -449,15 +496,21 @@ const Conditions = () => {
     if (!deleteId) return;
     setCascadeDeleteLoading(true);
     try {
-      const res = await api.delete(`/conditions/delete/${deleteId}?cascade=true`);
+      const res = await api.delete(
+        `/conditions/delete/${deleteId}?cascade=true`,
+      );
       if (res.data?.success) {
-        toast.success("Condition and its product links have been updated successfully ✅");
+        toast.success(
+          "Condition and its product links have been updated successfully ✅",
+        );
         queryClient.invalidateQueries({ queryKey: ["conditions"] });
       } else {
         toast.error("Failed to delete condition ❌");
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to delete condition ❌");
+      toast.error(
+        err?.response?.data?.message || "Failed to delete condition ❌",
+      );
     } finally {
       setCascadeDeleteLoading(false);
       setCascadeConfirmOpen(false);
@@ -476,11 +529,13 @@ const Conditions = () => {
       const { data } = await axios.post(
         `${API_BASE_URL}/conditions/transfer/${deleteWithDepsData.id}`,
         { transferToConditionId: transferTargetId },
-        { headers: { "Content-Type": "application/json" } }
+        { headers: { "Content-Type": "application/json" } },
       );
       if (data?.success) {
         queryClient.invalidateQueries({ queryKey: ["conditions"] });
-        toast.success("Dependencies transferred and condition deleted successfully");
+        toast.success(
+          "Dependencies transferred and condition deleted successfully",
+        );
         setDeleteWithDepsOpen(false);
         setTransferDialogOpen(false);
         setDeleteWithDepsData(null);
@@ -505,10 +560,41 @@ const Conditions = () => {
   const filteredConditions = useMemo(
     () =>
       (conditions || []).filter((c) =>
-        (c.name || "").toLowerCase().includes(search.toLowerCase())
+        (c.name || "").toLowerCase().includes(search.toLowerCase()),
       ),
-    [conditions, search]
+    [conditions, search],
   );
+
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId || conditionsLoading || conditions.length === 0) return;
+
+    const highlightedCondition = conditions.find((c) => c._id === highlightId);
+    if (!highlightedCondition) return;
+
+    setHighlightedConditionId(highlightedCondition._id);
+    requestAnimationFrame(() => {
+      const rowEl = document.querySelector(
+        `[data-highlight-target="${highlightedCondition._id}"]`,
+      );
+      rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("highlight");
+    setSearchParams(nextParams, { replace: true });
+  }, [
+    searchParams,
+    setSearchParams,
+    conditionsLoading,
+    conditions,
+  ]);
+
+  useEffect(() => {
+    if (!highlightedConditionId) return;
+    const timer = setTimeout(() => setHighlightedConditionId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedConditionId]);
 
   const validateFileColumns = (rows) => {
     if (!rows.length) return { ok: false, message: "File is empty." };
@@ -517,14 +603,22 @@ const Conditions = () => {
     const normalized = keys.map((k) => normalizeKey(k));
     const hasName = normalized.includes("name");
     if (!hasName) {
-      return { ok: false, message: "File does not contain the required column 'Name'. Please use the template." };
+      return {
+        ok: false,
+        message:
+          "File does not contain the required column 'Name'. Please use the template.",
+      };
     }
     return { ok: true };
   };
 
   const normalizeRowToTemplate = (row) => {
-    const nameKey = Object.keys(row || {}).find((k) => normalizeKey(k) === "name");
-    const imageKey = Object.keys(row || {}).find((k) => normalizeKey(k) === "image");
+    const nameKey = Object.keys(row || {}).find(
+      (k) => normalizeKey(k) === "name",
+    );
+    const imageKey = Object.keys(row || {}).find(
+      (k) => normalizeKey(k) === "image",
+    );
     return {
       Name: nameKey ? String(row[nameKey] ?? "").trim() : "",
       Image: imageKey ? String(row[imageKey] ?? "").trim() : "",
@@ -536,14 +630,22 @@ const Conditions = () => {
       setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
       return [];
     }
-    const nameKeyRef = Object.keys(rows[0] || {}).find((k) => normalizeKey(k) === "name");
-    const imageKeyRef = Object.keys(rows[0] || {}).find((k) => normalizeKey(k) === "image");
+    const nameKeyRef = Object.keys(rows[0] || {}).find(
+      (k) => normalizeKey(k) === "name",
+    );
+    const imageKeyRef = Object.keys(rows[0] || {}).find(
+      (k) => normalizeKey(k) === "image",
+    );
     const seenInFile = new Set();
     const validated = rows.map((row) => {
       const nameKey =
-        Object.keys(row).find((k) => normalizeKey(k) === "name") ?? nameKeyRef ?? null;
+        Object.keys(row).find((k) => normalizeKey(k) === "name") ??
+        nameKeyRef ??
+        null;
       const imageKey =
-        Object.keys(row).find((k) => normalizeKey(k) === "image") ?? imageKeyRef ?? null;
+        Object.keys(row).find((k) => normalizeKey(k) === "image") ??
+        imageKeyRef ??
+        null;
       const rawName = nameKey ? String(row[nameKey] ?? "") : "";
       const name = rawName.trim();
       const imageUrl = imageKey ? String(row[imageKey] ?? "").trim() : "";
@@ -568,7 +670,7 @@ const Conditions = () => {
           seenInFile.add(norm);
         }
         const existsInDb = conditionsRef.current.some(
-          (c) => normalizeConditionName(c.name) === norm
+          (c) => normalizeConditionName(c.name) === norm,
         );
         if (existsInDb && !fieldErrors[nameKey || "Name"]) {
           fieldErrors[nameKey || "Name"] = "Already exists in DB";
@@ -593,20 +695,24 @@ const Conditions = () => {
     const duplicates = validated.filter(
       (r) =>
         r.__status === "error" &&
-        (r.__statusMessage === "Duplicate in file" || r.__statusMessage === "Already in database")
+        (r.__statusMessage === "Duplicate in file" ||
+          r.__statusMessage === "Already in database"),
     ).length;
     setImportStats({ total: rows.length, valid, errors, duplicates });
     return validated;
   }, []);
 
-  const handleImportCellChange = useCallback((rowIndex, columnKey, value) => {
-    setImportRows((prev) => {
-      const next = prev.map((r, i) =>
-        i === rowIndex ? { ...r, [columnKey]: value } : r
-      );
-      return validateImportedRows(next);
-    });
-  }, [validateImportedRows]);
+  const handleImportCellChange = useCallback(
+    (rowIndex, columnKey, value) => {
+      setImportRows((prev) => {
+        const next = prev.map((r, i) =>
+          i === rowIndex ? { ...r, [columnKey]: value } : r,
+        );
+        return validateImportedRows(next);
+      });
+    },
+    [validateImportedRows],
+  );
 
   const handleImportImageUpload = useCallback(
     (rowIndex, file, prevImageUrl) => {
@@ -616,7 +722,9 @@ const Conditions = () => {
       }
       const prevUrl = (prevImageUrl ?? "").toString().trim();
       if (prevUrl && /^https?:\/\//i.test(prevUrl)) {
-        api.post("/conditions/delete-image-by-url", { imageUrl: prevUrl }).catch(() => {});
+        api
+          .post("/conditions/delete-image-by-url", { imageUrl: prevUrl })
+          .catch(() => {});
       }
       addUploads([file], undefined, {
         onComplete: (created) => {
@@ -624,7 +732,7 @@ const Conditions = () => {
           if (m) {
             setImportRows((prev) => {
               const next = prev.map((r, i) =>
-                i === rowIndex ? { ...r, __imageUrl: m.url, Image: m.url } : r
+                i === rowIndex ? { ...r, __imageUrl: m.url, Image: m.url } : r,
               );
               return validateImportedRows(next);
             });
@@ -633,7 +741,7 @@ const Conditions = () => {
         },
       });
     },
-    [addUploads, validateImportedRows]
+    [addUploads, validateImportedRows],
   );
 
   const handleImportImageUploadCancel = () => {
@@ -644,36 +752,46 @@ const Conditions = () => {
     setImageUploadProgress(0);
   };
 
-  const handleImportImageUrlBlur = useCallback((rowIndex, columnKey, value) => {
-    const trimmed = (value ?? "").toString().trim();
-    if (!trimmed) return;
-    const normalized = normalizeImageUrl(trimmed);
-    if (normalized === trimmed) return;
-    setImportRows((prev) => {
-      const next = prev.map((r, i) =>
-        i === rowIndex ? { ...r, [columnKey]: normalized, __imageUrl: normalized } : r
-      );
-      return validateImportedRows(next);
-    });
-  }, [validateImportedRows]);
+  const handleImportImageUrlBlur = useCallback(
+    (rowIndex, columnKey, value) => {
+      const trimmed = (value ?? "").toString().trim();
+      if (!trimmed) return;
+      const normalized = normalizeImageUrl(trimmed);
+      if (normalized === trimmed) return;
+      setImportRows((prev) => {
+        const next = prev.map((r, i) =>
+          i === rowIndex
+            ? { ...r, [columnKey]: normalized, __imageUrl: normalized }
+            : r,
+        );
+        return validateImportedRows(next);
+      });
+    },
+    [validateImportedRows],
+  );
 
-  const handleRemoveImportRow = useCallback((rowIndex) => {
-    setImportRows((prev) => {
-      const next = prev.filter((_, i) => i !== rowIndex);
-      if (!next.length) {
-        setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
-        return [];
-      }
-      return validateImportedRows(next);
-    });
-  }, [validateImportedRows]);
+  const handleRemoveImportRow = useCallback(
+    (rowIndex) => {
+      setImportRows((prev) => {
+        const next = prev.filter((_, i) => i !== rowIndex);
+        if (!next.length) {
+          setImportStats({ total: 0, valid: 0, errors: 0, duplicates: 0 });
+          return [];
+        }
+        return validateImportedRows(next);
+      });
+    },
+    [validateImportedRows],
+  );
 
   const importTableColumns = useMemo(() => {
     const indexCol = {
       id: "__index",
       header: "#",
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">{Number(row.id) + 1}</span>
+        <span className="text-xs text-muted-foreground">
+          {Number(row.id) + 1}
+        </span>
       ),
       enableSorting: false,
       enableHiding: false,
@@ -691,17 +809,21 @@ const Conditions = () => {
           const rowData = row.original;
           if (isNameCol) {
             const nameVal = (rowData[col] ?? "").toString().trim();
-            const nameErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "name");
+            const nameErrorKey =
+              rowData.__errors &&
+              Object.keys(rowData.__errors).find(
+                (k) => normalizeKey(k) === "name",
+              );
             const nameError = Boolean(nameErrorKey);
             const nameFulfilled = nameVal.length > 0 && !nameError;
             const nameErrorMsg = nameErrorKey
-              ? (rowData.__errors[nameErrorKey] === "Already exists in DB"
+              ? rowData.__errors[nameErrorKey] === "Already exists in DB"
                 ? "Name already exists"
                 : rowData.__errors[nameErrorKey] === "Duplicate in file"
                   ? "Duplicate in file"
                   : rowData.__errors[nameErrorKey] === "Required"
                     ? "Field is required"
-                    : rowData.__errors[nameErrorKey])
+                    : rowData.__errors[nameErrorKey]
               : "Field is required";
             return (
               <div
@@ -723,7 +845,8 @@ const Conditions = () => {
                       const end = input.selectionEnd ?? input.value.length;
                       const v = (rowData[col] ?? "").toString();
                       const insert = e.key === "Tab" ? "\t" : " ";
-                      const newValue = v.slice(0, start) + insert + v.slice(end);
+                      const newValue =
+                        v.slice(0, start) + insert + v.slice(end);
                       handleImportCellChange(rowIndex, col, newValue);
                       requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
@@ -745,7 +868,11 @@ const Conditions = () => {
                         className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${nameFulfilled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"}`}
                         aria-hidden
                       >
-                        {nameFulfilled ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                        {nameFulfilled ? (
+                          <Check className="h-3 w-3" />
+                        ) : (
+                          <X className="h-3 w-3" />
+                        )}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-[200px]">
@@ -757,28 +884,35 @@ const Conditions = () => {
             );
           }
           if (isImageCol) {
-            const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "").toString().trim();
-            const imgErrorKey = rowData.__errors && Object.keys(rowData.__errors).find((k) => normalizeKey(k) === "image");
+            const imgVal = (rowData.__imageUrl ?? rowData[col] ?? "")
+              .toString()
+              .trim();
+            const imgErrorKey =
+              rowData.__errors &&
+              Object.keys(rowData.__errors).find(
+                (k) => normalizeKey(k) === "image",
+              );
             const imgError = Boolean(imgErrorKey);
             const imgFulfilled = !imgError;
             const imgErrorMsg = imgErrorKey
-              ? (rowData.__errors[imgErrorKey] === "Invalid URL"
+              ? rowData.__errors[imgErrorKey] === "Invalid URL"
                 ? "Invalid URL"
                 : rowData.__errors[imgErrorKey] === "Required"
                   ? "Field is required"
-                  : rowData.__errors[imgErrorKey])
+                  : rowData.__errors[imgErrorKey]
               : "Field is required";
             return (
               <div className="flex items-center gap-2 min-w-0">
                 <div className="flex flex-1 items-center gap-1.5 min-w-0">
-
                   <Input
                     value={rowData.__imageUrl ?? rowData[col] ?? ""}
                     onChange={(e) => {
                       const v = e.target.value;
                       setImportRows((prev) => {
                         const next = prev.map((r, i) =>
-                          i === rowIndex ? { ...r, [col]: v, __imageUrl: v } : r
+                          i === rowIndex
+                            ? { ...r, [col]: v, __imageUrl: v }
+                            : r,
                         );
                         return validateImportedRows(next);
                       });
@@ -801,7 +935,12 @@ const Conditions = () => {
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      if (f) handleImportImageUpload(rowIndex, f, rowData.__imageUrl ?? rowData[col] ?? "");
+                      if (f)
+                        handleImportImageUpload(
+                          rowIndex,
+                          f,
+                          rowData.__imageUrl ?? rowData[col] ?? "",
+                        );
                       e.target.value = "";
                     }}
                   />
@@ -810,21 +949,19 @@ const Conditions = () => {
                     variant="outline"
                     className="text-xs"
                     onClick={() =>
-                      document.getElementById(`import-image-cond-${rowIndex}`)?.click()
+                      document
+                        .getElementById(`import-image-cond-${rowIndex}`)
+                        ?.click()
                     }
                   >
-                    <CloudUpload
-                      className="h-4 w-4"
-                    />
+                    <CloudUpload className="h-4 w-4" />
                     Choose from device
                   </Button>
                 </div>
               </div>
             );
           }
-          return (
-            <span className="text-xs">{String(rowData[col] ?? "")}</span>
-          );
+          return <span className="text-xs">{String(rowData[col] ?? "")}</span>;
         },
       };
     });
@@ -852,7 +989,7 @@ const Conditions = () => {
               <TooltipContent side="top" className="max-w-[200px]">
                 {r.__status === "valid"
                   ? "Ready to import"
-                  : (r.__statusMessage || "Validation error")}
+                  : r.__statusMessage || "Validation error"}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -906,7 +1043,9 @@ const Conditions = () => {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.SheetNames[0];
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { defval: "" });
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], {
+        defval: "",
+      });
       if (!rows.length) {
         toast.error("File is empty ❌");
         setImportRows([]);
@@ -946,10 +1085,12 @@ const Conditions = () => {
     }
     setImportLoading(true);
     try {
-      const payload = validRows.map(({ __errors, __status, __name, __imageUrl, ...rest }) => ({
-        name: __name,
-        image: __imageUrl || rest.Image || "",
-      }));
+      const payload = validRows.map(
+        ({ __errors, __status, __name, __imageUrl, ...rest }) => ({
+          name: __name,
+          image: __imageUrl || rest.Image || "",
+        }),
+      );
       await api.post("/conditions/createbulk", payload);
       queryClient.invalidateQueries({ queryKey: ["conditions"] });
       toast.success(`Imported ${payload.length} conditions ✅`);
@@ -975,7 +1116,9 @@ const Conditions = () => {
 
   const handleViewTemplate = () => {
     setImportColumns(TEMPLATE_COLUMNS);
-    const templateRow = [Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""]))];
+    const templateRow = [
+      Object.fromEntries(TEMPLATE_COLUMNS.map((h) => [h, ""])),
+    ];
     setImportRows(validateImportedRows(templateRow));
   };
 
@@ -992,8 +1135,12 @@ const Conditions = () => {
         Name: c.name,
         Image: c.imageUrl || (c.image ? resolveImageUrl(c.image) : ""),
         "Product Count": c.productCount ?? 0,
-        "Created At": c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "",
-        "Updated At": c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : "",
+        "Created At": c.createdAt
+          ? new Date(c.createdAt).toLocaleDateString()
+          : "",
+        "Updated At": c.updatedAt
+          ? new Date(c.updatedAt).toLocaleDateString()
+          : "",
       })),
     );
     const workbook = XLSX.utils.book_new();
@@ -1018,7 +1165,8 @@ const Conditions = () => {
           if (!cond.imageUrl && !cond.imageRef && !cond.image) {
             return <span className="text-gray-400 italic">No Image</span>;
           }
-          const src = cond.imageUrl || (cond.imageRef?.url) || resolveImageUrl(cond.image);
+          const src =
+            cond.imageUrl || cond.imageRef?.url || resolveImageUrl(cond.image);
           return (
             <ConditionImageCell
               src={src}
@@ -1050,7 +1198,9 @@ const Conditions = () => {
                     role="button"
                     tabIndex={0}
                     onClick={() => handleClick(cond._id)}
-                    onKeyDown={(e) => e.key === "Enter" && handleClick(cond._id)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && handleClick(cond._id)
+                    }
                     className="w-full h-full min-h-[40px] flex items-center justify-center font-medium text-blue-600 hover:underline cursor-pointer"
                   >
                     {cond.productCount ?? 0}
@@ -1134,7 +1284,7 @@ const Conditions = () => {
         },
       },
     ],
-    [openImageModal, handleClick, handleEdit, confirmDelete]
+    [openImageModal, handleClick, handleEdit, confirmDelete],
   );
 
   return (
@@ -1171,7 +1321,9 @@ const Conditions = () => {
                       <SelectContent>
                         <SelectGroup>
                           <SelectLabel>Select action</SelectLabel>
-                          <SelectItem value="bulk-delete">Bulk delete</SelectItem>
+                          <SelectItem value="bulk-delete">
+                            Bulk delete
+                          </SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </UiSelect>
@@ -1196,7 +1348,8 @@ const Conditions = () => {
                           <div>
                             <DrawerTitle>Bulk Condition Import</DrawerTitle>
                             <DrawerDescription>
-                              Upload CSV or Excel file to create multiple conditions.
+                              Upload CSV or Excel file to create multiple
+                              conditions.
                             </DrawerDescription>
                           </div>
                           <DrawerClose asChild>
@@ -1224,7 +1377,8 @@ const Conditions = () => {
                               Download Template
                             </Button>
                             <p className="text-xs text-muted-foreground">
-                              Supported formats: <span className="font-medium">.csv, .xlsx</span>
+                              Supported formats:{" "}
+                              <span className="font-medium">.csv, .xlsx</span>
                             </p>
                           </div>
                           {importRows.length > 0 && (
@@ -1275,8 +1429,10 @@ const Conditions = () => {
                                 </Button>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                Valid: {importStats.valid} | Errors: {importStats.errors}
-                                {importStats.duplicates > 0 && ` | Duplicates: ${importStats.duplicates}`}
+                                Valid: {importStats.valid} | Errors:{" "}
+                                {importStats.errors}
+                                {importStats.duplicates > 0 &&
+                                  ` | Duplicates: ${importStats.duplicates}`}
                               </p>
                             </div>
                             <div className="border w-full rounded-md max-h-80 overflow-auto">
@@ -1325,7 +1481,9 @@ const Conditions = () => {
                               onClick={handleImportValidSubmit}
                               disabled={!importStats.valid || importLoading}
                             >
-                              {importLoading ? "Importing..." : "Import Valid Only"}
+                              {importLoading
+                                ? "Importing..."
+                                : "Import Valid Only"}
                             </Button>
                             <DrawerClose asChild>
                               <Button type="button" variant="ghost">
@@ -1386,7 +1544,14 @@ const Conditions = () => {
               </div>
               <div className="w-full sm:w-auto min-w-0 flex-1">
                 <UiSelect
-                  value={customItemsPerPage !== "" ? "custom" : (effectiveItemsPerPage <= 100 && [10, 20, 50, 100].includes(effectiveItemsPerPage) ? String(effectiveItemsPerPage) : "custom")}
+                  value={
+                    customItemsPerPage !== ""
+                      ? "custom"
+                      : effectiveItemsPerPage <= 100 &&
+                          [10, 20, 50, 100].includes(effectiveItemsPerPage)
+                        ? String(effectiveItemsPerPage)
+                        : "custom"
+                  }
                   onValueChange={(value) => {
                     if (value === "custom") return;
                     setItemsPerPage(Number(value));
@@ -1404,12 +1569,21 @@ const Conditions = () => {
                       <SelectItem value="50">50 per page</SelectItem>
                       <SelectItem value="100">100 per page</SelectItem>
                       <SelectItem value="custom" disabled>
-                        Custom{customItemsPerPage ? ` (${effectiveItemsPerPage})` : ""}
+                        Custom
+                        {customItemsPerPage
+                          ? ` (${effectiveItemsPerPage})`
+                          : ""}
                       </SelectItem>
                     </SelectGroup>
                     <SelectSeparator />
-                    <div className="px-2 py-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                      <p className="text-xs text-muted-foreground mb-1.5 font-medium">Custom</p>
+                    <div
+                      className="px-2 py-2"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <p className="text-xs text-muted-foreground mb-1.5 font-medium">
+                        Custom
+                      </p>
                       <CustomRowsPerPageInput
                         type="number"
                         min={1}
@@ -1433,11 +1607,20 @@ const Conditions = () => {
               data={filteredConditions}
               isLoading={conditionsLoading}
               pageSize={effectiveItemsPerPage}
+              getRowProps={(row) => ({
+                "data-highlight-target": row.original?._id,
+                className:
+                  row.original?._id === highlightedConditionId
+                    ? "search-highlight-row"
+                    : "",
+              })}
               initialPageIndex={initialPageIndex}
               onPageChange={handlePageChange}
               rowSelection={tableRowSelection}
               onRowSelectionChange={setTableRowSelection}
-              onSelectionChange={(rows) => setSelectedConditionIds(rows.map((r) => r._id))}
+              onSelectionChange={(rows) =>
+                setSelectedConditionIds(rows.map((r) => r._id))
+              }
             />
           </div>
         </div>

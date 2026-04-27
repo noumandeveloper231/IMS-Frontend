@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../utils/api";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -26,7 +26,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/UI/dialog";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/UI/tooltip";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/UI/tooltip";
+import { useSearchParams } from "react-router-dom";
 
 const PurchaseReceiveList = () => {
   const [search, setSearch] = useState("");
@@ -35,6 +41,8 @@ const PurchaseReceiveList = () => {
   const [endDate, setEndDate] = useState("");
   const [selectedReceive, setSelectedReceive] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedReceiveId, setHighlightedReceiveId] = useState(null);
 
   const { data: receivesData, isLoading } = useQuery({
     queryKey: ["purchase-receives"],
@@ -58,7 +66,9 @@ const PurchaseReceiveList = () => {
           (item.product?.title || item.title || "")
             .toLowerCase()
             .includes(searchLower) ||
-          (item.product?.sku || item.product?.asin || "").toLowerCase().includes(searchLower)
+          (item.product?.sku || item.product?.asin || "")
+            .toLowerCase()
+            .includes(searchLower),
       );
     const matchesStatus =
       statusFilter === "all" ? true : rec.status === statusFilter;
@@ -68,6 +78,33 @@ const PurchaseReceiveList = () => {
       (!endDate || receiveDate <= new Date(endDate));
     return matchesSearch && matchesStatus && matchesDate;
   });
+
+  // Handle highlight parameter from search
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (highlightId && !isLoading && receives.length > 0) {
+      const highlightedReceive = receives.find((r) => r._id === highlightId);
+      if (highlightedReceive) {
+        setHighlightedReceiveId(highlightedReceive._id);
+        requestAnimationFrame(() => {
+          const rowEl = document.querySelector(
+            `[data-highlight-target="${highlightedReceive._id}"]`,
+          );
+          rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        // Clear the highlight parameter from URL
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("highlight");
+        setSearchParams(nextParams, { replace: true });
+      }
+    }
+  }, [searchParams, isLoading, receives, setSearchParams]);
+
+  useEffect(() => {
+    if (!highlightedReceiveId) return;
+    const timer = setTimeout(() => setHighlightedReceiveId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedReceiveId]);
 
   const openDetail = (rec) => {
     setSelectedReceive(rec);
@@ -129,7 +166,7 @@ const PurchaseReceiveList = () => {
         doc.text(
           `Generated on: ${new Date().toLocaleDateString()}`,
           14,
-          doc.internal.pageSize.height - 10
+          doc.internal.pageSize.height - 10,
         );
       },
     });
@@ -176,11 +213,11 @@ const PurchaseReceiveList = () => {
   const items = selectedReceive?.items ?? [];
   const totalQty = items.reduce(
     (acc, item) => acc + (Number(item.receivedQty) || 0),
-    0
+    0,
   );
   const grandTotal = items.reduce(
     (acc, item) => acc + (Number(item.total) || 0),
-    0
+    0,
   );
 
   const listColumns = React.useMemo(
@@ -223,9 +260,7 @@ const PurchaseReceiveList = () => {
         meta: { label: "Receive Date" },
         cell: ({ row }) => {
           const rec = row.original;
-          return (
-            <span>{new Date(rec.receiveDate).toLocaleDateString()}</span>
-          );
+          return <span>{new Date(rec.receiveDate).toLocaleDateString()}</span>;
         },
       },
       {
@@ -237,10 +272,11 @@ const PurchaseReceiveList = () => {
           const isCompleted = rec.status === "completed";
           return (
             <span
-              className={`inline-flex px-2 py-1 text-xs rounded ${isCompleted
-                ? "bg-green-100 text-green-700"
-                : "bg-yellow-100 text-yellow-700"
-                }`}
+              className={`inline-flex px-2 py-1 text-xs rounded ${
+                isCompleted
+                  ? "bg-green-100 text-green-700"
+                  : "bg-yellow-100 text-yellow-700"
+              }`}
             >
               {rec.status}
             </span>
@@ -280,12 +316,9 @@ const PurchaseReceiveList = () => {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger>
-
                       <Eye className="h-4 w-4" />
                     </TooltipTrigger>
-                    <TooltipContent>
-                      View Details
-                    </TooltipContent>
+                    <TooltipContent>View Details</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </Button>
@@ -303,7 +336,7 @@ const PurchaseReceiveList = () => {
         },
       },
     ],
-    []
+    [],
   );
 
   const itemColumns = React.useMemo(
@@ -360,12 +393,9 @@ const PurchaseReceiveList = () => {
         meta: { label: "Sale Price" },
         cell: ({ row }) => {
           const item = row.original;
-          const sale =
-            item.salePrice ?? item.product?.salePrice ?? 0;
+          const sale = item.salePrice ?? item.product?.salePrice ?? 0;
           return (
-            <span className="text-center block">
-              {Number(sale).toFixed(2)}
-            </span>
+            <span className="text-center block">{Number(sale).toFixed(2)}</span>
           );
         },
       },
@@ -383,11 +413,11 @@ const PurchaseReceiveList = () => {
         },
       },
     ],
-    []
+    [],
   );
 
   return (
-      <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-white">
       <div className="mx-auto flex flex-col gap-4 sm:gap-6 bg-white p-6 sm:p-8 lg:p-10">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
           <h1 className="text-2xl font-bold text-gray-900 border-b border-gray-300 pb-2">
@@ -429,14 +459,11 @@ const PurchaseReceiveList = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectLabel>
-                    Select Status
-                  </SelectLabel>
+                  <SelectLabel>Select Status</SelectLabel>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="partially">Partially</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                 </SelectGroup>
-
               </SelectContent>
             </Select>
           </Field>
@@ -465,6 +492,13 @@ const PurchaseReceiveList = () => {
           addPagination={false}
           enableSelection={false}
           enableHeaderContextMenu={false}
+          getRowProps={(row) => ({
+            "data-highlight-target": row.original?._id,
+            className:
+              row.original?._id === highlightedReceiveId
+                ? "search-highlight-row"
+                : "",
+          })}
           // containerClassName="overflow-x-auto rounded-lg border border-gray-300"
         />
       </div>
@@ -497,10 +531,11 @@ const PurchaseReceiveList = () => {
                 <p>
                   <strong className="text-gray-900">Status:</strong>{" "}
                   <span
-                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${selectedReceive.status === "completed"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-yellow-100 text-yellow-800"
-                      }`}
+                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                      selectedReceive.status === "completed"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-yellow-100 text-yellow-800"
+                    }`}
                   >
                     {selectedReceive.status}
                   </span>
@@ -509,14 +544,14 @@ const PurchaseReceiveList = () => {
 
               <h3 className="text-lg font-semibold mb-2">Items</h3>
               {/* <div className="overflow-y-auto max-h-[50vh] border rounded-lg border-gray-300"> */}
-                <DataTable
-                  columns={itemColumns}
-                  data={items}
-                  addPagination={false}
-                  enableSelection={false}
-                  enableHeaderContextMenu={false}
-                  containerClassName="flex flex-col overflow-hidden border rounded-lg border-gray-300 bg-background min-h-[200px] max-h-[320px]"
-                />
+              <DataTable
+                columns={itemColumns}
+                data={items}
+                addPagination={false}
+                enableSelection={false}
+                enableHeaderContextMenu={false}
+                containerClassName="flex flex-col overflow-hidden border rounded-lg border-gray-300 bg-background min-h-[200px] max-h-[320px]"
+              />
               {/* </div> */}
 
               <div className="mt-4 pt-4 border-t border-gray-300 flex flex-col items-end space-y-1">

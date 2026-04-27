@@ -1,32 +1,103 @@
-import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X, ZoomIn, ZoomOut, Download, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/UI/button";
+import { Download, ZoomIn, ZoomOut, X, Loader2 } from "lucide-react";
 import { useImageModal } from "@/context/ImageModalContext";
 import api from "@/utils/api";
 import { toast } from "sonner";
-
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 4;
-const ZOOM_STEP = 0.25;
-const SCROLL_ZOOM_STEP = 0.1;
+import { checkImage } from "@/utils/imageUtils";
 
 const isCloudinaryUrl = (url) =>
   typeof url === "string" && /^https:\/\/res\.cloudinary\.com\//i.test(url);
 
 export function ImageModal() {
   const { open, setOpen, imageSrc, closeImageModal } = useImageModal();
-  const [scale, setScale] = React.useState(1);
-  const [downloading, setDownloading] = React.useState(false);
-  const imageRef = React.useRef(null);
-  const containerRef = React.useRef(null);
+  const [zoom, setZoom] = useState(70);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [imageValid, setImageValid] = useState(true);
 
-  const handleZoomIn = () => setScale((s) => Math.min(MAX_ZOOM, s + ZOOM_STEP));
-  const handleZoomOut = () => setScale((s) => Math.max(MIN_ZOOM, s - ZOOM_STEP));
+  const containerRef = useRef(null);
+  const imageRef = useRef(null);
 
+  // Handle ESC + body scroll lock
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    if (open) {
+      document.addEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  // Reset everything when modal opens or src changes
+  useEffect(() => {
+    if (open) {
+      setZoom(70);
+      setPosition({ x: 0, y: 0 });
+      setIsLoading(true);
+      setHasError(false);
+      setImageValid(true);
+
+      // Check if image is valid
+      if (imageSrc) {
+        checkImage(imageSrc).then((isValid) => {
+          setImageValid(isValid);
+          if (!isValid) {
+            setIsLoading(false);
+            setHasError(true);
+          }
+        });
+      }
+    }
+  }, [open, imageSrc]);
+
+  const onClose = () => {
+    setOpen(false);
+    closeImageModal();
+  };
+
+  // Zoom via scroll
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -15 : 15;
+    setZoom((prev) => Math.min(Math.max(prev + delta, 70), 150));
+  };
+
+  // Drag start
+  const handleMouseDown = (e) => {
+    if (zoom > 10) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    }
+  };
+
+  // Drag move
+  const handleMouseMove = (e) => {
+    if (isDragging && zoom > 10) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  // Download
   const handleDownload = async () => {
-    if (!imageSrc) return;
+    if (!imageSrc || hasError) return;
+
     if (isCloudinaryUrl(imageSrc)) {
       setDownloading(true);
       try {
@@ -64,137 +135,154 @@ export function ImageModal() {
       }
       return;
     }
+
     const link = document.createElement("a");
     link.href = imageSrc;
     link.download = imageSrc.split("/").pop() || "image";
-    link.target = "_blank";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const handleOpenChange = (next) => {
-    setOpen(next);
-    if (!next) {
-      setScale(1);
-      closeImageModal();
-    }
+  const zoomIn = () => setZoom((prev) => Math.min(prev + 15, 150));
+  const zoomOut = () => setZoom((prev) => Math.max(prev - 15, 70));
+
+  const resetZoom = () => {
+    setZoom(70);
+    setPosition({ x: 0, y: 0 });
   };
 
-  React.useEffect(() => {
-    if (open) setScale(1);
-  }, [open]);
+  if (!open) return null;
 
-  // Non-passive wheel listener so we can preventDefault and zoom instead of scroll
-  React.useEffect(() => {
-    if (!open) return;
-    let cleanup = () => {};
-    const id = requestAnimationFrame(() => {
-      const el = containerRef.current;
-      if (!el) return;
-      const onWheel = (e) => {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -SCROLL_ZOOM_STEP : SCROLL_ZOOM_STEP;
-        setScale((s) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, s + delta)));
-      };
-      el.addEventListener("wheel", onWheel, { passive: false });
-      cleanup = () => el.removeEventListener("wheel", onWheel);
-    });
-    return () => {
-      cancelAnimationFrame(id);
-      cleanup();
-    };
-  }, [open]);
-
-  if (!imageSrc) return null;
+  const showImage = imageSrc && !hasError && imageValid;
+  const showFallback = !imageSrc || hasError || !imageValid;
+  const displaySrc = showImage ? imageSrc : "/image_not_found.webp";
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
-          className={cn(
-            "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-          )}
-        />
-        <DialogPrimitive.Content
-          className={cn(
-            "fixed inset-0 z-50 flex flex-col outline-none",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out",
-            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-          )}
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={() => handleOpenChange(false)}
-        >
-          {/* Toolbar */}
-          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-3 bg-background/90 border-b border-border backdrop-blur-sm">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleZoomOut}
-                disabled={scale <= MIN_ZOOM}
-                className="h-9 w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                aria-label="Zoom out"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground min-w-16 text-center">
-                {Math.round(scale * 100)}%
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleZoomIn}
-                disabled={scale >= MAX_ZOOM}
-                className="h-9 w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                aria-label="Zoom in"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleDownload}
-                disabled={downloading}
-                className="h-9 w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                aria-label="Download"
-              >
-                {downloading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <DialogPrimitive.Close asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground opacity-90 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </DialogPrimitive.Close>
-          </div>
-
-          {/* Image area - scroll to zoom */}
-          <div
-            ref={containerRef}
-            className="flex-1 flex items-center justify-center overflow-auto p-4 pt-16 bg-black/40"
-            style={{ overscrollBehavior: "none" }}
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/90"
+      onClick={onClose}
+    >
+      {/* TOP BAR */}
+      <div
+        className="flex items-center justify-between px-4 py-2 bg-black/70"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={zoomOut}
+            className="bg-white text-black hover:bg-gray-200"
           >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+
+          <span
+            className="text-white text-sm min-w-[60px] text-center cursor-pointer"
+            onClick={resetZoom}
+          >
+            {zoom}%
+          </span>
+
+          <Button
+            size="sm"
+            onClick={zoomIn}
+            className="bg-white text-black hover:bg-gray-200"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <span className="text-white text-sm truncate max-w-[40%]">
+          {imageSrc ? "Image Preview" : "No Image"}
+        </span>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleDownload}
+            disabled={!showImage || downloading}
+            className="bg-white text-black hover:bg-gray-200"
+          >
+            {downloading ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-1" />
+            )}
+            Download
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={onClose}
+            className="bg-white text-black hover:bg-gray-200"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* IMAGE AREA */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-hidden cursor-grab"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div
+          className="w-full h-full flex items-center justify-center"
+          onWheel={handleWheel}
+        >
+          {/* LOADING */}
+          {isLoading && showImage && (
+            <div className="text-white animate-pulse text-sm">
+              Loading image...
+            </div>
+          )}
+
+          {/* IMAGE */}
+          {showImage && (
             <img
               ref={imageRef}
-              src={imageSrc}
-              alt="Full size preview"
-              className="max-w-full max-h-full object-contain select-none transition-transform duration-150 ease-out"
-              style={{ transform: `scale(${scale})` }}
+              src={displaySrc}
+              alt="Image preview"
+              onClick={(e) => e.stopPropagation()}
+              onLoad={() => setIsLoading(false)}
+              onError={() => {
+                setIsLoading(false);
+                setHasError(true);
+              }}
+              className="max-w-none transition-transform duration-100"
+              style={{
+                display: isLoading ? "none" : "block",
+                transform: `scale(${zoom / 100}) translate(${position.x / (zoom / 100)}px, ${position.y / (zoom / 100)}px)`,
+                cursor:
+                  zoom > 10 ? (isDragging ? "grabbing" : "grab") : "zoom-in",
+              }}
               draggable={false}
             />
-          </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+          )}
+
+          {/* FALLBACK */}
+          {showFallback && !isLoading && (
+            <div className="text-white text-center">
+              <p className="text-lg font-semibold">
+                {imageSrc ? "Failed to load image" : "No image available"}
+              </p>
+              <p className="text-sm opacity-70">
+                {imageSrc
+                  ? "The image URL may be broken or inaccessible."
+                  : "No image source was provided."}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

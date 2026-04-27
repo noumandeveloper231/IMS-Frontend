@@ -18,7 +18,7 @@ import {
   User,
   Smartphone,
   UsersRound,
-  Images
+  Images,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/UI/scroll-area";
@@ -43,13 +43,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/UI/avatar";
 
 const navItemClasses = (isActive, collapsed) =>
-  `w-full rounded-md text-sm font-medium transition-all ${collapsed ? "justify-center p-2" : "justify-start gap-3 px-3 py-2"
+  `w-full rounded-md text-sm font-medium transition-all ${
+    collapsed ? "justify-center p-2" : "justify-start gap-3 px-3 py-2"
   } ${isActive ? "font-semibold" : "font-normal"}`;
 
 const subItemClasses = (isActive) =>
-  `block rounded-md px-3 py-1.5 text-sm transition-colors ${isActive
-    ? "bg-[var(--app-accent,#111827)] text-[var(--app-accent-foreground,#ffffff)] hover:bg-[var(--app-accent-hover,#374151)]"
-    : "text-slate-700 hover:bg-slate-100"
+  `block rounded-md px-3 py-2 text-sm transition-colors ${
+    isActive
+      ? "bg-[var(--app-accent,#111827)] text-[var(--app-accent-foreground,#ffffff)] hover:bg-[var(--app-accent-hover,#374151)]"
+      : "text-slate-700 hover:bg-slate-100"
   }`;
 
 const SectionLabel = ({ children, collapsed }) =>
@@ -88,16 +90,41 @@ const SIDEBAR_CONFIG = [
     label: "Overview",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { to: "/reports", label: "Reports", icon: BarChart3, permission: "report.read" },
+      {
+        to: "/reports",
+        label: "Reports",
+        icon: BarChart3,
+        permission: "report.read",
+      },
     ],
   },
   {
     label: "Inventory Setup",
     items: [
-      { to: "/categories", label: "Categories", icon: Tag, permission: "category.manage" },
-      { to: "/subcategories", label: "Subcategories", icon: Layers, permission: "subcategory.manage" },
-      { to: "/brands", label: "Brands", icon: ClipboardList, permission: "brand.manage" },
-      { to: "/conditions", label: "Conditions", icon: ShoppingBasket, permission: "condition.manage" },
+      {
+        to: "/categories",
+        label: "Categories",
+        icon: Tag,
+        permission: "category.manage",
+      },
+      {
+        to: "/subcategories",
+        label: "Subcategories",
+        icon: Layers,
+        permission: "subcategory.manage",
+      },
+      {
+        to: "/brands",
+        label: "Brands",
+        icon: ClipboardList,
+        permission: "brand.manage",
+      },
+      {
+        to: "/conditions",
+        label: "Conditions",
+        icon: ShoppingBasket,
+        permission: "condition.manage",
+      },
       { to: "/gallery", label: "Gallery", icon: Images, exact: true },
       {
         key: "products",
@@ -106,9 +133,24 @@ const SIDEBAR_CONFIG = [
         activeType: "products",
         permission: "product.read",
         subItems: [
-          { to: "/products", label: "Manage Products", activeType: "manageProducts", permission: "product.read" },
-          { to: "/products/list", label: "Products list", exact: true, permission: "product.read" },
-          { to: "/products/print-labels", label: "Print labels", exact: true, permission: "product.read" },
+          {
+            to: "/products",
+            label: "Manage Products",
+            activeType: "manageProducts",
+            permission: "product.read",
+          },
+          {
+            to: "/products/list",
+            label: "Products list",
+            exact: true,
+            permission: "product.read",
+          },
+          {
+            to: "/products/print-labels",
+            label: "Print labels",
+            exact: true,
+            permission: "product.read",
+          },
         ],
       },
     ],
@@ -116,8 +158,18 @@ const SIDEBAR_CONFIG = [
   {
     label: "Sales",
     items: [
-      { to: "/sales", label: "POS", icon: ShoppingCart, permission: "order.create" },
-      { to: "/orders", label: "Orders", icon: ClipboardList, permission: "order.read" },
+      {
+        to: "/sales",
+        label: "POS",
+        icon: ShoppingCart,
+        permission: "order.create",
+      },
+      {
+        to: "/orders",
+        label: "Orders",
+        icon: ClipboardList,
+        permission: "order.read",
+      },
     ],
   },
   {
@@ -130,14 +182,29 @@ const SIDEBAR_CONFIG = [
         activeType: "purchases",
         permission: "purchase.manage",
         subItems: [
-          { to: "/vendors", label: "Vendors", exact: true, permission: "vendor.manage" },
+          {
+            to: "/vendors",
+            label: "Vendors",
+            exact: true,
+            permission: "vendor.manage",
+          },
           {
             key: "po",
             label: "PO",
             permission: "purchase.manage",
             subItems: [
-              { to: "/purchase-orders", label: "Add PO", exact: true, permission: "purchase.manage" },
-              { to: "/purchaseorderslist", label: "List of PO", exact: true, permission: "purchase.manage" },
+              {
+                to: "/purchase-orders",
+                label: "Add PO",
+                exact: true,
+                permission: "purchase.manage",
+              },
+              {
+                to: "/purchaseorderslist",
+                label: "List of PO",
+                exact: true,
+                permission: "purchase.manage",
+              },
             ],
           },
           {
@@ -145,11 +212,26 @@ const SIDEBAR_CONFIG = [
             label: "PR",
             permission: "purchase.manage",
             subItems: [
-              { to: "/purchase-receives", label: "Add PR", exact: true, permission: "purchase.manage" },
-              { to: "/purchasereceiveslist", label: "List of PR", exact: true, permission: "purchase.manage" },
+              {
+                to: "/purchase-receives",
+                label: "Add PR",
+                exact: true,
+                permission: "purchase.manage",
+              },
+              {
+                to: "/purchasereceiveslist",
+                label: "List of PR",
+                exact: true,
+                permission: "purchase.manage",
+              },
             ],
           },
-          { to: "/bills", label: "Bills", exact: true, permission: "purchase.manage" },
+          {
+            to: "/bills",
+            label: "Bills",
+            exact: true,
+            permission: "purchase.manage",
+          },
         ],
       },
     ],
@@ -157,17 +239,47 @@ const SIDEBAR_CONFIG = [
   {
     label: "People / Management",
     items: [
-      { to: "/employees", label: "Employees", icon: Users, permission: "employee.manage" },
-      { to: "/customers", label: "Customers", icon: UsersRound, permission: "customer.manage" },
-      { to: "/users", label: "User Management", icon: User, permission: "user.manage" },
-      { to: "/expenses", label: "Expenses", icon: UsersRound, permission: "expense.manage" },
-      { to: "/expensecategories", label: "Expense Categories", icon: UsersRound, permission: "expense.manage" },
+      {
+        to: "/employees",
+        label: "Employees",
+        icon: Users,
+        permission: "employee.manage",
+      },
+      {
+        to: "/customers",
+        label: "Customers",
+        icon: UsersRound,
+        permission: "customer.manage",
+      },
+      {
+        to: "/users",
+        label: "User Management",
+        icon: User,
+        permission: "user.manage",
+      },
+      {
+        to: "/expenses",
+        label: "Expenses",
+        icon: UsersRound,
+        permission: "expense.manage",
+      },
+      {
+        to: "/expensecategories",
+        label: "Expense Categories",
+        icon: UsersRound,
+        permission: "expense.manage",
+      },
     ],
   },
   {
     label: "Hardware",
     items: [
-      { to: "/connected-devices", label: "Connected Devices", icon: Smartphone, permission: "device.manage" },
+      {
+        to: "/connected-devices",
+        label: "Connected Devices",
+        icon: Smartphone,
+        permission: "device.manage",
+      },
     ],
   },
 ];
@@ -179,13 +291,17 @@ const Sidebar = ({ onCollapseToggle }) => {
   const { settings } = useSettings();
   const logoSrc = settings?.siteLogo || assets.logo;
   const siteName = settings?.siteName || "Al Ramil";
+  const profileAvatarSrc = user?.profilePicture || user?.avatar || user?.image || "";
 
   const canSee = (item) =>
-    !item.permission || (user?.permissions && user.permissions.includes(item.permission));
+    !item.permission ||
+    (user?.permissions && user.permissions.includes(item.permission));
 
   const filterItem = (item) => {
     if (item.subItems) {
-      const filteredSubs = item.subItems.map((sub) => filterItem(sub)).filter(Boolean);
+      const filteredSubs = item.subItems
+        .map((sub) => filterItem(sub))
+        .filter(Boolean);
       if (filteredSubs.length === 0 && !canSee(item)) return null;
       return { ...item, subItems: filteredSubs };
     }
@@ -194,7 +310,9 @@ const Sidebar = ({ onCollapseToggle }) => {
 
   const visibleSections = SIDEBAR_CONFIG.map((section) => {
     const filteredItems = section.items.map(filterItem).filter(Boolean);
-    return filteredItems.length > 0 ? { ...section, items: filteredItems } : null;
+    return filteredItems.length > 0
+      ? { ...section, items: filteredItems }
+      : null;
   }).filter(Boolean);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -204,7 +322,10 @@ const Sidebar = ({ onCollapseToggle }) => {
     po: false,
     pr: false,
   });
-  const [anchorRects, setAnchorRects] = useState({ products: null, purchases: null });
+  const [anchorRects, setAnchorRects] = useState({
+    products: null,
+    purchases: null,
+  });
   const anchorRefs = useRef({ products: null, purchases: null });
   const menuRefs = useRef({ products: null, purchases: null });
   const sidebarRef = useRef(null);
@@ -220,7 +341,8 @@ const Sidebar = ({ onCollapseToggle }) => {
 
   const getSubItemActive = (sub) => {
     if (sub.to) {
-      if (sub.activeType === "manageProducts") return isManageProductsActive(pathname);
+      if (sub.activeType === "manageProducts")
+        return isManageProductsActive(pathname);
       return sub.exact ? pathname === sub.to : pathname.startsWith(sub.to);
     }
     return false;
@@ -270,7 +392,12 @@ const Sidebar = ({ onCollapseToggle }) => {
           pathname.startsWith("/purchasereceiveslist/"),
       }));
     } else {
-      setOpenMenus((prev) => ({ ...prev, purchases: false, po: false, pr: false }));
+      setOpenMenus((prev) => ({
+        ...prev,
+        purchases: false,
+        po: false,
+        pr: false,
+      }));
     }
   }, [pathname]);
 
@@ -309,23 +436,6 @@ const Sidebar = ({ onCollapseToggle }) => {
     };
   }, [openMenus.products, openMenus.purchases]);
 
-  useEffect(() => {
-    if (!sidebarRef.current || typeof ResizeObserver === "undefined") return;
-    const el = sidebarRef.current;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const width = entry.contentRect.width;
-      setIsCollapsed((prev) => {
-        if (width <= 120 && !prev) return true;
-        if (width >= 180 && prev) return false;
-        return prev;
-      });
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
   // Render a single sub-item: link or nested collapsible
   const renderSubItem = (sub, parentKey, isFloating = false) => {
     if (sub.to) {
@@ -350,7 +460,9 @@ const Sidebar = ({ onCollapseToggle }) => {
         <Collapsible
           key={subKey}
           open={isOpen}
-          onOpenChange={(open) => setOpenMenus((prev) => ({ ...prev, [subKey]: open }))}
+          onOpenChange={(open) =>
+            setOpenMenus((prev) => ({ ...prev, [subKey]: open }))
+          }
         >
           <CollapsibleTrigger asChild>
             <button
@@ -364,7 +476,13 @@ const Sidebar = ({ onCollapseToggle }) => {
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className={isFloating ? "pl-2 space-y-0.5" : "ml-6 space-y-0.5 border-l border-gray-300 pl-2"}>
+            <div
+              className={
+                isFloating
+                  ? "pl-2 space-y-0.5"
+                  : "ml-6 space-y-0.5 border-l border-gray-300 pl-2"
+              }
+            >
               {sub.subItems.map((leaf) =>
                 leaf.to ? (
                   <Link
@@ -381,7 +499,7 @@ const Sidebar = ({ onCollapseToggle }) => {
                       {leaf.label}
                     </span>
                   </Link>
-                ) : null
+                ) : null,
               )}
             </div>
           </CollapsibleContent>
@@ -393,19 +511,29 @@ const Sidebar = ({ onCollapseToggle }) => {
 
   // Render sub-items block (for expanded sidebar or floating menu)
   const renderSubItemsBlock = (subItems, parentKey, isFloating = false) => (
-    <div className={isFloating ? "space-y-0.5" : "ml-6 mt-1 space-y-0.5 border-l border-[var(--app-accent-border,#d1d5db)] pl-3 mr-5"}>
+    <div
+      className={
+        isFloating
+          ? "space-y-0.5"
+          : "ml-6 mt-1 space-y-0.5 border-l border-[var(--app-accent-border,#d1d5db)] pl-3 mr-5"
+      }
+    >
       {subItems.map((sub) =>
         sub.to ? (
           <Link
             key={sub.to}
             to={sub.to}
-            onClick={() => isFloating && parentKey && setMenuOpen(parentKey, false)}
+            onClick={() =>
+              isFloating && parentKey && setMenuOpen(parentKey, false)
+            }
           >
-            <span className={subItemClasses(getSubItemActive(sub))}>{sub.label}</span>
+            <span className={subItemClasses(getSubItemActive(sub))}>
+              {sub.label}
+            </span>
           </Link>
         ) : (
           renderSubItem(sub, parentKey, isFloating)
-        )
+        ),
       )}
     </div>
   );
@@ -433,23 +561,29 @@ const Sidebar = ({ onCollapseToggle }) => {
   return (
     <aside
       ref={sidebarRef}
-      className={`hidden sm:flex h-screen flex-col border-r border-gray-200 bg-white transition-[width] duration-200`}
+      className={`hidden sm:flex h-screen flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out ${isCollapsed ? "w-20" : "w-64"}`}
     >
       <div
         className={`flex items-center border-b border-gray-100 shrink-0 ${isCollapsed ? "justify-center px-0 py-4" : "gap-3 px-4 py-4"}`}
       >
         <img src={logoSrc} alt="logo" className="w-7 h-7 shrink-0" />
         {!isCollapsed && (
-          <h1 className="text-xl font-semibold truncate">{siteName}</h1>
+          <h1 className="text-xl font-semibold truncate transition-opacity duration-300">
+            {siteName}
+          </h1>
         )}
       </div>
 
-      <ScrollArea className={`flex-1 py-4 overflow-y-auto no-scrollbar min-h-0 ${isCollapsed ? "px-2" : "px-3"}`}>
+      <ScrollArea
+        className={`flex-1 py-4 overflow-y-auto no-scrollbar min-h-0 ${isCollapsed ? "px-2" : "px-3"}`}
+      >
         <nav className="space-y-1">
           <div className="font-medium space-y-1">
             {visibleSections.map((section) => (
               <React.Fragment key={section.label}>
-                <SectionLabel collapsed={isCollapsed}>{section.label}</SectionLabel>
+                <SectionLabel collapsed={isCollapsed}>
+                  {section.label}
+                </SectionLabel>
                 {section.items.map((item) => {
                   // Link item
                   if (item.to) {
@@ -463,7 +597,11 @@ const Sidebar = ({ onCollapseToggle }) => {
                           title={isCollapsed ? item.label : undefined}
                         >
                           {Icon && <Icon className="h-4 w-4 shrink-0" />}
-                          {!isCollapsed && <span>{item.label}</span>}
+                          {!isCollapsed && (
+                            <span className="transition-opacity duration-300">
+                              {item.label}
+                            </span>
+                          )}
                         </Button>
                       </Link>
                     );
@@ -475,7 +613,10 @@ const Sidebar = ({ onCollapseToggle }) => {
                     const Icon = item.icon;
                     const isOpen = openMenus[key];
                     return (
-                      <div key={key} ref={(el) => (anchorRefs.current[key] = el)}>
+                      <div
+                        key={key}
+                        ref={(el) => (anchorRefs.current[key] = el)}
+                      >
                         {isCollapsed ? (
                           <Button
                             variant={active ? "default" : "ghost"}
@@ -486,7 +627,10 @@ const Sidebar = ({ onCollapseToggle }) => {
                             {Icon && <Icon className="h-4 w-4 shrink-0" />}
                           </Button>
                         ) : (
-                          <Collapsible open={isOpen} onOpenChange={(v) => setMenuOpen(key, v)}>
+                          <Collapsible
+                            open={isOpen}
+                            onOpenChange={(v) => setMenuOpen(key, v)}
+                          >
                             <CollapsibleTrigger asChild>
                               <Button
                                 variant={active ? "default" : "ghost"}
@@ -494,8 +638,12 @@ const Sidebar = ({ onCollapseToggle }) => {
                               >
                                 <div className="flex items-center gap-3 justify-between w-full">
                                   <span className="flex items-center gap-3">
-                                    {Icon && <Icon className="h-4 w-4 shrink-0" />}
-                                    <span>{item.label}</span>
+                                    {Icon && (
+                                      <Icon className="h-4 w-4 shrink-0" />
+                                    )}
+                                    <span className="transition-opacity duration-300">
+                                      {item.label}
+                                    </span>
                                   </span>
                                   <ChevronRight
                                     className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
@@ -518,19 +666,22 @@ const Sidebar = ({ onCollapseToggle }) => {
 
             {/* Collapsed floating menus */}
             {isCollapsed &&
-              visibleSections.flatMap((section) => section.items)
+              visibleSections
+                .flatMap((section) => section.items)
                 .filter((item) => item.subItems && item.key)
                 .map((item) =>
                   openMenus[item.key] && anchorRects[item.key]
                     ? createPortal(renderFloatingMenu(item), document.body)
-                    : null
+                    : null,
                 )}
           </div>
         </nav>
       </ScrollArea>
 
       {/* Footer: collapse + user profile dropdown */}
-      <div className={`border-t border-gray-200 shrink-0 ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
+      <div
+        className={`border-t border-gray-200 shrink-0 ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}
+      >
         <div className="space-y-1">
           <Button
             variant="ghost"
@@ -550,7 +701,9 @@ const Sidebar = ({ onCollapseToggle }) => {
             ) : (
               <>
                 <PanelLeftClose className="h-4 w-4 shrink-0" />
-                <span>Collapse</span>
+                <span className="transition-opacity duration-300">
+                  Collapse
+                </span>
               </>
             )}
           </Button>
@@ -563,13 +716,15 @@ const Sidebar = ({ onCollapseToggle }) => {
                 title={isCollapsed ? "Account" : undefined}
               >
                 <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarImage src={user?.avatar || user?.image} alt="" />
+                  <AvatarImage src={profileAvatarSrc} alt="" />
                   <AvatarFallback className="bg-gray-200 text-gray-600 text-xs">
-                    {(user?.name || user?.username || "A").slice(0, 2).toUpperCase()}
+                    {(user?.name || user?.username || "A")
+                      .slice(0, 2)
+                      .toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 {!isCollapsed && (
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 transition-opacity duration-300">
                     <p className="text-sm font-medium text-slate-800 truncate">
                       {user?.name || user?.username || "Account"}
                     </p>
@@ -583,14 +738,20 @@ const Sidebar = ({ onCollapseToggle }) => {
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="right" className="w-56 border border-gray-200 rounded-xl! shadow-lg">
+            <DropdownMenuContent
+              align="end"
+              side="right"
+              className="w-56 border border-gray-200 rounded-xl! shadow-lg"
+            >
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <Avatar className="h-9 w-9 shrink-0">
-                      <AvatarImage src={user?.avatar || user?.image} alt="" />
+                      <AvatarImage src={profileAvatarSrc} alt="" />
                       <AvatarFallback className="bg-gray-200 text-gray-600 text-xs">
-                        {(user?.name || user?.username || "A").slice(0, 2).toUpperCase()}
+                        {(user?.name || user?.username || "A")
+                          .slice(0, 2)
+                          .toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col overflow-hidden">
