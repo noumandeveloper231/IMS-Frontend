@@ -160,11 +160,11 @@ const PurchaseReceive = () => {
       Number(item.orderedQty || 0) - alreadyReceived
     );
     const matchesSearch =
-      (item.product.title || "")
+      (item.product?.title || item.title || "")
         .toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
-      (item.product.asin || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(item.product.purchasePrice || "").includes(searchQuery) ||
+      (item.product?.asin || item.asin || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(item.product?.purchasePrice || item.purchasePrice || "").includes(searchQuery) ||
       String(remaining).includes(searchQuery);
     const matchesFilter =
       filterType === "all" ||
@@ -988,6 +988,7 @@ const PurchaseReceive = () => {
                 }
                 return {};
               }}
+              fixedHeight={false}
               addPagination={false}
               enableSelection={false}
               enableHeaderContextMenu={false}
