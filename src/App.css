@@ -1,0 +1,157 @@
+:root {
+  --primary: black;
+  --secondary: #3f37c9;
+  --success: #4cc9f0;
+  --light: #f8f9fa;
+  --dark: #212529;
+  --app-accent: #111827;
+  --app-accent-hover: #374151;
+  --app-accent-light: #6b7280;
+  --app-accent-border: #9ca3af;
+  --app-accent-foreground: #ffffff;
+}
+
+body {
+  background-color: #f5f7fb;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  background: linear-gradient(90deg, var(--app-accent-light, #6b7280), var(--app-accent, #111827));
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+}
+
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0px;
+  width: 100px;
+  height: 100%;
+  box-shadow:
+    0 0 10px var(--app-accent, #111827),
+    0 0 5px var(--app-accent, #111827);
+  opacity: 1;
+  transform: rotate(3deg) translate(0px, -4px);
+}
+
+.sidebar {
+  min-height: 100vh;
+  background: var(--primary);
+  color: white;
+  transition: all 0.3s;
+}
+
+.sidebar .nav-link {
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 5px;
+  margin: 8px 0;
+  padding: 12px 15px;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.sidebar .nav-link i {
+  margin-right: 10px;
+}
+
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.dashboard-card {
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-5px);
+}
+
+.stats-icon {
+  font-size: 2.5rem;
+  opacity: 0.7;
+}
+
+.product-img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.low-stock {
+  background-color: #fff5f5;
+}
+
+.out-of-stock {
+  background-color: #fff5f5;
+  border-left: 4px solid #e55353;
+}
+
+.action-btn {
+  padding: 5px 10px;
+  margin: 0 3px;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    min-height: auto;
+  }
+}
+
+.loader-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.loader {
+  width: 50px;
+  aspect-ratio: 1;
+  display: grid;
+  border: 4px solid transparent;
+  border-radius: 50%;
+  border-color: #ccc transparent;
+  animation: l16 1s infinite linear;
+}
+
+.loader::before,
+.loader::after {
+  content: "";
+  grid-area: 1 / 1;
+  margin: 2px;
+  border: inherit;
+  border-radius: 50%;
+}
+
+.loader::before {
+  border-color: var(--app-accent,#111827) transparent;
+  animation: l16 0.5s infinite linear reverse;
+}
+
+.loader::after {
+  margin: 8px;
+}
+
+@keyframes l16 {
+  100% {
+      transform: rotate(1turn);
+  }
+}
